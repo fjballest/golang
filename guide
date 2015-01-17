@@ -7,6 +7,8 @@ version.
 To see where you are
 	git branch
 	git status | sed 's/modified:/git add/'
+To see branches and tags at git.lsub.org
+	git branch -r
 
 /usr/local/go (or any other local git cloned for a user)
 
