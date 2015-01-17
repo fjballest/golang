@@ -38,7 +38,7 @@ static void fixlbrace(int);
 
 %token	<val>	LLITERAL
 %token	<i>	LASOP LCOLAS
-%token	<sym>	LBREAK LCASE LCHAN LCONST LCONTINUE LDDD
+%token	<sym>	LBREAK LCASE LCHAN LCONST LCONTINUE LDOSELECT LDDD
 %token	<sym>	LDEFAULT LDEFER LELSE LFALL LFOR LFUNC LGO LGOTO
 %token	<sym>	LIF LIMPORT LINTERFACE LMAP LNAME
 %token	<sym>	LPACKAGE LRANGE LRETURN LSELECT LSTRUCT LSWITCH
@@ -63,7 +63,7 @@ static void fixlbrace(int);
 %type	<node>	new_name dcl_name oexpr typedclname
 %type	<node>	onew_name
 %type	<node>	osimple_stmt pexpr pexpr_no_paren
-%type	<node>	pseudocall range_stmt select_stmt
+%type	<node>	pseudocall range_stmt select_stmt doselect_stmt doselect_hdr
 %type	<node>	simple_stmt
 %type	<node>	switch_stmt uexpr
 %type	<node>	xfndcl typedcl start_complit
@@ -775,6 +775,51 @@ select_stmt:
 		$$->lineno = typesw->lineno;
 		$$->list = $4;
 		typesw = typesw->left;
+	}
+
+doselect_hdr:
+	osimple_stmt ';' osimple_stmt ';' osimple_stmt
+	{
+		// init ; test ; incr
+		if($5 != N && $5->colas != 0)
+			yyerror("cannot declare in the doselect-increment");
+		$$ = nod(OFOR, N, N);
+		if($1 != N)
+			$$->ninit = list1($1);
+		$$->ntest = $3;
+		$$->nincr = $5;
+	}
+|	osimple_stmt
+	{
+		// normal test
+		$$ = nod(OFOR, N, N);
+		$$->ntest = $1;
+	}
+
+doselect_stmt:
+	LDOSELECT
+	{
+		// for
+		markdcl();	
+	}
+	doselect_hdr
+	{
+		// select
+		typesw = nod(OXXX, typesw, N);
+	}
+	LBODY caseblock_list '}'
+	{
+		// select
+		Node *nd;
+		nd = nod(ODOSELECT, N, N);
+		nd->lineno = typesw->lineno;
+		nd->list = $6;
+		typesw = typesw->left;
+
+		// for
+		$$ = $3;
+		$$->nbody = list1(nd);
+		popdcl();
 	}
 
 /*
@@ -1718,6 +1763,7 @@ non_dcl_stmt:
 |	for_stmt
 |	switch_stmt
 |	select_stmt
+|	doselect_stmt
 |	if_stmt
 |	labelname ':'
 	{

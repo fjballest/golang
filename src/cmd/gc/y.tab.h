@@ -47,47 +47,48 @@
      LCHAN = 263,
      LCONST = 264,
      LCONTINUE = 265,
-     LDDD = 266,
-     LDEFAULT = 267,
-     LDEFER = 268,
-     LELSE = 269,
-     LFALL = 270,
-     LFOR = 271,
-     LFUNC = 272,
-     LGO = 273,
-     LGOTO = 274,
-     LIF = 275,
-     LIMPORT = 276,
-     LINTERFACE = 277,
-     LMAP = 278,
-     LNAME = 279,
-     LPACKAGE = 280,
-     LRANGE = 281,
-     LRETURN = 282,
-     LSELECT = 283,
-     LSTRUCT = 284,
-     LSWITCH = 285,
-     LTYPE = 286,
-     LVAR = 287,
-     LANDAND = 288,
-     LANDNOT = 289,
-     LBODY = 290,
-     LCOMM = 291,
-     LDEC = 292,
-     LEQ = 293,
-     LGE = 294,
-     LGT = 295,
-     LIGNORE = 296,
-     LINC = 297,
-     LLE = 298,
-     LLSH = 299,
-     LLT = 300,
-     LNE = 301,
-     LOROR = 302,
-     LRSH = 303,
-     NotPackage = 304,
-     NotParen = 305,
-     PreferToRightParen = 306
+     LDOSELECT = 266,
+     LDDD = 267,
+     LDEFAULT = 268,
+     LDEFER = 269,
+     LELSE = 270,
+     LFALL = 271,
+     LFOR = 272,
+     LFUNC = 273,
+     LGO = 274,
+     LGOTO = 275,
+     LIF = 276,
+     LIMPORT = 277,
+     LINTERFACE = 278,
+     LMAP = 279,
+     LNAME = 280,
+     LPACKAGE = 281,
+     LRANGE = 282,
+     LRETURN = 283,
+     LSELECT = 284,
+     LSTRUCT = 285,
+     LSWITCH = 286,
+     LTYPE = 287,
+     LVAR = 288,
+     LANDAND = 289,
+     LANDNOT = 290,
+     LBODY = 291,
+     LCOMM = 292,
+     LDEC = 293,
+     LEQ = 294,
+     LGE = 295,
+     LGT = 296,
+     LIGNORE = 297,
+     LINC = 298,
+     LLE = 299,
+     LLSH = 300,
+     LLT = 301,
+     LNE = 302,
+     LOROR = 303,
+     LRSH = 304,
+     NotPackage = 305,
+     NotParen = 306,
+     PreferToRightParen = 307
    };
 #endif
 /* Tokens.  */
@@ -99,47 +100,48 @@
 #define LCHAN 263
 #define LCONST 264
 #define LCONTINUE 265
-#define LDDD 266
-#define LDEFAULT 267
-#define LDEFER 268
-#define LELSE 269
-#define LFALL 270
-#define LFOR 271
-#define LFUNC 272
-#define LGO 273
-#define LGOTO 274
-#define LIF 275
-#define LIMPORT 276
-#define LINTERFACE 277
-#define LMAP 278
-#define LNAME 279
-#define LPACKAGE 280
-#define LRANGE 281
-#define LRETURN 282
-#define LSELECT 283
-#define LSTRUCT 284
-#define LSWITCH 285
-#define LTYPE 286
-#define LVAR 287
-#define LANDAND 288
-#define LANDNOT 289
-#define LBODY 290
-#define LCOMM 291
-#define LDEC 292
-#define LEQ 293
-#define LGE 294
-#define LGT 295
-#define LIGNORE 296
-#define LINC 297
-#define LLE 298
-#define LLSH 299
-#define LLT 300
-#define LNE 301
-#define LOROR 302
-#define LRSH 303
-#define NotPackage 304
-#define NotParen 305
-#define PreferToRightParen 306
+#define LDOSELECT 266
+#define LDDD 267
+#define LDEFAULT 268
+#define LDEFER 269
+#define LELSE 270
+#define LFALL 271
+#define LFOR 272
+#define LFUNC 273
+#define LGO 274
+#define LGOTO 275
+#define LIF 276
+#define LIMPORT 277
+#define LINTERFACE 278
+#define LMAP 279
+#define LNAME 280
+#define LPACKAGE 281
+#define LRANGE 282
+#define LRETURN 283
+#define LSELECT 284
+#define LSTRUCT 285
+#define LSWITCH 286
+#define LTYPE 287
+#define LVAR 288
+#define LANDAND 289
+#define LANDNOT 290
+#define LBODY 291
+#define LCOMM 292
+#define LDEC 293
+#define LEQ 294
+#define LGE 295
+#define LGT 296
+#define LIGNORE 297
+#define LINC 298
+#define LLE 299
+#define LLSH 300
+#define LLT 301
+#define LNE 302
+#define LOROR 303
+#define LRSH 304
+#define NotPackage 305
+#define NotParen 306
+#define PreferToRightParen 307
 
 
 
@@ -156,7 +158,7 @@ typedef union YYSTYPE
 	int		i;
 }
 /* Line 1529 of yacc.c.  */
-#line 160 "y.tab.h"
+#line 162 "y.tab.h"
 	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1

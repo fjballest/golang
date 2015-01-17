@@ -1722,6 +1722,7 @@ reswitch:
 		ok |= Etop;
 		goto ret;
 
+	case ODOSELECT:
 	case OSELECT:
 		ok |= Etop;
 		typecheckselect(n);
@@ -3460,6 +3461,7 @@ markbreak(Node *n, Node *implicit)
 	case OFOR:
 	case OSWITCH:
 	case OTYPESW:
+	case ODOSELECT:
 	case OSELECT:
 	case ORANGE:
 		implicit = n;
@@ -3493,6 +3495,7 @@ markbreaklist(NodeList *l, Node *implicit)
 			case OSWITCH:
 			case OTYPESW:
 			case OSELECT:
+			case ODOSELECT:
 			case ORANGE:
 				lab = mal(sizeof *lab);
 				lab->def = n->defn;
@@ -3553,6 +3556,7 @@ isterminating(NodeList *l, int top)
 	case OIF:
 		return isterminating(n->nbody, 0) && isterminating(n->nelse, 0);
 
+	case ODOSELECT:
 	case OSWITCH:
 	case OTYPESW:
 	case OSELECT:
@@ -3565,7 +3569,7 @@ isterminating(NodeList *l, int top)
 			if(l->n->list == nil) // default
 				def = 1;
 		}
-		if(n->op != OSELECT && !def)
+		if(n->op != OSELECT && n->op != ODOSELECT && !def)
 			return 0;
 		return 1;
 	}

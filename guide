@@ -6,7 +6,7 @@ version.
 
 To see where you are
 	git branch
-	git status
+	git status | sed 's/modified:/git add/'
 
 /usr/local/go (or any other local git cloned for a user)
 
@@ -30,6 +30,11 @@ To see where you are
 		git commit -m 'initial change for doselect'
 		git push origin doselect
 
+	Then, others might
+		git pull origin doselect
+		git checkout doselect
+		.. take a look or work and then get back to our std. branch
+		git checkout lsub
 
 /zx/sys/golang
 	created as a clone of git.lsub.org with a remote added for google.

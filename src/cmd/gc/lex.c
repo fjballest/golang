@@ -1333,6 +1333,7 @@ talph:
 	case LIF:
 	case LSWITCH:
 	case LSELECT:
+	case LDOSELECT:
 		loophack = 1;	// see comment about loophack above
 		break;
 	}
@@ -1888,6 +1889,7 @@ static	struct
 	{"const",	LCONST,		Txxx,		OXXX},
 	{"continue",	LCONTINUE,	Txxx,		OXXX},
 	{"default",	LDEFAULT,	Txxx,		OXXX},
+	{"doselect",	LDOSELECT,	Txxx,		OXXX},
 	{"else",		LELSE,		Txxx,		OXXX},
 	{"defer",	LDEFER,		Txxx,		OXXX},
 	{"fallthrough",	LFALL,		Txxx,		OXXX},
@@ -2192,6 +2194,7 @@ struct
 	{LDEC,		"DEC"},
 	{LDEFAULT,	"DEFAULT"},
 	{LDEFER,		"DEFER"},
+	{LDOSELECT,	"DOSELECT"},
 	{LELSE,		"ELSE"},
 	{LEQ,		"EQ"},
 	{LFALL,		"FALL"},
@@ -2255,6 +2258,7 @@ struct
 	{"LDDD",	"..."},
 	{"LDEFAULT",	"default"},
 	{"LDEFER",	"defer"},
+	{"LDOSELECT",	"doselect"},
 	{"LELSE",	"else"},
 	{"LFALL",	"fallthrough"},
 	{"LFOR",	"for"},

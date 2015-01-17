@@ -772,6 +772,7 @@ orderstmt(Node *n, Order *order)
 		break;
 	
 	case OSELECT:
+	case ODOSELECT:	// doselect will not be seen actually; the parser rewrites it.
 		// Special: clean case temporaries in each block entry.
 		// Select must enter one of its blocks, so there is no
 		// need for a cleaning at the end.

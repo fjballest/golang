@@ -313,6 +313,7 @@ walkstmt(Node **np)
 	case ORETJMP:
 		break;
 
+	case ODOSELECT:
 	case OSELECT:
 		walkselect(n);
 		break;

@@ -193,6 +193,7 @@ ishairy(Node *n, int *budget)
 	case ORANGE:
 	case OFOR:
 	case OSELECT:
+	case ODOSELECT:
 	case OSWITCH:
 	case OPROC:
 	case ODEFER:

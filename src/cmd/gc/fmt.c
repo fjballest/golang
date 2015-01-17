@@ -130,6 +130,7 @@ goopnames[] =
 	[ODELETE]	= "delete",
 	[ODEFER]	= "defer",
 	[ODIV]		= "/",
+	[ODOSELECT]	= "doselect",
 	[OEQ]		= "==",
 	[OFALL]		= "fallthrough",
 	[OFOR]		= "for",
@@ -895,6 +896,7 @@ stmtfmt(Fmt *f, Node *n)
 		fmtprint(f, "for %,H = range %N { %H }", n->list, n->right, n->nbody);
 		break;
 
+	case ODOSELECT:
 	case OSELECT:
 	case OSWITCH:
 		if(fmtmode == FErr) {
@@ -1051,6 +1053,7 @@ static int opprec[] = {
 	[ODCL] = -1,
 	[ODCLFIELD] = -1,
 	[ODEFER] = -1,
+	[ODOSELECT] = -1,
 	[OEMPTY] = -1,
 	[OFALL] = -1,
 	[OFOR] = -1,

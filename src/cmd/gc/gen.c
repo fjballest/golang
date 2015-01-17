@@ -316,6 +316,7 @@ gen(Node *n)
 			case OFOR:
 			case OSWITCH:
 			case OSELECT:
+			case ODOSELECT:
 				// so stmtlabel can find the label
 				n->defn->sym = lab->sym;
 			}
@@ -436,6 +437,26 @@ gen(Node *n)
 			lab->breakpc = P;
 		break;
 
+	case ODOSELECT:
+		// TODO: 
+		// Like a select, but does not redefine the user break pc, so that
+		// breaks and continues refer to the enclosing for.
+		/*
+		sbreak = breakpc;
+		p1 = gjmp(P);			//		goto test
+		breakpc = gjmp(P);			// break:	goto done
+
+		// define break label
+		if((lab = stmtlabel(n)) != L)
+			lab->breakpc = breakpc;
+
+		patch(p1, pc);			// test:
+		genlist(n->nbody);			//		select() body
+		patch(breakpc, pc);			// done:
+		breakpc = sbreak;
+		if(lab != L)
+			lab->breakpc = P;
+		*/
 	case OSELECT:
 		sbreak = breakpc;
 		p1 = gjmp(P);			//		goto test

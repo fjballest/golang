@@ -552,6 +552,7 @@ enum
 	OXCASE,	// case, before verification.
 	OCONTINUE,	// continue
 	ODEFER,	// defer
+	ODOSELECT,	// doselect
 	OEMPTY,	// no-op
 	OFALL,	// fallthrough, after being verified by swt.c's casebody.
 	OXFALL,	// fallthrough, before verification.
