@@ -1,0 +1,56 @@
+#*** typical commands ***
+
+git status
+
+# force a checkout of a version
+git checkout -f fd18fff3efacbb6af603e39fd0ea29ce231145c0
+
+#*** update after google makes changes ***
+
+# pull from google
+# 1. go to the master branch
+git checkout master
+
+# 2. pull google changes
+git pull -v 
+
+# 3. checkout the right go version and take a look
+git checkout go1.4.1
+
+# 4. switch back to the lsub branch
+git checkout lsub
+
+# 5. merge changes from the google go tag to the lsub branch
+
+# 3. push into lsub branch (if it's ok and does not require hand editions)
+git push -v lsub 
+
+# 4. 
+
+# 
+git branch
+
+
+
+git checkout  lsub 
+git pull -v origin master
+go1.4.1
+
+# checkout the master branch (golang's) or the lsub branch (lsub go)
+git checkout lsub
+git checkout master
+
+
+git remote -v
+
+git commit
+
+# see branches and remotes
+git branch -v
+git remote
+
+#*** initialize all this and create a branch for lsub ***
+
+git branch -v
+git remote set-url --push origin no-push
+git push --set-upstream lsub lsub
