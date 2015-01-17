@@ -1,0 +1,70 @@
+This is a description of the git setup and commands to use
+at any of the gits we might have.
+
+In short, we all work in the lsub branch, and keep the master branch for google
+version.
+
+/usr/local/go (or any other local git cloned for a user)
+
+	Create your clone using:
+		cd /usr/local/go
+		git clone git@git.lsub.org:Public/git/golang.git go
+	Switch to the lsub branch and create it to track the one at git.lsub.org:
+		git checkout lsub
+
+	Now you have and *are* in the lsub branch. And you can use
+		git pull -v
+		git status
+		git add -vv --all .
+		git commit  -m 'cmd fixes and adds'
+		git push -v
+
+
+/zx/sys/golang
+	created as a clone of git.lsub.org with a remote added for google.
+		git clone git@git.lsub.org:Public/git/golang.git golang
+		git remote add upstream https://go.googlesource.com/go
+
+	has the usual master branch and a new lsub branch added using
+		git checkout -b lsub	# create the local lsub branch here
+		git push origin lsub	# push the lsub branch to git.lsub.org
+
+	See which branches are, (current flagged with *):
+		git branch
+	should show:
+		* lsub
+ 		 master
+
+	the idea is that master is to be kept as in google, and lsub with our version.
+
+
+	To fetch changes from google, change to the master branch
+		git checkout master
+	pull changes from google
+		git fetch upstream
+	merge changes from upstream's master
+		git merge upstream/master
+	should be no conflicts, because we don't work in the master branch
+	now push to git.lsub.org
+		git push origin master
+
+
+	To merge google changes in the lsub branch:
+		git checkout lsub
+		git merge upstream/master
+
+	have fun with conflicts, you might just
+		git checkout origin/master file
+	or
+		git checkout upstream/master file
+	to opt for the origin or the upstream version of the file
+
+	Push resulting changes to lsub's master
+		git push origin lsub
+
+git.lsub.org
+
+	created as a google fork using:
+		git clone -bare https://go.googlesource.com/go golang.git
+	keeps a lsub branch for our version
+
