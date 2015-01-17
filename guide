@@ -4,6 +4,10 @@ at any of the gits we might have.
 In short, we all work in the lsub branch, and keep the master branch for google
 version.
 
+To see where you are
+	git branch
+	git status
+
 /usr/local/go (or any other local git cloned for a user)
 
 	Create your clone using:
@@ -26,7 +30,7 @@ version.
 		git remote add upstream https://go.googlesource.com/go
 
 	has the usual master branch and a new lsub branch added using
-		git checkout -b lsub	# create the local lsub branch here
+		git checkout -b lsub	go1.4.1 # create the local lsub branch here, for go 1.4.1
 		git push origin lsub	# push the lsub branch to git.lsub.org
 
 	See which branches are, (current flagged with *):
