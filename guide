@@ -1,55 +1,40 @@
-The golang.git repo at git.lsub is a 
+SHARED REPO AT /zx/sys/golang
+
+The golang.git repo at git@git was created as a google fork:
 	git clone -bare https://go.googlesource.com/go
-
-To create a clone for you, you should:
+The /zx clone is
 	git clone git@git.lsub.org:Public/git/golang.git golang
-
-The clone at /zx/sys/golang added google as a remote to pull go changes
 	git remote add upstream https://go.googlesource.com/go
 
-The following refers to working at /zx/sys/golang:
+Next commands show how to work in it:
 
-ech changes from lsub git
-	git pull origin master
-pull changes from google and take a look or start to merge them
-	git fetch upstream master
+Fetch changes from google
+	git fetch upstream
 
-start a change, always creating a branch for it:
-	git checkout -b mychange
+make sure you are in the local master branch
+	git checkout master
 
+merge changes from upstream's master
+	git merge upstream/master
 
-To fech in /zx/sys
-There are two branches: master and lsub.
-	- master: this should be kept untoched.
-	This is meant to be the same code pulled from google.
-	- lsub: this is the lsub version of the go compiler
+have fun with conflicts, you might just
+	git checkout origin/master file
+or
+	git checkout upstream/master file
+to opt for the origin or the upstream version of the file
 
-See the branch you are in (flagged with a star):
-	git branch
+Push resulting changes to lsub's master
+	git push
 
-Pull changes:
-	git fetch origin master	# fetch new google changes
-	git fetch origin lsub		# fetch new lsub changes
+LOCAL-REPOS FOR USERS
 
-Make changes:
-git checkout -b my-branch	# create a branch for you
+You might just
+	git clone git@git.lsub.org:Public/git/golang.git golang
 
-# repeat as many times as you want (all of them are in your branch)
-git add .
-git commit -m msg
-git push origin my-branch
+and use
 
-# Now merge your hanges with master
-git pull origin master
-git checkout master
-git merge my-branch
-
-# and push the changes back
-git push
-
-# you might delete the tag for your branch
-git branch -d guide
-
-# force a checkout of a version
-git checkout -f fd18fff3efacbb6af603e39fd0ea29ce231145c0
-
+git pull -v
+git status
+git add -vv --all .
+git commit  -m 'cmd fixes and adds'
+git push -v
