@@ -1,4 +1,22 @@
-#*** typical commands ***
+The golang.git repo at git.lsub is a 
+	git clone -bare https://go.googlesource.com/go
+
+To create a clone for you, you should:
+	git clone git@git.lsub.org:Public/git/golang.git golang
+
+The clone at /zx/sys/golang added google as a remote to pull go changes
+	git remote add upstream https://go.googlesource.com/go
+You may ignore this.
+
+There are two branches: master and lsub.
+	- master: this should be kept untoched.
+	This is meant to be the same code pulled from google.
+	- lsub: this is the lsub version of the go compiler
+
+Pull changes:
+	git fetch origin master	# fetch new google changes
+	git fetch origin lsub		# fetch new lsub changes
+
 
 git status
 
