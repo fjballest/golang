@@ -1,4 +1,5 @@
 .DS_Store
+.fuse*
 *.[5689ao]
 *.a[5689o]
 *.so
