@@ -20,16 +20,16 @@ static struct {
 	{32, ';',
 	"missing import path; require quoted string"},
 
-	{387, ';',
+	{389, ';',
 	"missing { after if clause"},
 
-	{408, ';',
+	{411, ';',
 	"missing { after switch clause"},
 
 	{244, ';',
 	"missing { after for clause"},
 
-	{487, LBODY,
+	{492, LBODY,
 	"missing { after for clause"},
 
 	{22, '{',
@@ -47,7 +47,7 @@ static struct {
 	{37, ',',
 	"unexpected comma in channel type"},
 
-	{448, LELSE,
+	{453, LELSE,
 	"unexpected semicolon or newline before else"},
 
 	{264, ',',
@@ -59,21 +59,21 @@ static struct {
 	{66, '{',
 	"unexpected { at end of statement"},
 
-	{386, '{',
+	{388, '{',
 	"unexpected { at end of statement"},
 	
 	{129, ';',
 	"argument to go/defer must be function call"},
 	
-	{435, ';',
+	{440, ';',
 	"need trailing comma before newline in composite literal"},
 	
-	{446, ';',
+	{451, ';',
 	"need trailing comma before newline in composite literal"},
 	
 	{115, LNAME,
 	"nested func not allowed"},
 
-	{660, ';',
+	{668, ';',
 	"else must be followed by if or statement block"}
 };

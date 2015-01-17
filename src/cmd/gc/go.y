@@ -75,7 +75,7 @@ static void fixlbrace(int);
 %type	<list>	common_dcl constdcl constdcl1 constdcl_list typedcl_list
 
 %type	<node>	convtype comptype dotdotdot
-%type	<node>	indcl interfacetype structtype ptrtype
+%type	<node>	indcl interfacetype structtype ptrtype istructtype
 %type	<node>	recvchantype non_recvchantype othertype fnret_type fntype
 
 %type	<sym>	hidden_importsym hidden_pkg_importsym
@@ -401,6 +401,11 @@ typedclname:
 
 typedcl:
 	typedclname ntype
+	{
+		$$ = typedcl1($1, $2, 1);
+	}
+|
+	typedclname istructtype
 	{
 		$$ = typedcl1($1, $2, 1);
 	}
@@ -1335,6 +1340,19 @@ structtype:
 		fixlbrace($2);
 	}
 
+istructtype:
+	lbrace structdcl_list osemi '}'
+	{
+		$$ = nod(OTSTRUCT, N, N);
+		$$->list = $2;
+		fixlbrace($1);
+	}
+|	lbrace '}'
+	{
+		$$ = nod(OTSTRUCT, N, N);
+		fixlbrace($1);
+	}
+
 interfacetype:
 	LINTERFACE lbrace interfacedcl_list osemi '}'
 	{
@@ -1592,6 +1610,29 @@ interfacedcl_list:
 
 structdcl:
 	new_name_list ntype oliteral
+	{
+		NodeList *l;
+
+		Node *n;
+		l = $1;
+		if(l == nil) {
+			// ? symbol, during import (list1(N) == nil)
+			n = $2;
+			if(n->op == OIND)
+				n = n->left;
+			n = embedded(n->sym, importpkg);
+			n->right = $2;
+			n->val = $3;
+			$$ = list1(n);
+			break;
+		}
+
+		for(l=$1; l; l=l->next) {
+			l->n = nod(ODCLFIELD, l->n, $2);
+			l->n->val = $3;
+		}
+	}
+|	new_name_list istructtype oliteral
 	{
 		NodeList *l;
 
