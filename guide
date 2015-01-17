@@ -23,6 +23,13 @@ To see where you are
 		git commit  -m 'cmd fixes and adds'
 		git push -v
 
+	If you have a change that's going to take a long time you might want
+	to work in a new branch (eg, doselect)
+		git checkout -b doselect
+		git add files
+		git commit -m 'initial change for doselect'
+		git push origin doselect
+
 
 /zx/sys/golang
 	created as a clone of git.lsub.org with a remote added for google.
