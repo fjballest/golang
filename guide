@@ -41,10 +41,11 @@ To see where you are
 		git pull origin doselect
 		git merge doselect
 		git push origin lsub
-	Use this to remove the branch,
-	but it's better to keep it as a reference and also because others might be already using it.
+	You can now get rid of your local branch
 		git branch -d doselect	# remove your local branch
-		git push origin :doselect	# remove at git.lsub.org; beware, others might be using it.
+	You can even remote it at git.lsub.org,
+	but it's better to keep it there as a reference and also because others might be already using it.
+		git push origin :doselect	# remove this branch at git.lsub.org
 
 /zx/sys/golang
 	created as a clone of git.lsub.org with a remote added for google.
