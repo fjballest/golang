@@ -13,12 +13,19 @@ There are two branches: master and lsub.
 	This is meant to be the same code pulled from google.
 	- lsub: this is the lsub version of the go compiler
 
+See the branch you are in (flagged with a star):
+	git branch
+
 Pull changes:
 	git fetch origin master	# fetch new google changes
 	git fetch origin lsub		# fetch new lsub changes
 
 
-git status
+git checkout -b my-branch
+git add .
+git commit -m msg
+git push origin my-branch
+
 
 # force a checkout of a version
 git checkout -f fd18fff3efacbb6af603e39fd0ea29ce231145c0
