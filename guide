@@ -6,8 +6,19 @@ To create a clone for you, you should:
 
 The clone at /zx/sys/golang added google as a remote to pull go changes
 	git remote add upstream https://go.googlesource.com/go
-You may ignore this.
 
+The following refers to working at /zx/sys/golang:
+
+ech changes from lsub git
+	git pull origin master
+pull changes from google and take a look or start to merge them
+	git fetch upstream master
+
+start a change, always creating a branch for it:
+	git checkout -b mychange
+
+
+To fech in /zx/sys
 There are two branches: master and lsub.
 	- master: this should be kept untoched.
 	This is meant to be the same code pulled from google.
