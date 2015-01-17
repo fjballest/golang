@@ -548,6 +548,7 @@ enum
 	// statements
 	OBLOCK,	// block of code
 	OBREAK,	// break
+	OCBREAK,	// compiler inserted break
 	OCASE,	// case, after being verified by swt.c's casebody.
 	OXCASE,	// case, before verification.
 	OCONTINUE,	// continue
@@ -1480,6 +1481,7 @@ void	usefield(Node*);
 
 EXTERN	Prog*	continpc;
 EXTERN	Prog*	breakpc;
+EXTERN	Prog*	ubreakpc;
 EXTERN	Prog*	pc;
 EXTERN	Prog*	firstpc;
 

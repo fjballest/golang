@@ -412,6 +412,7 @@ racewalknode(Node **np, NodeList **init, int wr, int skip)
 	case ODOSELECT:
 	case OEMPTY:
 	case OBREAK:
+	case OCBREAK:
 	case OCONTINUE:
 	case OFALL:
 	case OGOTO:

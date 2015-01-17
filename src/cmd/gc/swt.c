@@ -271,7 +271,7 @@ casebody(Node *sw, Node *typeswvar)
 	cas = nil;	// cases
 	stat = nil;	// statements
 	def = N;	// defaults
-	br = nod(OBREAK, N, N);
+	br = nod(OCBREAK, N, N);
 
 	for(l=sw->list; l; l=l->next) {
 		n = l->n;
@@ -546,7 +546,7 @@ exprswitch(Node *sw)
 		def = c0->node->right;
 		c0 = c0->link;
 	} else {
-		def = nod(OBREAK, N, N);
+		def = nod(OCBREAK, N, N);
 	}
 
 loop:
@@ -723,7 +723,7 @@ typeswitch(Node *sw)
 		def = c0->node->right;
 		c0 = c0->link;
 	} else {
-		def = nod(OBREAK, N, N);
+		def = nod(OCBREAK, N, N);
 	}
 	
 	/*
@@ -808,7 +808,7 @@ walkswitch(Node *sw)
 	/*
 	 * reorder the body into (OLIST, cases, statements)
 	 * cases have OGOTO into statements.
-	 * both have inserted OBREAK statements
+	 * both have inserted OCBREAK statements
 	 */
 	if(sw->ntest == N) {
 		sw->ntest = nodbool(1);

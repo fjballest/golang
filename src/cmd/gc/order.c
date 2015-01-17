@@ -619,6 +619,7 @@ orderstmt(Node *n, Order *order)
 		break;
 
 	case OBREAK:
+	case OCBREAK:
 	case OCONTINUE:
 	case ODCL:
 	case ODCLCONST:

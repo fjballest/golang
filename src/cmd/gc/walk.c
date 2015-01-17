@@ -200,6 +200,7 @@ walkstmt(Node **np)
 		break;
 
 	case OBREAK:
+	case OCBREAK:
 	case ODCL:
 	case OCONTINUE:
 	case OFALL:

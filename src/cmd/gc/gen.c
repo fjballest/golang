@@ -257,7 +257,7 @@ void
 gen(Node *n)
 {
 	int32 lno;
-	Prog *scontin, *sbreak;
+	Prog *scontin, *sbreak, *subreak;
 	Prog *p1, *p2, *p3;
 	Label *lab;
 	int32 wasregalloc;
@@ -339,6 +339,7 @@ gen(Node *n)
 		break;
 
 	case OBREAK:
+	case OCBREAK:
 		if(n->left != N) {
 			lab = n->left->sym->label;
 			if(lab == L) {
@@ -353,11 +354,15 @@ gen(Node *n)
 			gjmp(lab->breakpc);
 			break;
 		}
-		if(breakpc == P) {
+		if(breakpc == P || ubreakpc == P) {
 			yyerror("break is not in a loop");
 			break;
 		}
-		gjmp(breakpc);
+		if(n->op == OBREAK) {	// user break
+			gjmp(ubreakpc);
+		} else {			// compiler break
+			gjmp(breakpc);
+		}
 		break;
 
 	case OCONTINUE:
@@ -384,8 +389,10 @@ gen(Node *n)
 
 	case OFOR:
 		sbreak = breakpc;
+		subreak = ubreakpc;
 		p1 = gjmp(P);			//		goto test
 		breakpc = gjmp(P);		// break:	goto done
+		ubreakpc = breakpc;
 		scontin = continpc;
 		continpc = pc;
 
@@ -400,8 +407,10 @@ gen(Node *n)
 		genlist(n->nbody);				//		body
 		gjmp(continpc);
 		patch(breakpc, pc);			// done:
+		patch(ubreakpc, pc);
 		continpc = scontin;
 		breakpc = sbreak;
+		ubreakpc = subreak;
 		if(lab) {
 			lab->breakpc = P;
 			lab->continpc = P;
@@ -422,8 +431,10 @@ gen(Node *n)
 
 	case OSWITCH:
 		sbreak = breakpc;
+		subreak = ubreakpc;
 		p1 = gjmp(P);			//		goto test
 		breakpc = gjmp(P);		// break:	goto done
+		ubreakpc = breakpc;
 
 		// define break label
 		if((lab = stmtlabel(n)) != L)
@@ -432,16 +443,37 @@ gen(Node *n)
 		patch(p1, pc);				// test:
 		genlist(n->nbody);				//		switch(test) body
 		patch(breakpc, pc);			// done:
+		patch(ubreakpc, pc);			// done:
 		breakpc = sbreak;
+		ubreakpc = subreak;
+		if(lab != L)
+			lab->breakpc = P;
+		break;
+
+	case OSELECT:
+		sbreak = breakpc;
+		subreak = ubreakpc;
+		p1 = gjmp(P);			//		goto test
+		breakpc = gjmp(P);		// break:	goto done
+		ubreakpc = breakpc;
+
+		// define break label
+		if((lab = stmtlabel(n)) != L)
+			lab->breakpc = breakpc;
+
+		patch(p1, pc);				// test:
+		genlist(n->nbody);				//		select() body
+		patch(breakpc, pc);			// done:
+		patch(ubreakpc, pc);			// done:
+		breakpc = sbreak;
+		ubreakpc = subreak;
 		if(lab != L)
 			lab->breakpc = P;
 		break;
 
 	case ODOSELECT:
-		// TODO: 
 		// Like a select, but does not redefine the user break pc, so that
 		// breaks and continues refer to the enclosing for.
-		/*
 		sbreak = breakpc;
 		p1 = gjmp(P);			//		goto test
 		breakpc = gjmp(P);			// break:	goto done
@@ -452,22 +484,6 @@ gen(Node *n)
 
 		patch(p1, pc);			// test:
 		genlist(n->nbody);			//		select() body
-		patch(breakpc, pc);			// done:
-		breakpc = sbreak;
-		if(lab != L)
-			lab->breakpc = P;
-		*/
-	case OSELECT:
-		sbreak = breakpc;
-		p1 = gjmp(P);			//		goto test
-		breakpc = gjmp(P);		// break:	goto done
-
-		// define break label
-		if((lab = stmtlabel(n)) != L)
-			lab->breakpc = breakpc;
-
-		patch(p1, pc);				// test:
-		genlist(n->nbody);				//		select() body
 		patch(breakpc, pc);			// done:
 		breakpc = sbreak;
 		if(lab != L)

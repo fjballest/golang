@@ -221,6 +221,7 @@ compile(Node *fn)
 
 	continpc = P;
 	breakpc = P;
+	ubreakpc = P;
 
 	pl = newplist();
 	pl->name = linksym(curfn->nname->sym);

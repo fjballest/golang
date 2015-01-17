@@ -1660,6 +1660,7 @@ reswitch:
 		goto ret;
 
 	case OBREAK:
+	case OCBREAK:
 	case OCONTINUE:
 	case ODCL:
 	case OEMPTY:
@@ -3448,6 +3449,7 @@ markbreak(Node *n, Node *implicit)
 
 	switch(n->op) {
 	case OBREAK:
+	case OCBREAK:
 		if(n->left == N) {
 			if(implicit)
 				implicit->hasbreak = 1;

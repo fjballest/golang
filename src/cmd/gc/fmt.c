@@ -118,6 +118,7 @@ goopnames[] =
 	[OAS]		= "=",
 	[OAS2]		= "=",
 	[OBREAK]	= "break",
+	[OCBREAK]	= "break",
 	[OCALL]		= "function call",	// not actual syntax
 	[OCAP]		= "cap",
 	[OCASE]		= "case",
@@ -922,6 +923,7 @@ stmtfmt(Fmt *f, Node *n)
 		break;
 
 	case OBREAK:
+	case OCBREAK:
 	case OCONTINUE:
 	case OGOTO:
 	case OFALL:
@@ -1048,6 +1050,7 @@ static int opprec[] = {
 	[OAS2RECV] = -1,
 	[OASOP] = -1,
 	[OBREAK] = -1,
+	[OCBREAK] = -1,
 	[OCASE] = -1,
 	[OCONTINUE] = -1,
 	[ODCL] = -1,

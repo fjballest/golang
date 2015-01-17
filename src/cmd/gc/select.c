@@ -310,7 +310,7 @@ walkselect(Node *sel)
 		// selv is no longer alive after use.
 		r->nbody = list(r->nbody, nod(OVARKILL, selv, N));
 		r->nbody = concat(r->nbody, cas->nbody);
-		r->nbody = list(r->nbody, nod(OBREAK, N, N));
+		r->nbody = list(r->nbody, nod(OCBREAK, N, N));
 		init = list(init, r);
 	}
 
