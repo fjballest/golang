@@ -1,3 +1,11 @@
+XXX: TODO
+	must convert values sent through a chan when the
+	result bool is consumed into variables, because
+	it seems we get a can't get the address of foo error
+	on the value.
+	it's likely this is actually an introduced bug on
+	escaping or walking in this case...
+
 This is a description of the git setup and commands to use
 at any of the gits we might have.
 
