@@ -360,6 +360,7 @@ racewalknode(Node **np, NodeList **init, int wr, int skip)
 	// should not appear in AST by now
 	case OSEND:
 	case ORECV:
+	case OCERROR:
 	case OCLOSE:
 	case ONEW:
 	case OXCASE:

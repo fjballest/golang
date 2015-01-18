@@ -470,6 +470,7 @@ enum
 	OCALLINTER,	// err.Error()
 	OCALLPART,	// t.Method (without ())
 	OCAP,	// cap
+	OCERROR,	// cerror
 	OCLOSE,	// close
 	OCLOSURE,	// f = func() { etc }
 	OCMPIFACE,	// err1 == err2

@@ -348,6 +348,7 @@ func closechan2(c *hchan, e interface{}) {
 		return	// don't panic
 	}
 
+	estr := chanerrstr(e)
 	lock(&c.lock)
 	if c.closed != 0 {
 		unlock(&c.lock)
@@ -362,7 +363,7 @@ func closechan2(c *hchan, e interface{}) {
 
 	c.closed = 1
 	c.errlen = uint16(0)
-	if estr := chanerrstr(e); estr != "" {
+	if estr != "" {
 		n := (*stringStruct)(unsafe.Pointer(&estr)).len
 		if n > 127 {
 			n = 127

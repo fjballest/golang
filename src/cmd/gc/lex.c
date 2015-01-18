@@ -1912,7 +1912,8 @@ static	struct
 
 	{"append",	LNAME,		Txxx,		OAPPEND},
 	{"cap",		LNAME,		Txxx,		OCAP},
-	{"close",	LNAME,		Txxx,		OCLOSE},
+	{"cerror",		LNAME,		Txxx,		OCERROR},
+	{"close",		LNAME,		Txxx,		OCLOSE},
 	{"complex",	LNAME,		Txxx,		OCOMPLEX},
 	{"copy",		LNAME,		Txxx,		OCOPY},
 	{"delete",	LNAME,		Txxx,		ODELETE},

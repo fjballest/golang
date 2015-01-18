@@ -161,6 +161,7 @@ walkstmt(Node **np)
 	case OAS2RECV:
 	case OAS2FUNC:
 	case OAS2MAPR:
+	case OCERROR:
 	case OCLOSE:
 	case OCOPY:
 	case OCALLMETH:
@@ -1269,6 +1270,12 @@ walkexpr(Node **np, NodeList **init)
 
 	case OCOPY:
 		n = copyany(n, init, flag_race);
+		goto ret;
+
+	case OCERROR:
+		fn = syslook("cerror", 1);
+		argtype(fn, n->left->type);
+		n = mkcall1(fn, errortype, init, n->left);
 		goto ret;
 
 	case OCLOSE:

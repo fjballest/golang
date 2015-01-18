@@ -517,6 +517,7 @@ orderstmt(Node *n, Order *order)
 	case OAS:
 	case OAS2:
 	case OAS2DOTTYPE:
+	case OCERROR:
 	case OCLOSE:
 	case OCOPY:
 	case OPRINT:
