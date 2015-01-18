@@ -938,7 +938,7 @@ reswitch:
 		goto ret;
 
 	case OSEND:
-		ok |= Etop;
+		ok |= Etop|Erv;
 		l = typecheck(&n->left, Erv);
 		typecheck(&n->right, Erv);
 		defaultlit(&n->left, T);
@@ -958,9 +958,7 @@ reswitch:
 		if(r->type == T)
 			goto error;
 		n->right = assignconv(r, l->type->type, "send");
-		// TODO: more aggressive
-		n->etype = 0;
-		n->type = T;
+		n->type = types[TBOOL];
 		goto ret;
 
 	case OSLICE:

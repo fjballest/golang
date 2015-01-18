@@ -870,10 +870,6 @@ orderstmt(Node *n, Order *order)
 					break;
 
 				case OSEND:
-					if(r->ninit != nil) {
-						yyerror("ninit on select send");
-						dumplist("ninit", r->ninit);
-					}
 					// case c <- x
 					// r->left is c, r->right is x, both are always evaluated.
 					orderexpr(&r->left, order);

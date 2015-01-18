@@ -677,31 +677,31 @@ static const yytype_uint16 yyrline[] =
      752,   756,   751,   774,   773,   786,   797,   806,   811,   805,
      834,   835,   839,   843,   847,   851,   855,   859,   863,   867,
      871,   875,   879,   883,   887,   891,   895,   899,   903,   907,
-     912,   918,   919,   923,   934,   938,   942,   946,   951,   955,
-     965,   969,   974,   982,   986,   987,   998,  1002,  1006,  1010,
-    1014,  1022,  1023,  1029,  1036,  1042,  1049,  1052,  1059,  1065,
-    1082,  1089,  1090,  1097,  1098,  1117,  1118,  1121,  1124,  1128,
-    1139,  1148,  1154,  1157,  1160,  1167,  1168,  1174,  1187,  1202,
-    1210,  1222,  1227,  1233,  1234,  1235,  1236,  1237,  1238,  1244,
-    1245,  1246,  1247,  1253,  1254,  1255,  1256,  1257,  1263,  1264,
-    1267,  1270,  1271,  1272,  1273,  1274,  1277,  1278,  1291,  1295,
-    1300,  1305,  1310,  1314,  1315,  1318,  1324,  1331,  1337,  1344,
-    1350,  1357,  1363,  1374,  1389,  1418,  1456,  1481,  1499,  1508,
-    1511,  1519,  1523,  1527,  1534,  1540,  1545,  1557,  1560,  1571,
-    1572,  1578,  1579,  1585,  1589,  1595,  1596,  1602,  1606,  1612,
-    1635,  1658,  1663,  1669,  1675,  1682,  1691,  1700,  1715,  1721,
-    1726,  1730,  1737,  1750,  1751,  1757,  1763,  1766,  1770,  1776,
-    1779,  1788,  1791,  1792,  1796,  1797,  1803,  1804,  1805,  1806,
-    1807,  1808,  1810,  1809,  1824,  1830,  1834,  1838,  1842,  1846,
-    1851,  1870,  1876,  1884,  1888,  1894,  1898,  1904,  1908,  1914,
-    1918,  1927,  1931,  1935,  1939,  1945,  1948,  1956,  1957,  1959,
-    1960,  1963,  1966,  1969,  1972,  1975,  1978,  1981,  1984,  1987,
-    1990,  1993,  1996,  1999,  2002,  2008,  2012,  2016,  2020,  2024,
-    2028,  2048,  2055,  2066,  2067,  2068,  2071,  2072,  2075,  2079,
-    2089,  2093,  2097,  2101,  2105,  2109,  2113,  2119,  2125,  2133,
-    2141,  2147,  2154,  2170,  2192,  2196,  2202,  2205,  2208,  2212,
-    2222,  2226,  2245,  2253,  2254,  2266,  2267,  2270,  2274,  2280,
-    2284,  2290,  2294
+     911,   917,   918,   922,   933,   937,   941,   945,   950,   954,
+     964,   968,   973,   981,   985,   986,   997,  1001,  1005,  1009,
+    1013,  1021,  1022,  1028,  1035,  1041,  1048,  1051,  1058,  1064,
+    1081,  1088,  1089,  1096,  1097,  1116,  1117,  1120,  1123,  1127,
+    1138,  1147,  1153,  1156,  1159,  1166,  1167,  1173,  1186,  1201,
+    1209,  1221,  1226,  1232,  1233,  1234,  1235,  1236,  1237,  1243,
+    1244,  1245,  1246,  1252,  1253,  1254,  1255,  1256,  1262,  1263,
+    1266,  1269,  1270,  1271,  1272,  1273,  1276,  1277,  1290,  1294,
+    1299,  1304,  1309,  1313,  1314,  1317,  1323,  1330,  1336,  1343,
+    1349,  1356,  1362,  1373,  1388,  1417,  1455,  1480,  1498,  1507,
+    1510,  1518,  1522,  1526,  1533,  1539,  1544,  1556,  1559,  1570,
+    1571,  1577,  1578,  1584,  1588,  1594,  1595,  1601,  1605,  1611,
+    1634,  1657,  1662,  1668,  1674,  1681,  1690,  1699,  1714,  1720,
+    1725,  1729,  1736,  1749,  1750,  1756,  1762,  1765,  1769,  1775,
+    1778,  1787,  1790,  1791,  1795,  1796,  1802,  1803,  1804,  1805,
+    1806,  1807,  1809,  1808,  1823,  1829,  1833,  1837,  1841,  1845,
+    1850,  1869,  1875,  1883,  1887,  1893,  1897,  1903,  1907,  1913,
+    1917,  1926,  1930,  1934,  1938,  1944,  1947,  1955,  1956,  1958,
+    1959,  1962,  1965,  1968,  1971,  1974,  1977,  1980,  1983,  1986,
+    1989,  1992,  1995,  1998,  2001,  2007,  2011,  2015,  2019,  2023,
+    2027,  2047,  2054,  2065,  2066,  2067,  2070,  2071,  2074,  2078,
+    2088,  2092,  2096,  2100,  2104,  2108,  2112,  2118,  2124,  2132,
+    2140,  2146,  2153,  2169,  2191,  2195,  2201,  2204,  2207,  2211,
+    2221,  2225,  2244,  2252,  2253,  2265,  2266,  2269,  2273,  2279,
+    2283,  2289,  2293
 };
 #endif
 
@@ -3420,21 +3420,21 @@ yyreduce:
     break;
 
   case 120:
-#line 913 "go.y"
+#line 912 "go.y"
     {
 		(yyval.node) = nod(OSEND, (yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 122:
-#line 920 "go.y"
+#line 919 "go.y"
     {
 		(yyval.node) = nod(OIND, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 123:
-#line 924 "go.y"
+#line 923 "go.y"
     {
 		if((yyvsp[(2) - (2)].node)->op == OCOMPLIT) {
 			// Special case for &T{...}: turn into (*T){...}.
@@ -3448,28 +3448,28 @@ yyreduce:
     break;
 
   case 124:
-#line 935 "go.y"
+#line 934 "go.y"
     {
 		(yyval.node) = nod(OPLUS, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 125:
-#line 939 "go.y"
+#line 938 "go.y"
     {
 		(yyval.node) = nod(OMINUS, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 126:
-#line 943 "go.y"
+#line 942 "go.y"
     {
 		(yyval.node) = nod(ONOT, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 127:
-#line 947 "go.y"
+#line 946 "go.y"
     {
 		yyerror("the bitwise complement operator is ^");
 		(yyval.node) = nod(OCOM, (yyvsp[(2) - (2)].node), N);
@@ -3477,28 +3477,28 @@ yyreduce:
     break;
 
   case 128:
-#line 952 "go.y"
+#line 951 "go.y"
     {
 		(yyval.node) = nod(OCOM, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 129:
-#line 956 "go.y"
+#line 955 "go.y"
     {
 		(yyval.node) = nod(ORECV, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 130:
-#line 966 "go.y"
+#line 965 "go.y"
     {
 		(yyval.node) = nod(OCALL, (yyvsp[(1) - (3)].node), N);
 	}
     break;
 
   case 131:
-#line 970 "go.y"
+#line 969 "go.y"
     {
 		(yyval.node) = nod(OCALL, (yyvsp[(1) - (5)].node), N);
 		(yyval.node)->list = (yyvsp[(3) - (5)].list);
@@ -3506,7 +3506,7 @@ yyreduce:
     break;
 
   case 132:
-#line 975 "go.y"
+#line 974 "go.y"
     {
 		(yyval.node) = nod(OCALL, (yyvsp[(1) - (6)].node), N);
 		(yyval.node)->list = (yyvsp[(3) - (6)].list);
@@ -3515,14 +3515,14 @@ yyreduce:
     break;
 
   case 133:
-#line 983 "go.y"
+#line 982 "go.y"
     {
 		(yyval.node) = nodlit((yyvsp[(1) - (1)].val));
 	}
     break;
 
   case 135:
-#line 988 "go.y"
+#line 987 "go.y"
     {
 		if((yyvsp[(1) - (3)].node)->op == OPACK) {
 			Sym *s;
@@ -3536,35 +3536,35 @@ yyreduce:
     break;
 
   case 136:
-#line 999 "go.y"
+#line 998 "go.y"
     {
 		(yyval.node) = nod(ODOTTYPE, (yyvsp[(1) - (5)].node), (yyvsp[(4) - (5)].node));
 	}
     break;
 
   case 137:
-#line 1003 "go.y"
+#line 1002 "go.y"
     {
 		(yyval.node) = nod(OTYPESW, N, (yyvsp[(1) - (5)].node));
 	}
     break;
 
   case 138:
-#line 1007 "go.y"
+#line 1006 "go.y"
     {
 		(yyval.node) = nod(OINDEX, (yyvsp[(1) - (4)].node), (yyvsp[(3) - (4)].node));
 	}
     break;
 
   case 139:
-#line 1011 "go.y"
+#line 1010 "go.y"
     {
 		(yyval.node) = nod(OSLICE, (yyvsp[(1) - (6)].node), nod(OKEY, (yyvsp[(3) - (6)].node), (yyvsp[(5) - (6)].node)));
 	}
     break;
 
   case 140:
-#line 1015 "go.y"
+#line 1014 "go.y"
     {
 		if((yyvsp[(5) - (8)].node) == N)
 			yyerror("middle index required in 3-index slice");
@@ -3575,7 +3575,7 @@ yyreduce:
     break;
 
   case 142:
-#line 1024 "go.y"
+#line 1023 "go.y"
     {
 		// conversion
 		(yyval.node) = nod(OCALL, (yyvsp[(1) - (5)].node), N);
@@ -3584,7 +3584,7 @@ yyreduce:
     break;
 
   case 143:
-#line 1030 "go.y"
+#line 1029 "go.y"
     {
 		(yyval.node) = (yyvsp[(3) - (5)].node);
 		(yyval.node)->right = (yyvsp[(1) - (5)].node);
@@ -3594,7 +3594,7 @@ yyreduce:
     break;
 
   case 144:
-#line 1037 "go.y"
+#line 1036 "go.y"
     {
 		(yyval.node) = (yyvsp[(3) - (5)].node);
 		(yyval.node)->right = (yyvsp[(1) - (5)].node);
@@ -3603,7 +3603,7 @@ yyreduce:
     break;
 
   case 145:
-#line 1043 "go.y"
+#line 1042 "go.y"
     {
 		yyerror("cannot parenthesize type in composite literal");
 		(yyval.node) = (yyvsp[(5) - (7)].node);
@@ -3613,7 +3613,7 @@ yyreduce:
     break;
 
   case 147:
-#line 1052 "go.y"
+#line 1051 "go.y"
     {
 		// composite expression.
 		// make node early so we get the right line number.
@@ -3622,14 +3622,14 @@ yyreduce:
     break;
 
   case 148:
-#line 1060 "go.y"
+#line 1059 "go.y"
     {
 		(yyval.node) = nod(OKEY, (yyvsp[(1) - (3)].node), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 149:
-#line 1066 "go.y"
+#line 1065 "go.y"
     {
 		// These nodes do not carry line numbers.
 		// Since a composite literal commonly spans several lines,
@@ -3649,7 +3649,7 @@ yyreduce:
     break;
 
   case 150:
-#line 1083 "go.y"
+#line 1082 "go.y"
     {
 		(yyval.node) = (yyvsp[(2) - (4)].node);
 		(yyval.node)->list = (yyvsp[(3) - (4)].list);
@@ -3657,7 +3657,7 @@ yyreduce:
     break;
 
   case 152:
-#line 1091 "go.y"
+#line 1090 "go.y"
     {
 		(yyval.node) = (yyvsp[(2) - (4)].node);
 		(yyval.node)->list = (yyvsp[(3) - (4)].list);
@@ -3665,7 +3665,7 @@ yyreduce:
     break;
 
   case 154:
-#line 1099 "go.y"
+#line 1098 "go.y"
     {
 		(yyval.node) = (yyvsp[(2) - (3)].node);
 		
@@ -3685,21 +3685,21 @@ yyreduce:
     break;
 
   case 158:
-#line 1125 "go.y"
+#line 1124 "go.y"
     {
 		(yyval.i) = LBODY;
 	}
     break;
 
   case 159:
-#line 1129 "go.y"
+#line 1128 "go.y"
     {
 		(yyval.i) = '{';
 	}
     break;
 
   case 160:
-#line 1140 "go.y"
+#line 1139 "go.y"
     {
 		if((yyvsp[(1) - (1)].sym) == S)
 			(yyval.node) = N;
@@ -3709,21 +3709,21 @@ yyreduce:
     break;
 
   case 161:
-#line 1149 "go.y"
+#line 1148 "go.y"
     {
 		(yyval.node) = dclname((yyvsp[(1) - (1)].sym));
 	}
     break;
 
   case 162:
-#line 1154 "go.y"
+#line 1153 "go.y"
     {
 		(yyval.node) = N;
 	}
     break;
 
   case 164:
-#line 1161 "go.y"
+#line 1160 "go.y"
     {
 		(yyval.sym) = (yyvsp[(1) - (1)].sym);
 		// during imports, unqualified non-exported identifiers are from builtinpkg
@@ -3733,14 +3733,14 @@ yyreduce:
     break;
 
   case 166:
-#line 1169 "go.y"
+#line 1168 "go.y"
     {
 		(yyval.sym) = S;
 	}
     break;
 
   case 167:
-#line 1175 "go.y"
+#line 1174 "go.y"
     {
 		Pkg *p;
 
@@ -3756,7 +3756,7 @@ yyreduce:
     break;
 
   case 168:
-#line 1188 "go.y"
+#line 1187 "go.y"
     {
 		Pkg *p;
 
@@ -3772,7 +3772,7 @@ yyreduce:
     break;
 
   case 169:
-#line 1203 "go.y"
+#line 1202 "go.y"
     {
 		(yyval.node) = oldname((yyvsp[(1) - (1)].sym));
 		if((yyval.node)->pack != N)
@@ -3781,7 +3781,7 @@ yyreduce:
     break;
 
   case 171:
-#line 1223 "go.y"
+#line 1222 "go.y"
     {
 		yyerror("final argument in variadic function missing type");
 		(yyval.node) = nod(ODDD, typenod(typ(TINTER)), N);
@@ -3789,35 +3789,35 @@ yyreduce:
     break;
 
   case 172:
-#line 1228 "go.y"
+#line 1227 "go.y"
     {
 		(yyval.node) = nod(ODDD, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 178:
-#line 1239 "go.y"
+#line 1238 "go.y"
     {
 		(yyval.node) = (yyvsp[(2) - (3)].node);
 	}
     break;
 
   case 182:
-#line 1248 "go.y"
+#line 1247 "go.y"
     {
 		(yyval.node) = nod(OIND, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 187:
-#line 1258 "go.y"
+#line 1257 "go.y"
     {
 		(yyval.node) = (yyvsp[(2) - (3)].node);
 	}
     break;
 
   case 197:
-#line 1279 "go.y"
+#line 1278 "go.y"
     {
 		if((yyvsp[(1) - (3)].node)->op == OPACK) {
 			Sym *s;
@@ -3831,14 +3831,14 @@ yyreduce:
     break;
 
   case 198:
-#line 1292 "go.y"
+#line 1291 "go.y"
     {
 		(yyval.node) = nod(OTARRAY, (yyvsp[(2) - (4)].node), (yyvsp[(4) - (4)].node));
 	}
     break;
 
   case 199:
-#line 1296 "go.y"
+#line 1295 "go.y"
     {
 		// array literal of nelem
 		(yyval.node) = nod(OTARRAY, nod(ODDD, N, N), (yyvsp[(4) - (4)].node));
@@ -3846,7 +3846,7 @@ yyreduce:
     break;
 
   case 200:
-#line 1301 "go.y"
+#line 1300 "go.y"
     {
 		(yyval.node) = nod(OTCHAN, (yyvsp[(2) - (2)].node), N);
 		(yyval.node)->etype = Cboth;
@@ -3854,7 +3854,7 @@ yyreduce:
     break;
 
   case 201:
-#line 1306 "go.y"
+#line 1305 "go.y"
     {
 		(yyval.node) = nod(OTCHAN, (yyvsp[(3) - (3)].node), N);
 		(yyval.node)->etype = Csend;
@@ -3862,21 +3862,21 @@ yyreduce:
     break;
 
   case 202:
-#line 1311 "go.y"
+#line 1310 "go.y"
     {
 		(yyval.node) = nod(OTMAP, (yyvsp[(3) - (5)].node), (yyvsp[(5) - (5)].node));
 	}
     break;
 
   case 205:
-#line 1319 "go.y"
+#line 1318 "go.y"
     {
 		(yyval.node) = nod(OIND, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 206:
-#line 1325 "go.y"
+#line 1324 "go.y"
     {
 		(yyval.node) = nod(OTCHAN, (yyvsp[(3) - (3)].node), N);
 		(yyval.node)->etype = Crecv;
@@ -3884,7 +3884,7 @@ yyreduce:
     break;
 
   case 207:
-#line 1332 "go.y"
+#line 1331 "go.y"
     {
 		(yyval.node) = nod(OTSTRUCT, N, N);
 		(yyval.node)->list = (yyvsp[(3) - (5)].list);
@@ -3893,7 +3893,7 @@ yyreduce:
     break;
 
   case 208:
-#line 1338 "go.y"
+#line 1337 "go.y"
     {
 		(yyval.node) = nod(OTSTRUCT, N, N);
 		fixlbrace((yyvsp[(2) - (3)].i));
@@ -3901,7 +3901,7 @@ yyreduce:
     break;
 
   case 209:
-#line 1345 "go.y"
+#line 1344 "go.y"
     {
 		(yyval.node) = nod(OTSTRUCT, N, N);
 		(yyval.node)->list = (yyvsp[(2) - (4)].list);
@@ -3910,7 +3910,7 @@ yyreduce:
     break;
 
   case 210:
-#line 1351 "go.y"
+#line 1350 "go.y"
     {
 		(yyval.node) = nod(OTSTRUCT, N, N);
 		fixlbrace((yyvsp[(1) - (2)].i));
@@ -3918,7 +3918,7 @@ yyreduce:
     break;
 
   case 211:
-#line 1358 "go.y"
+#line 1357 "go.y"
     {
 		(yyval.node) = nod(OTINTER, N, N);
 		(yyval.node)->list = (yyvsp[(3) - (5)].list);
@@ -3927,7 +3927,7 @@ yyreduce:
     break;
 
   case 212:
-#line 1364 "go.y"
+#line 1363 "go.y"
     {
 		(yyval.node) = nod(OTINTER, N, N);
 		fixlbrace((yyvsp[(2) - (3)].i));
@@ -3935,7 +3935,7 @@ yyreduce:
     break;
 
   case 213:
-#line 1375 "go.y"
+#line 1374 "go.y"
     {
 		(yyval.node) = (yyvsp[(2) - (3)].node);
 		if((yyval.node) == N)
@@ -3951,7 +3951,7 @@ yyreduce:
     break;
 
   case 214:
-#line 1390 "go.y"
+#line 1389 "go.y"
     {
 		Node *t;
 
@@ -3983,7 +3983,7 @@ yyreduce:
     break;
 
   case 215:
-#line 1419 "go.y"
+#line 1418 "go.y"
     {
 		Node *rcvr, *t;
 
@@ -4022,7 +4022,7 @@ yyreduce:
     break;
 
   case 216:
-#line 1457 "go.y"
+#line 1456 "go.y"
     {
 		Sym *s;
 		Type *t;
@@ -4050,7 +4050,7 @@ yyreduce:
     break;
 
   case 217:
-#line 1482 "go.y"
+#line 1481 "go.y"
     {
 		(yyval.node) = methodname1(newname((yyvsp[(4) - (8)].sym)), (yyvsp[(2) - (8)].list)->n->right); 
 		(yyval.node)->type = functype((yyvsp[(2) - (8)].list)->n, (yyvsp[(6) - (8)].list), (yyvsp[(8) - (8)].list));
@@ -4069,7 +4069,7 @@ yyreduce:
     break;
 
   case 218:
-#line 1500 "go.y"
+#line 1499 "go.y"
     {
 		(yyvsp[(3) - (5)].list) = checkarglist((yyvsp[(3) - (5)].list), 1);
 		(yyval.node) = nod(OTFUNC, N, N);
@@ -4079,14 +4079,14 @@ yyreduce:
     break;
 
   case 219:
-#line 1508 "go.y"
+#line 1507 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 220:
-#line 1512 "go.y"
+#line 1511 "go.y"
     {
 		(yyval.list) = (yyvsp[(2) - (3)].list);
 		if((yyval.list) == nil)
@@ -4095,21 +4095,21 @@ yyreduce:
     break;
 
   case 221:
-#line 1520 "go.y"
+#line 1519 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 222:
-#line 1524 "go.y"
+#line 1523 "go.y"
     {
 		(yyval.list) = list1(nod(ODCLFIELD, N, (yyvsp[(1) - (1)].node)));
 	}
     break;
 
   case 223:
-#line 1528 "go.y"
+#line 1527 "go.y"
     {
 		(yyvsp[(2) - (3)].list) = checkarglist((yyvsp[(2) - (3)].list), 0);
 		(yyval.list) = (yyvsp[(2) - (3)].list);
@@ -4117,14 +4117,14 @@ yyreduce:
     break;
 
   case 224:
-#line 1535 "go.y"
+#line 1534 "go.y"
     {
 		closurehdr((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 225:
-#line 1541 "go.y"
+#line 1540 "go.y"
     {
 		(yyval.node) = closurebody((yyvsp[(3) - (4)].list));
 		fixlbrace((yyvsp[(2) - (4)].i));
@@ -4132,21 +4132,21 @@ yyreduce:
     break;
 
   case 226:
-#line 1546 "go.y"
+#line 1545 "go.y"
     {
 		(yyval.node) = closurebody(nil);
 	}
     break;
 
   case 227:
-#line 1557 "go.y"
+#line 1556 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 228:
-#line 1561 "go.y"
+#line 1560 "go.y"
     {
 		(yyval.list) = concat((yyvsp[(1) - (3)].list), (yyvsp[(2) - (3)].list));
 		if(nsyntaxerrors == 0)
@@ -4158,56 +4158,56 @@ yyreduce:
     break;
 
   case 230:
-#line 1573 "go.y"
+#line 1572 "go.y"
     {
 		(yyval.list) = concat((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].list));
 	}
     break;
 
   case 232:
-#line 1580 "go.y"
+#line 1579 "go.y"
     {
 		(yyval.list) = concat((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].list));
 	}
     break;
 
   case 233:
-#line 1586 "go.y"
+#line 1585 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 234:
-#line 1590 "go.y"
+#line 1589 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 236:
-#line 1597 "go.y"
+#line 1596 "go.y"
     {
 		(yyval.list) = concat((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].list));
 	}
     break;
 
   case 237:
-#line 1603 "go.y"
+#line 1602 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 238:
-#line 1607 "go.y"
+#line 1606 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 239:
-#line 1613 "go.y"
+#line 1612 "go.y"
     {
 		NodeList *l;
 
@@ -4233,7 +4233,7 @@ yyreduce:
     break;
 
   case 240:
-#line 1636 "go.y"
+#line 1635 "go.y"
     {
 		NodeList *l;
 
@@ -4259,7 +4259,7 @@ yyreduce:
     break;
 
   case 241:
-#line 1659 "go.y"
+#line 1658 "go.y"
     {
 		(yyvsp[(1) - (2)].node)->val = (yyvsp[(2) - (2)].val);
 		(yyval.list) = list1((yyvsp[(1) - (2)].node));
@@ -4267,7 +4267,7 @@ yyreduce:
     break;
 
   case 242:
-#line 1664 "go.y"
+#line 1663 "go.y"
     {
 		(yyvsp[(2) - (4)].node)->val = (yyvsp[(4) - (4)].val);
 		(yyval.list) = list1((yyvsp[(2) - (4)].node));
@@ -4276,7 +4276,7 @@ yyreduce:
     break;
 
   case 243:
-#line 1670 "go.y"
+#line 1669 "go.y"
     {
 		(yyvsp[(2) - (3)].node)->right = nod(OIND, (yyvsp[(2) - (3)].node)->right, N);
 		(yyvsp[(2) - (3)].node)->val = (yyvsp[(3) - (3)].val);
@@ -4285,7 +4285,7 @@ yyreduce:
     break;
 
   case 244:
-#line 1676 "go.y"
+#line 1675 "go.y"
     {
 		(yyvsp[(3) - (5)].node)->right = nod(OIND, (yyvsp[(3) - (5)].node)->right, N);
 		(yyvsp[(3) - (5)].node)->val = (yyvsp[(5) - (5)].val);
@@ -4295,7 +4295,7 @@ yyreduce:
     break;
 
   case 245:
-#line 1683 "go.y"
+#line 1682 "go.y"
     {
 		(yyvsp[(3) - (5)].node)->right = nod(OIND, (yyvsp[(3) - (5)].node)->right, N);
 		(yyvsp[(3) - (5)].node)->val = (yyvsp[(5) - (5)].val);
@@ -4305,7 +4305,7 @@ yyreduce:
     break;
 
   case 246:
-#line 1692 "go.y"
+#line 1691 "go.y"
     {
 		Node *n;
 
@@ -4317,7 +4317,7 @@ yyreduce:
     break;
 
   case 247:
-#line 1701 "go.y"
+#line 1700 "go.y"
     {
 		Pkg *pkg;
 
@@ -4333,14 +4333,14 @@ yyreduce:
     break;
 
   case 248:
-#line 1716 "go.y"
+#line 1715 "go.y"
     {
 		(yyval.node) = embedded((yyvsp[(1) - (1)].sym), localpkg);
 	}
     break;
 
   case 249:
-#line 1722 "go.y"
+#line 1721 "go.y"
     {
 		(yyval.node) = nod(ODCLFIELD, (yyvsp[(1) - (2)].node), (yyvsp[(2) - (2)].node));
 		ifacedcl((yyval.node));
@@ -4348,14 +4348,14 @@ yyreduce:
     break;
 
   case 250:
-#line 1727 "go.y"
+#line 1726 "go.y"
     {
 		(yyval.node) = nod(ODCLFIELD, N, oldname((yyvsp[(1) - (1)].sym)));
 	}
     break;
 
   case 251:
-#line 1731 "go.y"
+#line 1730 "go.y"
     {
 		(yyval.node) = nod(ODCLFIELD, N, oldname((yyvsp[(2) - (3)].sym)));
 		yyerror("cannot parenthesize embedded type");
@@ -4363,7 +4363,7 @@ yyreduce:
     break;
 
   case 252:
-#line 1738 "go.y"
+#line 1737 "go.y"
     {
 		// without func keyword
 		(yyvsp[(2) - (4)].list) = checkarglist((yyvsp[(2) - (4)].list), 1);
@@ -4374,7 +4374,7 @@ yyreduce:
     break;
 
   case 254:
-#line 1752 "go.y"
+#line 1751 "go.y"
     {
 		(yyval.node) = nod(ONONAME, N, N);
 		(yyval.node)->sym = (yyvsp[(1) - (2)].sym);
@@ -4383,7 +4383,7 @@ yyreduce:
     break;
 
   case 255:
-#line 1758 "go.y"
+#line 1757 "go.y"
     {
 		(yyval.node) = nod(ONONAME, N, N);
 		(yyval.node)->sym = (yyvsp[(1) - (2)].sym);
@@ -4392,56 +4392,56 @@ yyreduce:
     break;
 
   case 257:
-#line 1767 "go.y"
+#line 1766 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 258:
-#line 1771 "go.y"
+#line 1770 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 259:
-#line 1776 "go.y"
+#line 1775 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 260:
-#line 1780 "go.y"
+#line 1779 "go.y"
     {
 		(yyval.list) = (yyvsp[(1) - (2)].list);
 	}
     break;
 
   case 261:
-#line 1788 "go.y"
+#line 1787 "go.y"
     {
 		(yyval.node) = N;
 	}
     break;
 
   case 263:
-#line 1793 "go.y"
+#line 1792 "go.y"
     {
 		(yyval.node) = liststmt((yyvsp[(1) - (1)].list));
 	}
     break;
 
   case 265:
-#line 1798 "go.y"
+#line 1797 "go.y"
     {
 		(yyval.node) = N;
 	}
     break;
 
   case 272:
-#line 1810 "go.y"
+#line 1809 "go.y"
     {
 		(yyvsp[(1) - (2)].node) = nod(OLABEL, (yyvsp[(1) - (2)].node), N);
 		(yyvsp[(1) - (2)].node)->sym = dclstack;  // context, for goto restrictions
@@ -4449,7 +4449,7 @@ yyreduce:
     break;
 
   case 273:
-#line 1815 "go.y"
+#line 1814 "go.y"
     {
 		NodeList *l;
 
@@ -4462,7 +4462,7 @@ yyreduce:
     break;
 
   case 274:
-#line 1825 "go.y"
+#line 1824 "go.y"
     {
 		// will be converted to OFALL
 		(yyval.node) = nod(OXFALL, N, N);
@@ -4471,35 +4471,35 @@ yyreduce:
     break;
 
   case 275:
-#line 1831 "go.y"
+#line 1830 "go.y"
     {
 		(yyval.node) = nod(OBREAK, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 276:
-#line 1835 "go.y"
+#line 1834 "go.y"
     {
 		(yyval.node) = nod(OCONTINUE, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 277:
-#line 1839 "go.y"
+#line 1838 "go.y"
     {
 		(yyval.node) = nod(OPROC, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 278:
-#line 1843 "go.y"
+#line 1842 "go.y"
     {
 		(yyval.node) = nod(ODEFER, (yyvsp[(2) - (2)].node), N);
 	}
     break;
 
   case 279:
-#line 1847 "go.y"
+#line 1846 "go.y"
     {
 		(yyval.node) = nod(OGOTO, (yyvsp[(2) - (2)].node), N);
 		(yyval.node)->sym = dclstack;  // context, for goto restrictions
@@ -4507,7 +4507,7 @@ yyreduce:
     break;
 
   case 280:
-#line 1852 "go.y"
+#line 1851 "go.y"
     {
 		(yyval.node) = nod(ORETURN, N, N);
 		(yyval.node)->list = (yyvsp[(2) - (2)].list);
@@ -4527,7 +4527,7 @@ yyreduce:
     break;
 
   case 281:
-#line 1871 "go.y"
+#line 1870 "go.y"
     {
 		(yyval.list) = nil;
 		if((yyvsp[(1) - (1)].node) != N)
@@ -4536,7 +4536,7 @@ yyreduce:
     break;
 
   case 282:
-#line 1877 "go.y"
+#line 1876 "go.y"
     {
 		(yyval.list) = (yyvsp[(1) - (3)].list);
 		if((yyvsp[(3) - (3)].node) != N)
@@ -4545,189 +4545,189 @@ yyreduce:
     break;
 
   case 283:
-#line 1885 "go.y"
+#line 1884 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 284:
-#line 1889 "go.y"
+#line 1888 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 285:
-#line 1895 "go.y"
+#line 1894 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 286:
-#line 1899 "go.y"
+#line 1898 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 287:
-#line 1905 "go.y"
+#line 1904 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 288:
-#line 1909 "go.y"
+#line 1908 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 289:
-#line 1915 "go.y"
+#line 1914 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 290:
-#line 1919 "go.y"
+#line 1918 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 291:
-#line 1928 "go.y"
+#line 1927 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 292:
-#line 1932 "go.y"
+#line 1931 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 293:
-#line 1936 "go.y"
+#line 1935 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 294:
-#line 1940 "go.y"
+#line 1939 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 295:
-#line 1945 "go.y"
+#line 1944 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 296:
-#line 1949 "go.y"
+#line 1948 "go.y"
     {
 		(yyval.list) = (yyvsp[(1) - (2)].list);
 	}
     break;
 
   case 301:
-#line 1963 "go.y"
+#line 1962 "go.y"
     {
 		(yyval.node) = N;
 	}
     break;
 
   case 303:
-#line 1969 "go.y"
+#line 1968 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 305:
-#line 1975 "go.y"
+#line 1974 "go.y"
     {
 		(yyval.node) = N;
 	}
     break;
 
   case 307:
-#line 1981 "go.y"
+#line 1980 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 309:
-#line 1987 "go.y"
+#line 1986 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 311:
-#line 1993 "go.y"
+#line 1992 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 313:
-#line 1999 "go.y"
+#line 1998 "go.y"
     {
 		(yyval.val).ctype = CTxxx;
 	}
     break;
 
   case 315:
-#line 2009 "go.y"
+#line 2008 "go.y"
     {
 		importimport((yyvsp[(2) - (4)].sym), (yyvsp[(3) - (4)].val).u.sval);
 	}
     break;
 
   case 316:
-#line 2013 "go.y"
+#line 2012 "go.y"
     {
 		importvar((yyvsp[(2) - (4)].sym), (yyvsp[(3) - (4)].type));
 	}
     break;
 
   case 317:
-#line 2017 "go.y"
+#line 2016 "go.y"
     {
 		importconst((yyvsp[(2) - (5)].sym), types[TIDEAL], (yyvsp[(4) - (5)].node));
 	}
     break;
 
   case 318:
-#line 2021 "go.y"
+#line 2020 "go.y"
     {
 		importconst((yyvsp[(2) - (6)].sym), (yyvsp[(3) - (6)].type), (yyvsp[(5) - (6)].node));
 	}
     break;
 
   case 319:
-#line 2025 "go.y"
+#line 2024 "go.y"
     {
 		importtype((yyvsp[(2) - (4)].type), (yyvsp[(3) - (4)].type));
 	}
     break;
 
   case 320:
-#line 2029 "go.y"
+#line 2028 "go.y"
     {
 		if((yyvsp[(2) - (4)].node) == N) {
 			dclcontext = PEXTERN;  // since we skip the funcbody below
@@ -4748,7 +4748,7 @@ yyreduce:
     break;
 
   case 321:
-#line 2049 "go.y"
+#line 2048 "go.y"
     {
 		(yyval.sym) = (yyvsp[(1) - (1)].sym);
 		structpkg = (yyval.sym)->pkg;
@@ -4756,7 +4756,7 @@ yyreduce:
     break;
 
   case 322:
-#line 2056 "go.y"
+#line 2055 "go.y"
     {
 		(yyval.type) = pkgtype((yyvsp[(1) - (1)].sym));
 		importsym((yyvsp[(1) - (1)].sym), OTYPE);
@@ -4764,14 +4764,14 @@ yyreduce:
     break;
 
   case 328:
-#line 2076 "go.y"
+#line 2075 "go.y"
     {
 		(yyval.type) = pkgtype((yyvsp[(1) - (1)].sym));
 	}
     break;
 
   case 329:
-#line 2080 "go.y"
+#line 2079 "go.y"
     {
 		// predefined name like uint8
 		(yyvsp[(1) - (1)].sym) = pkglookup((yyvsp[(1) - (1)].sym)->name, builtinpkg);
@@ -4784,49 +4784,49 @@ yyreduce:
     break;
 
   case 330:
-#line 2090 "go.y"
+#line 2089 "go.y"
     {
 		(yyval.type) = aindex(N, (yyvsp[(3) - (3)].type));
 	}
     break;
 
   case 331:
-#line 2094 "go.y"
+#line 2093 "go.y"
     {
 		(yyval.type) = aindex(nodlit((yyvsp[(2) - (4)].val)), (yyvsp[(4) - (4)].type));
 	}
     break;
 
   case 332:
-#line 2098 "go.y"
+#line 2097 "go.y"
     {
 		(yyval.type) = maptype((yyvsp[(3) - (5)].type), (yyvsp[(5) - (5)].type));
 	}
     break;
 
   case 333:
-#line 2102 "go.y"
+#line 2101 "go.y"
     {
 		(yyval.type) = tostruct((yyvsp[(3) - (4)].list));
 	}
     break;
 
   case 334:
-#line 2106 "go.y"
+#line 2105 "go.y"
     {
 		(yyval.type) = tointerface((yyvsp[(3) - (4)].list));
 	}
     break;
 
   case 335:
-#line 2110 "go.y"
+#line 2109 "go.y"
     {
 		(yyval.type) = ptrto((yyvsp[(2) - (2)].type));
 	}
     break;
 
   case 336:
-#line 2114 "go.y"
+#line 2113 "go.y"
     {
 		(yyval.type) = typ(TCHAN);
 		(yyval.type)->type = (yyvsp[(2) - (2)].type);
@@ -4835,7 +4835,7 @@ yyreduce:
     break;
 
   case 337:
-#line 2120 "go.y"
+#line 2119 "go.y"
     {
 		(yyval.type) = typ(TCHAN);
 		(yyval.type)->type = (yyvsp[(3) - (4)].type);
@@ -4844,7 +4844,7 @@ yyreduce:
     break;
 
   case 338:
-#line 2126 "go.y"
+#line 2125 "go.y"
     {
 		(yyval.type) = typ(TCHAN);
 		(yyval.type)->type = (yyvsp[(3) - (3)].type);
@@ -4853,7 +4853,7 @@ yyreduce:
     break;
 
   case 339:
-#line 2134 "go.y"
+#line 2133 "go.y"
     {
 		(yyval.type) = typ(TCHAN);
 		(yyval.type)->type = (yyvsp[(3) - (3)].type);
@@ -4862,14 +4862,14 @@ yyreduce:
     break;
 
   case 340:
-#line 2142 "go.y"
+#line 2141 "go.y"
     {
 		(yyval.type) = functype(nil, (yyvsp[(3) - (5)].list), (yyvsp[(5) - (5)].list));
 	}
     break;
 
   case 341:
-#line 2148 "go.y"
+#line 2147 "go.y"
     {
 		(yyval.node) = nod(ODCLFIELD, N, typenod((yyvsp[(2) - (3)].type)));
 		if((yyvsp[(1) - (3)].sym))
@@ -4879,7 +4879,7 @@ yyreduce:
     break;
 
   case 342:
-#line 2155 "go.y"
+#line 2154 "go.y"
     {
 		Type *t;
 	
@@ -4896,7 +4896,7 @@ yyreduce:
     break;
 
   case 343:
-#line 2171 "go.y"
+#line 2170 "go.y"
     {
 		Sym *s;
 		Pkg *p;
@@ -4919,49 +4919,49 @@ yyreduce:
     break;
 
   case 344:
-#line 2193 "go.y"
+#line 2192 "go.y"
     {
 		(yyval.node) = nod(ODCLFIELD, newname((yyvsp[(1) - (5)].sym)), typenod(functype(fakethis(), (yyvsp[(3) - (5)].list), (yyvsp[(5) - (5)].list))));
 	}
     break;
 
   case 345:
-#line 2197 "go.y"
+#line 2196 "go.y"
     {
 		(yyval.node) = nod(ODCLFIELD, N, typenod((yyvsp[(1) - (1)].type)));
 	}
     break;
 
   case 346:
-#line 2202 "go.y"
+#line 2201 "go.y"
     {
 		(yyval.list) = nil;
 	}
     break;
 
   case 348:
-#line 2209 "go.y"
+#line 2208 "go.y"
     {
 		(yyval.list) = (yyvsp[(2) - (3)].list);
 	}
     break;
 
   case 349:
-#line 2213 "go.y"
+#line 2212 "go.y"
     {
 		(yyval.list) = list1(nod(ODCLFIELD, N, typenod((yyvsp[(1) - (1)].type))));
 	}
     break;
 
   case 350:
-#line 2223 "go.y"
+#line 2222 "go.y"
     {
 		(yyval.node) = nodlit((yyvsp[(1) - (1)].val));
 	}
     break;
 
   case 351:
-#line 2227 "go.y"
+#line 2226 "go.y"
     {
 		(yyval.node) = nodlit((yyvsp[(2) - (2)].val));
 		switch((yyval.node)->val.ctype){
@@ -4983,7 +4983,7 @@ yyreduce:
     break;
 
   case 352:
-#line 2246 "go.y"
+#line 2245 "go.y"
     {
 		(yyval.node) = oldname(pkglookup((yyvsp[(1) - (1)].sym)->name, builtinpkg));
 		if((yyval.node)->op != OLITERAL)
@@ -4992,7 +4992,7 @@ yyreduce:
     break;
 
   case 354:
-#line 2255 "go.y"
+#line 2254 "go.y"
     {
 		if((yyvsp[(2) - (5)].node)->val.ctype == CTRUNE && (yyvsp[(4) - (5)].node)->val.ctype == CTINT) {
 			(yyval.node) = (yyvsp[(2) - (5)].node);
@@ -5006,42 +5006,42 @@ yyreduce:
     break;
 
   case 357:
-#line 2271 "go.y"
+#line 2270 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 358:
-#line 2275 "go.y"
+#line 2274 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 359:
-#line 2281 "go.y"
+#line 2280 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 360:
-#line 2285 "go.y"
+#line 2284 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
     break;
 
   case 361:
-#line 2291 "go.y"
+#line 2290 "go.y"
     {
 		(yyval.list) = list1((yyvsp[(1) - (1)].node));
 	}
     break;
 
   case 362:
-#line 2295 "go.y"
+#line 2294 "go.y"
     {
 		(yyval.list) = list((yyvsp[(1) - (3)].list), (yyvsp[(3) - (3)].node));
 	}
@@ -5263,7 +5263,7 @@ yyreturn:
 }
 
 
-#line 2299 "go.y"
+#line 2298 "go.y"
 
 
 static void

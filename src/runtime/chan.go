@@ -68,6 +68,12 @@ func chansend1(t *chantype, c *hchan, elem unsafe.Pointer) {
 	chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
 }
 
+// entry point for ok = c <- x from compiled code
+//go:nosplit
+func chansend2(t *chantype, c *hchan, elem unsafe.Pointer) bool {
+	return chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+}
+
 /*
  * generic single channel send/recv
  * If block is not nil,

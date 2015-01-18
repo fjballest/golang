@@ -1414,7 +1414,8 @@ walkexpr(Node **np, NodeList **init)
 		n1 = assignconv(n1, n->left->type->type, "chan send");
 		walkexpr(&n1, init);
 		n1 = nod(OADDR, n1, N);
-		n = mkcall1(chanfn("chansend1", 2, n->left->type), T, init, typename(n->left->type), n->left, n1);
+		n = mkcall1(chanfn("chansend2", 2, n->left->type),
+			types[TBOOL], init, typename(n->left->type), n->left, n1);
 		goto ret;
 
 	case OCLOSURE:
