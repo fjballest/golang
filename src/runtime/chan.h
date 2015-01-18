@@ -24,6 +24,7 @@ struct	Hchan
 	uintgo	dataqsiz;		// size of the circular q
 	byte*	buf;
 	uint16	elemsize;
+	uint16	errlen;		// error string len
 	uint32	closed;
 	Type*	elemtype;		// element type
 	uintgo	sendx;			// send index
