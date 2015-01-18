@@ -128,7 +128,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 	lock(&c.lock)
 	if c.closed != 0 {
 		unlock(&c.lock)
-		panic("send on closed channel")
+		return false	// sending on a closed chan doesn't panic but fails -nemo
 	}
 
 	if c.dataqsiz == 0 { // synchronous channel
@@ -178,18 +178,19 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 			gothrow("G waiting list is corrupted!")
 		}
 		gp.waiting = nil
+		done := true
 		if gp.param == nil {
 			if c.closed == 0 {
 				gothrow("chansend: spurious wakeup")
 			}
-			panic("send on closed channel")
+			done = false	// don't panic on a closed chan; just return false -nemo
 		}
 		gp.param = nil
 		if mysg.releasetime > 0 {
 			blockevent(int64(mysg.releasetime)-t0, 2)
 		}
 		releaseSudog(mysg)
-		return true
+		return done
 	}
 
 	// asynchronous channel
@@ -220,7 +221,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 		lock(&c.lock)
 		if c.closed != 0 {
 			unlock(&c.lock)
-			panic("send on closed channel")
+			return false	// don't panic; just fail
 		}
 	}
 
@@ -256,13 +257,13 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 
 func closechan(c *hchan) {
 	if c == nil {
-		panic("close of nil channel")
+		return	// don't panic
 	}
 
 	lock(&c.lock)
 	if c.closed != 0 {
 		unlock(&c.lock)
-		panic("close of closed channel")
+		return	// don't panic
 	}
 
 	if raceenabled {

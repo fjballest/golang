@@ -14,6 +14,10 @@ struct	WaitQ
 	SudoG*	last;
 };
 
+// In the future we should keep the opt. error hanging from Hchan and
+// make the GC aware of it. By now, we'll just store the error string, if any. -nemo
+#define MAXERR 128
+
 struct	Hchan
 {
 	uintgo	qcount;			// total data in the q
@@ -26,6 +30,7 @@ struct	Hchan
 	uintgo	recvx;			// receive index
 	WaitQ	recvq;			// list of recv waiters
 	WaitQ	sendq;			// list of send waiters
+	byte	err[MAXERR];	// error string given to close
 	Mutex	lock;
 };
 
