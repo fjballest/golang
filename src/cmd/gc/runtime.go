@@ -105,6 +105,8 @@ func chanrecv1(chanType *byte, hchan <-chan any, elem *any)
 func chanrecv2(chanType *byte, hchan <-chan any, elem *any) bool
 func chansend1(chanType *byte, hchan chan<- any, elem *any)
 func closechan(hchan any)
+func closechan2(hchan any, err interface{})
+func cerror(hchan any) error
 
 // *byte is really *runtime.Type
 func writebarrierptr(dst *any, src any)

@@ -82,6 +82,8 @@ char *runtimeimport =
 	"func @\"\".chanrecv2 (@\"\".chanType·2 *byte, @\"\".hchan·3 <-chan any, @\"\".elem·4 *any) (? bool)\n"
 	"func @\"\".chansend1 (@\"\".chanType·1 *byte, @\"\".hchan·2 chan<- any, @\"\".elem·3 *any)\n"
 	"func @\"\".closechan (@\"\".hchan·1 any)\n"
+	"func @\"\".closechan2 (@\"\".hchan·1 any, @\"\".err·2 interface {})\n"
+	"func @\"\".cerror (@\"\".hchan·2 any) (? error)\n"
 	"func @\"\".writebarrierptr (@\"\".dst·1 *any, @\"\".src·2 any)\n"
 	"func @\"\".writebarrierstring (@\"\".dst·1 *any, @\"\".src·2 any)\n"
 	"func @\"\".writebarrierslice (@\"\".dst·1 *any, @\"\".src·2 any)\n"
