@@ -1275,8 +1275,24 @@ reswitch:
 		goto ret;
 
 	case OCLOSE:
-		if(onearg(n, "%O", n->op) < 0)
+		// accept opt. second arg and don't fail on close for
+		// send only channels.
+		args = n->list;
+		if(args == nil) {
+			yyerror("missing arguments to close");
 			goto error;
+		}
+		if(args->next != nil && args->next->next != nil) {
+			yyerror("too many arguments to close");
+			goto error;
+		}
+		n->left = args->n;
+		if(args->next != nil) {
+			n->right = args->next->n;
+		} else {
+			n->right = nil;
+		}
+		n->list = nil;
 		typecheck(&n->left, Erv);
 		defaultlit(&n->left, T);
 		l = n->left;
@@ -1286,9 +1302,16 @@ reswitch:
 			yyerror("invalid operation: %N (non-chan type %T)", n, t);
 			goto error;
 		}
-		if(!(t->chan & Csend)) {
-			yyerror("invalid operation: %N (cannot close receive-only channel)", n);
-			goto error;
+		if(n->right != nil) {
+			typecheck(&n->right, Erv);
+			if(n->right->type == T)
+				goto error;
+			// BUG: TODO
+			if(n->right->type->etype != TSTRING &&
+			   n->right->type->etype != errortype->etype && 0) {
+				yyerror("second argument to close not error or string");
+				goto error;
+			}
 		}
 		ok |= Etop;
 		goto ret;

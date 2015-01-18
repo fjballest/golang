@@ -1273,9 +1273,15 @@ walkexpr(Node **np, NodeList **init)
 
 	case OCLOSE:
 		// cannot use chanfn - closechan takes any, not chan any
-		fn = syslook("closechan", 1);
-		argtype(fn, n->left->type);
-		n = mkcall1(fn, T, init, n->left);
+		if(n->right == nil) {
+			fn = syslook("closechan", 1);
+			argtype(fn, n->left->type);
+			n = mkcall1(fn, T, init, n->left);
+		} else {
+			fn = syslook("closechan2", 1);
+			argtype(fn, n->left->type);
+			n = mkcall1(fn, T, init, n->left, n->right);
+		}
 		goto ret;
 
 	case OMAKECHAN:

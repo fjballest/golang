@@ -1292,11 +1292,15 @@ exprfmt(Fmt *f, Node *n, int prec)
 			return fmtprint(f, "%T(%N)", n->type, n->left);
 		return fmtprint(f, "%T(%,H)", n->type, n->list);
 
+	case OCLOSE:
+		// 2nd arg. -nemo
+		if(n->left && n->right)
+			return fmtprint(f, "%#O(%N, %N)", n->op, n->left, n->right);
+		// else fall
 	case OREAL:
 	case OIMAG:
 	case OAPPEND:
 	case OCAP:
-	case OCLOSE:
 	case ODELETE:
 	case OLEN:
 	case OMAKE:
