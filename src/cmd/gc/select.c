@@ -49,14 +49,19 @@ typecheckselect(Node *sel)
 				break;
 
 			case OAS:
-				// convert x = <-c into OSELRECV(x, <-c).
+				// convert x = <-c into OSELRECV(x, <-c) and
+				// ok = c <- x into OSELSEND(x, c, ok)
 				// remove implicit conversions; the eventual assignment
 				// will reintroduce them.
 				if((n->right->op == OCONVNOP || n->right->op == OCONVIFACE) && n->right->implicit)
 					n->right = n->right->left;
 
-				if(n->right->op != ORECV) {
-					yyerror("select assignment must have receive on right hand side");
+				if(n->right->op == OSEND) {
+					// TODO: convert to OSELSEND and honor it
+					yyerror("select assignment with send not yet implemented");
+					break;
+				} else if(n->right->op != ORECV) {
+					yyerror("select assignment must have receive or send on right hand side");
 					break;
 				}
 				n->op = OSELRECV;

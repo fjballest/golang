@@ -541,6 +541,8 @@ enum
 	ORUNESTR,	// string(i)
 	OSELRECV,	// case x = <-c:
 	OSELRECV2,	// case x, ok = <-c:
+	OSELSEND,	// case ok = c <- x:
+
 	OIOTA,	// iota
 	OREAL,	// real
 	OIMAG,	// imag
