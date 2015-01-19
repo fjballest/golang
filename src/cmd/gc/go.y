@@ -1631,29 +1631,6 @@ structdcl:
 			l->n->val = $3;
 		}
 	}
-|	new_name_list istructtype oliteral
-	{
-		NodeList *l;
-
-		Node *n;
-		l = $1;
-		if(l == nil) {
-			// ? symbol, during import (list1(N) == nil)
-			n = $2;
-			if(n->op == OIND)
-				n = n->left;
-			n = embedded(n->sym, importpkg);
-			n->right = $2;
-			n->val = $3;
-			$$ = list1(n);
-			break;
-		}
-
-		for(l=$1; l; l=l->next) {
-			l->n = nod(ODCLFIELD, l->n, $2);
-			l->n->val = $3;
-		}
-	}
 |	embed oliteral
 	{
 		$1->val = $2;

@@ -598,12 +598,12 @@ func (p *parser) parseRhsList() []ast.Expr {
 // ----------------------------------------------------------------------------
 // Types
 
-func (p *parser) parseType() ast.Expr {
+func (p *parser) parseType(istype bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "Type"))
 	}
 
-	typ := p.tryType()
+	typ := p.tryType(istype)
 
 	if typ == nil {
 		pos := p.pos
@@ -652,7 +652,7 @@ func (p *parser) parseArrayType() ast.Expr {
 	}
 	p.exprLev--
 	p.expect(token.RBRACK)
-	elt := p.parseType()
+	elt := p.parseType(false)
 
 	return &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
 }
@@ -714,13 +714,20 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
 	return field
 }
 
-func (p *parser) parseStructType() *ast.StructType {
+func (p *parser) parseStructType(istype bool) *ast.StructType {
 	if p.trace {
 		defer un(trace(p, "StructType"))
 	}
 
-	pos := p.expect(token.STRUCT)
-	lbrace := p.expect(token.LBRACE)
+	pos := p.pos
+	lbrace := p.pos
+	if istype && p.tok == token.LBRACE {
+		pos = p.expect(token.LBRACE)
+		lbrace = pos
+	} else {
+		pos = p.expect(token.STRUCT)
+		lbrace = p.expect(token.LBRACE)
+	}
 	scope := ast.NewScope(nil) // struct scope
 	var list []*ast.Field
 	for p.tok == token.IDENT || p.tok == token.MUL || p.tok == token.LPAREN {
@@ -747,7 +754,7 @@ func (p *parser) parsePointerType() *ast.StarExpr {
 	}
 
 	star := p.expect(token.MUL)
-	base := p.parseType()
+	base := p.parseType(false)
 
 	return &ast.StarExpr{Star: star, X: base}
 }
@@ -879,7 +886,7 @@ func (p *parser) parseResult(scope *ast.Scope) *ast.FieldList {
 		return p.parseParameters(scope, false)
 	}
 
-	typ := p.tryType()
+	typ := p.tryType(false)
 	if typ != nil {
 		list := make([]*ast.Field, 1)
 		list[0] = &ast.Field{Type: typ}
@@ -971,9 +978,9 @@ func (p *parser) parseMapType() *ast.MapType {
 
 	pos := p.expect(token.MAP)
 	p.expect(token.LBRACK)
-	key := p.parseType()
+	key := p.parseType(false)
 	p.expect(token.RBRACK)
-	value := p.parseType()
+	value := p.parseType(false)
 
 	return &ast.MapType{Map: pos, Key: key, Value: value}
 }
@@ -998,7 +1005,7 @@ func (p *parser) parseChanType() *ast.ChanType {
 		p.expect(token.CHAN)
 		dir = ast.RECV
 	}
-	value := p.parseType()
+	value := p.parseType(false)
 
 	return &ast.ChanType{Begin: pos, Arrow: arrow, Dir: dir, Value: value}
 }
@@ -1011,7 +1018,7 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	case token.LBRACK:
 		return p.parseArrayType()
 	case token.STRUCT:
-		return p.parseStructType()
+		return p.parseStructType(false)
 	case token.MUL:
 		return p.parsePointerType()
 	case token.FUNC:
@@ -1026,7 +1033,7 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	case token.LPAREN:
 		lparen := p.pos
 		p.next()
-		typ := p.parseType()
+		typ := p.parseType(false)
 		rparen := p.expect(token.RPAREN)
 		return &ast.ParenExpr{Lparen: lparen, X: typ, Rparen: rparen}
 	}
@@ -1035,8 +1042,13 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	return nil
 }
 
-func (p *parser) tryType() ast.Expr {
-	typ := p.tryIdentOrType()
+func (p *parser) tryType(istype bool) ast.Expr {
+	var typ ast.Expr
+	if p.tok == token.LBRACE && istype {
+		typ = p.parseStructType(istype)
+	} else {
+		typ = p.tryIdentOrType()
+	}
 	if typ != nil {
 		p.resolve(typ)
 	}
@@ -1179,7 +1191,7 @@ func (p *parser) parseTypeAssertion(x ast.Expr) ast.Expr {
 		// type switch: typ == nil
 		p.next()
 	} else {
-		typ = p.parseType()
+		typ = p.parseType(false)
 	}
 	rparen := p.expect(token.RPAREN)
 
@@ -1843,10 +1855,10 @@ func (p *parser) parseTypeList() (list []ast.Expr) {
 		defer un(trace(p, "TypeList"))
 	}
 
-	list = append(list, p.parseType())
+	list = append(list, p.parseType(false))
 	for p.tok == token.COMMA {
 		p.next()
-		list = append(list, p.parseType())
+		list = append(list, p.parseType(false))
 	}
 
 	return
@@ -2176,7 +2188,9 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 	}
 
 	switch p.tok {
-	case token.CONST, token.TYPE, token.VAR:
+	case token.TYPE:
+		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
+	case token.CONST, token.VAR:
 		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
 	case
 		// tokens that may start an expression
@@ -2231,7 +2245,7 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 // ----------------------------------------------------------------------------
 // Declarations
 
-type parseSpecFunction func(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec
+type parseSpecFunction func(doc *ast.CommentGroup, keyword token.Token, iota int, istype bool) ast.Spec
 
 func isValidImport(lit string) bool {
 	const illegalChars = `!"#$%&'()*,:;<=>?[\]^{|}` + "`\uFFFD"
@@ -2244,7 +2258,7 @@ func isValidImport(lit string) bool {
 	return s != ""
 }
 
-func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
+func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int, _ bool) ast.Spec {
 	if p.trace {
 		defer un(trace(p, "ImportSpec"))
 	}
@@ -2283,13 +2297,13 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	return spec
 }
 
-func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
+func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int, _ bool) ast.Spec {
 	if p.trace {
 		defer un(trace(p, keyword.String()+"Spec"))
 	}
 
 	idents := p.parseIdentList()
-	typ := p.tryType()
+	typ := p.tryType(false)
 	var values []ast.Expr
 	// always permit optional initialization for more tolerant parsing
 	if p.tok == token.ASSIGN {
@@ -2318,7 +2332,7 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	return spec
 }
 
-func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
+func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int, istype bool) ast.Spec {
 	if p.trace {
 		defer un(trace(p, "TypeSpec"))
 	}
@@ -2332,7 +2346,7 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	spec := &ast.TypeSpec{Doc: doc, Name: ident}
 	p.declare(spec, nil, p.topScope, ast.Typ, ident)
 
-	spec.Type = p.parseType()
+	spec.Type = p.parseType(istype)
 	p.expectSemi() // call before accessing p.linecomment
 	spec.Comment = p.lineComment
 
@@ -2344,6 +2358,7 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 		defer un(trace(p, "GenDecl("+keyword.String()+")"))
 	}
 
+	istype := p.tok == token.TYPE
 	doc := p.leadComment
 	pos := p.expect(keyword)
 	var lparen, rparen token.Pos
@@ -2352,12 +2367,12 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 		lparen = p.pos
 		p.next()
 		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
-			list = append(list, f(p.leadComment, keyword, iota))
+			list = append(list, f(p.leadComment, keyword, iota, istype))
 		}
 		rparen = p.expect(token.RPAREN)
 		p.expectSemi()
 	} else {
-		list = append(list, f(nil, keyword, 0))
+		list = append(list, f(nil, keyword, 0, istype))
 	}
 
 	return &ast.GenDecl{
