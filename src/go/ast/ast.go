@@ -687,13 +687,22 @@ type (
 		Body   *BlockStmt // CommClauses only
 	}
 
-	// A ForStmt represents a for statement.
+	// A ForStmt represents a for statement
 	ForStmt struct {
 		For  token.Pos // position of "for" keyword
 		Init Stmt      // initialization statement; or nil
 		Cond Expr      // condition; or nil
 		Post Stmt      // post iteration statement; or nil
 		Body *BlockStmt
+	}
+
+	// A DoSelectStmt node represents a doselect statement
+	DoSelectStmt struct {
+		DoSelect  token.Pos // position of "doselect" keyword
+		Init Stmt      // initialization statement; or nil
+		Cond Expr      // condition; or nil
+		Post Stmt      // post iteration statement; or nil
+		Body *BlockStmt // CommClauses only
 	}
 
 	// A RangeStmt represents a for statement with a range clause.

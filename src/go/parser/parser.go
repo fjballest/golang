@@ -438,7 +438,7 @@ func syncStmt(p *parser) {
 		switch p.tok {
 		case token.BREAK, token.CONST, token.CONTINUE, token.DEFER,
 			token.FALLTHROUGH, token.FOR, token.GO, token.GOTO,
-			token.IF, token.RETURN, token.SELECT, token.SWITCH,
+			token.IF, token.RETURN, token.SELECT, token.DOSELECT, token.SWITCH,
 			token.TYPE, token.VAR:
 			// Return only if parser made some progress since last
 			// sync or if it has not reached 10 sync calls without
@@ -2027,6 +2027,61 @@ func (p *parser) parseSelectStmt() *ast.SelectStmt {
 	body := &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
 
 	return &ast.SelectStmt{Select: pos, Body: body}
+}
+
+XXX: COntinue addiing the DoSelect parsing...
+
+func (p *parser) parseDoSelectStmt() *ast.DoSelectStmt {
+	if p.trace {
+		defer un(trace(p, "DoSelectStmt"))
+	}
+
+	pos := p.expect(token.DOSELECT)
+
+	p.openScope()
+	defer p.closeScope()
+	var s1, s2, s3 ast.Stmt
+	if p.tok != token.LBRACE {
+		prevLev := p.exprLev
+		p.exprLev = -1
+		if p.tok != token.SEMICOLON {
+			isRange := false
+			if p.tok == token.RANGE {
+				isRange = true
+			} else {
+				s2, isRange = p.parseSimpleStmt(0)
+			}
+			if isRange {
+				p.errorExpected(pos, "unexpected range")
+				syncStmt(p)
+				return &ast.BadExpr{From: pos, To: p.pos}
+			}
+		}
+		if !isRange && p.tok == token.SEMICOLON {
+			p.next()
+			s1 = s2
+			s2 = nil
+			if p.tok != token.SEMICOLON {
+				s2, _ = p.parseSimpleStmt(basic)
+			}
+			p.expectSemi()
+			if p.tok != token.LBRACE {
+				s3, _ = p.parseSimpleStmt(basic)
+			}
+		}
+		p.exprLev = prevLev
+	}
+
+	lbrace := p.expect(token.LBRACE)
+	var list []ast.Stmt
+	for p.tok == token.CASE || p.tok == token.DEFAULT {
+		list = append(list, p.parseCommClause())
+	}
+	rbrace := p.expect(token.RBRACE)
+	p.expectSemi()
+	body := &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
+
+	return &ast.DoSelectStmt{DoSelect: pos, Body: body}
 }
 
 func (p *parser) parseForStmt() ast.Stmt {

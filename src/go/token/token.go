@@ -99,6 +99,7 @@ const (
 
 	DEFAULT
 	DEFER
+	DOSELECT
 	ELSE
 	FALLTHROUGH
 	FOR
@@ -200,6 +201,7 @@ var tokens = [...]string{
 
 	DEFAULT:     "default",
 	DEFER:       "defer",
+	DOSELECT:         "doselect",
 	ELSE:        "else",
 	FALLTHROUGH: "fallthrough",
 	FOR:         "for",
@@ -248,8 +250,8 @@ func (tok Token) String() string {
 //
 const (
 	LowestPrec  = 0 // non-operators
-	UnaryPrec   = 6
-	HighestPrec = 7
+	UnaryPrec   = 7
+	HighestPrec = 8
 )
 
 // Precedence returns the operator precedence of the binary
@@ -258,16 +260,18 @@ const (
 //
 func (op Token) Precedence() int {
 	switch op {
-	case LOR:
+	case ARROW:
 		return 1
-	case LAND:
+	case LOR:
 		return 2
-	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
+	case LAND:
 		return 3
-	case ADD, SUB, OR, XOR:
+	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
 		return 4
-	case MUL, QUO, REM, SHL, SHR, AND, AND_NOT:
+	case ADD, SUB, OR, XOR:
 		return 5
+	case MUL, QUO, REM, SHL, SHR, AND, AND_NOT:
+		return 6
 	}
 	return LowestPrec
 }
