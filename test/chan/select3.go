@@ -101,10 +101,6 @@ func main() {
 		}
 	})
 
-	// sending to a closed channel panics.
-	testPanic(always, func() {
-		closedch <- 7
-	})
 
 	// receiving from a non-ready channel always blocks
 	testBlock(always, func() {
@@ -205,11 +201,6 @@ func main() {
 		select {
 		case x, ok := (<-closedch):
 			_, _ = x, ok
-		}
-	})
-	testPanic(always, func() {
-		select {
-		case closedch <- 7:
 		}
 	})
 
