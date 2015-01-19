@@ -2029,8 +2029,6 @@ func (p *parser) parseSelectStmt() *ast.SelectStmt {
 	return &ast.SelectStmt{Select: pos, Body: body}
 }
 
-XXX: COntinue addiing the DoSelect parsing...
-
 func (p *parser) parseDoSelectStmt() *ast.DoSelectStmt {
 	if p.trace {
 		defer un(trace(p, "DoSelectStmt"))
@@ -2044,17 +2042,16 @@ func (p *parser) parseDoSelectStmt() *ast.DoSelectStmt {
 	if p.tok != token.LBRACE {
 		prevLev := p.exprLev
 		p.exprLev = -1
+		isRange := false
 		if p.tok != token.SEMICOLON {
-			isRange := false
 			if p.tok == token.RANGE {
 				isRange = true
 			} else {
-				s2, isRange = p.parseSimpleStmt(0)
+				s2, isRange = p.parseSimpleStmt(basic)
 			}
 			if isRange {
 				p.errorExpected(pos, "unexpected range")
 				syncStmt(p)
-				return &ast.BadExpr{From: pos, To: p.pos}
 			}
 		}
 		if !isRange && p.tok == token.SEMICOLON {
@@ -2071,7 +2068,7 @@ func (p *parser) parseDoSelectStmt() *ast.DoSelectStmt {
 		}
 		p.exprLev = prevLev
 	}
-
+	
 	lbrace := p.expect(token.LBRACE)
 	var list []ast.Stmt
 	for p.tok == token.CASE || p.tok == token.DEFAULT {
@@ -2081,7 +2078,13 @@ func (p *parser) parseDoSelectStmt() *ast.DoSelectStmt {
 	p.expectSemi()
 	body := &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
 
-	return &ast.DoSelectStmt{DoSelect: pos, Body: body}
+	return &ast.DoSelectStmt{
+		DoSelect:  pos,
+		Init: s1,
+		Cond: p.makeExpr(s2, "boolean or range expression"),
+		Post: s3,
+		Body: body,
+	}
 }
 
 func (p *parser) parseForStmt() ast.Stmt {
@@ -2204,6 +2207,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		s = p.parseSwitchStmt()
 	case token.SELECT:
 		s = p.parseSelectStmt()
+	case token.DOSELECT:
+		s = p.parseDoSelectStmt()
 	case token.FOR:
 		s = p.parseForStmt()
 	case token.SEMICOLON:

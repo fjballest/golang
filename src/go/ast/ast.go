@@ -737,6 +737,7 @@ func (s *SwitchStmt) Pos() token.Pos     { return s.Switch }
 func (s *TypeSwitchStmt) Pos() token.Pos { return s.Switch }
 func (s *CommClause) Pos() token.Pos     { return s.Case }
 func (s *SelectStmt) Pos() token.Pos     { return s.Select }
+func (s *DoSelectStmt) Pos() token.Pos     { return s.DoSelect }
 func (s *ForStmt) Pos() token.Pos        { return s.For }
 func (s *RangeStmt) Pos() token.Pos      { return s.For }
 
@@ -788,6 +789,7 @@ func (s *CommClause) End() token.Pos {
 	return s.Colon + 1
 }
 func (s *SelectStmt) End() token.Pos { return s.Body.End() }
+func (s *DoSelectStmt) End() token.Pos { return s.Body.End() }
 func (s *ForStmt) End() token.Pos    { return s.Body.End() }
 func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
 
@@ -812,6 +814,7 @@ func (*CaseClause) stmtNode()     {}
 func (*SwitchStmt) stmtNode()     {}
 func (*TypeSwitchStmt) stmtNode() {}
 func (*CommClause) stmtNode()     {}
+func (*DoSelectStmt) stmtNode()     {}
 func (*SelectStmt) stmtNode()     {}
 func (*ForStmt) stmtNode()        {}
 func (*RangeStmt) stmtNode()      {}
