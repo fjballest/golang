@@ -745,6 +745,7 @@ func (p *parser) parseStructType(istype bool) *ast.StructType {
 			List:    list,
 			Closing: rbrace,
 		},
+		Optional: istype,
 	}
 }
 

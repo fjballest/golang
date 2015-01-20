@@ -852,7 +852,9 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		p.expr(x.Elt)
 
 	case *ast.StructType:
-		p.print(token.STRUCT)
+		if !x.Optional || !p.ImplicitStruct {
+			p.print(token.STRUCT)
+		}
 		p.fieldList(x.Fields, true, x.Incomplete)
 
 	case *ast.FuncType:

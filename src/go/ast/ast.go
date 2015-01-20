@@ -383,6 +383,7 @@ type (
 		Struct     token.Pos  // position of "struct" keyword
 		Fields     *FieldList // list of field declarations
 		Incomplete bool       // true if (source) fields are missing in the Fields list
+		Optional	bool	// true if we can omit the 'struct' keyword here
 	}
 
 	// Pointer types are represented via StarExpr nodes.
