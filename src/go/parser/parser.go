@@ -765,7 +765,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 	if isParam && p.tok == token.ELLIPSIS {
 		pos := p.pos
 		p.next()
-		typ := p.tryIdentOrType() // don't use parseType so we can provide better error message
+		typ := p.tryIdentOrType(false) // don't use parseType so we can provide better error message
 		if typ != nil {
 			p.resolve(typ)
 		} else {
@@ -774,7 +774,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 		}
 		return &ast.Ellipsis{Ellipsis: pos, Elt: typ}
 	}
-	return p.tryIdentOrType()
+	return p.tryIdentOrType(false)
 }
 
 // If the result is an identifier, it is not resolved.
@@ -1012,14 +1012,14 @@ func (p *parser) parseChanType() *ast.ChanType {
 }
 
 // If the result is an identifier, it is not resolved.
-func (p *parser) tryIdentOrType() ast.Expr {
+func (p *parser) tryIdentOrType(istype bool) ast.Expr {
 	switch p.tok {
 	case token.IDENT:
 		return p.parseTypeName()
 	case token.LBRACK:
 		return p.parseArrayType()
 	case token.STRUCT:
-		return p.parseStructType(false)
+		return p.parseStructType(istype)
 	case token.MUL:
 		return p.parsePointerType()
 	case token.FUNC:
@@ -1048,7 +1048,7 @@ func (p *parser) tryType(istype bool) ast.Expr {
 	if p.tok == token.LBRACE && istype {
 		typ = p.parseStructType(istype)
 	} else {
-		typ = p.tryIdentOrType()
+		typ = p.tryIdentOrType(istype)
 	}
 	if typ != nil {
 		p.resolve(typ)
@@ -1157,7 +1157,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		return p.parseFuncTypeOrLit()
 	}
 
-	if typ := p.tryIdentOrType(); typ != nil {
+	if typ := p.tryIdentOrType(false); typ != nil {
 		// could be type for composite literal or conversion
 		_, isIdent := typ.(*ast.Ident)
 		assert(!isIdent, "type cannot be identifier")
