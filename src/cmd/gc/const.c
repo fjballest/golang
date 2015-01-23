@@ -1655,6 +1655,7 @@ hascallchan(Node *n)
 	case OPRINTN:
 	case OREAL:
 	case ORECOVER:
+	case OSEND:
 	case ORECV:
 		return 1;
 	}

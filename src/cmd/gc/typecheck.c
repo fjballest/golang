@@ -249,6 +249,7 @@ callrecv(Node *n)
 	case OCALLINTER:
 	case OCALLFUNC:
 	case ORECV:
+	case OSEND:
 	case OCAP:
 	case OLEN:
 	case OCOPY:

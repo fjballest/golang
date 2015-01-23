@@ -952,7 +952,7 @@ static void
 orderexpr(Node **np, Order *order)
 {
 	Node *n;
-	NodeList *mark, *l;
+	NodeList *mark, *l, *tn;
 	Type *t;
 	int lno;
 
@@ -975,12 +975,11 @@ orderexpr(Node **np, Order *order)
 		// Special: value being sent is passed as a pointer; make it addressable.
 		// This is now required and not just in orderstmt because send can now be
 		// an expression.
-		l = marktemp(order);
+		tn = marktemp(order);
 		orderexpr(&n->left, order);
 		orderexpr(&n->right, order);
 		orderaddrtemp(&n->right, order);
-		order->out = list(order->out, n);
-		cleantemp(l, order);
+		cleantemp(tn, order);
 		break;
 
 	case OADDSTR:

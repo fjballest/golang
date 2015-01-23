@@ -73,6 +73,9 @@ func chansend1(t *chantype, c *hchan, elem unsafe.Pointer) {
 // 2nd return value is true if did send, false if not.
 //go:nosplit
 func chansend2(t *chantype, c *hchan, elem unsafe.Pointer) bool {
+	if t == nil {
+		return false	// prevent this from inlining
+	}
 	_, did := chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
 	return did
 }
