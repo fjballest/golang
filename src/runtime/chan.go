@@ -62,16 +62,19 @@ func chanbuf(c *hchan, i uint) unsafe.Pointer {
 	return add(unsafe.Pointer(c.buf), uintptr(i)*uintptr(c.elemsize))
 }
 
-// entry point for c <- x from compiled code
+// old entry point for c <- x from compiled code
 //go:nosplit
 func chansend1(t *chantype, c *hchan, elem unsafe.Pointer) {
 	chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
 }
 
-// entry point for ok = c <- x from compiled code
+// entry point for ok = c <- x and c<-x from compiled code
+// 1st return value is true if can send without blocking, false if not
+// 2nd return value is true if did send, false if not.
 //go:nosplit
 func chansend2(t *chantype, c *hchan, elem unsafe.Pointer) bool {
-	return chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+	_, did := chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+	return did
 }
 
 /*
@@ -85,15 +88,17 @@ func chansend2(t *chantype, c *hchan, elem unsafe.Pointer) bool {
  * when a channel involved in the sleep has
  * been closed.  it is easiest to loop and re-run
  * the operation; we'll see that it's now closed.
+ * 1st return value is true if can send without blocking, false if not
+ * 2nd return value is true if did send, false if not.
  */
-func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
+func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) (bool, bool) {
 	if raceenabled {
 		raceReadObjectPC(t.elem, ep, callerpc, funcPC(chansend))
 	}
 
 	if c == nil {
 		if !block {
-			return false
+			return false, false
 		}
 		gopark(nil, nil, "chan send (nil chan)")
 		gothrow("unreachable")
@@ -123,7 +128,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 	// channel wasn't closed during the first observation.
 	if !block && c.closed == 0 && ((c.dataqsiz == 0 && c.recvq.first == nil) ||
 		(c.dataqsiz > 0 && c.qcount == c.dataqsiz)) {
-		return false
+		return false, false
 	}
 
 	var t0 int64
@@ -134,7 +139,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 	lock(&c.lock)
 	if c.closed != 0 {
 		unlock(&c.lock)
-		return false	// sending on a closed chan doesn't panic but fails -nemo
+		return true, false	// sending on a closed chan doesn't panic but fails -nemo
 	}
 
 	if c.dataqsiz == 0 { // synchronous channel
@@ -155,12 +160,12 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 				sg.releasetime = cputicks()
 			}
 			goready(recvg)
-			return true
+			return true, true
 		}
 
 		if !block {
 			unlock(&c.lock)
-			return false
+			return false, false
 		}
 
 		// no receiver available: block on this channel.
@@ -196,7 +201,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 			blockevent(int64(mysg.releasetime)-t0, 2)
 		}
 		releaseSudog(mysg)
-		return done
+		return true, done
 	}
 
 	// asynchronous channel
@@ -205,7 +210,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 	for c.qcount >= c.dataqsiz {
 		if !block {
 			unlock(&c.lock)
-			return false
+			return false, false
 		}
 		gp := getg()
 		mysg := acquireSudog()
@@ -227,7 +232,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 		lock(&c.lock)
 		if c.closed != 0 {
 			unlock(&c.lock)
-			return false	// don't panic; just fail
+			return true, false	// don't panic; just fail
 		}
 	}
 
@@ -258,7 +263,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 	if t1 > 0 {
 		blockevent(t1-t0, 2)
 	}
-	return true
+	return true, true
 }
 
 func closechan(c *hchan) {
@@ -649,7 +654,8 @@ func recvclosed(c *hchan, ep unsafe.Pointer) (selected, recevied bool) {
 //	}
 //
 func selectnbsend(t *chantype, c *hchan, elem unsafe.Pointer) (selected bool) {
-	return chansend(t, c, elem, false, getcallerpc(unsafe.Pointer(&t)))
+	can, _ := chansend(t, c, elem, false, getcallerpc(unsafe.Pointer(&t)))
+	return can
 }
 
 // compiler implements
@@ -698,7 +704,8 @@ func selectnbrecv2(t *chantype, elem unsafe.Pointer, received *bool, c *hchan) (
 }
 
 func reflect_chansend(t *chantype, c *hchan, elem unsafe.Pointer, nb bool) (selected bool) {
-	return chansend(t, c, elem, !nb, getcallerpc(unsafe.Pointer(&t)))
+	can, _ := chansend(t, c, elem, !nb, getcallerpc(unsafe.Pointer(&t)))
+	return can
 }
 
 func reflect_chanrecv(t *chantype, c *hchan, nb bool, elem unsafe.Pointer) (selected bool, received bool) {
