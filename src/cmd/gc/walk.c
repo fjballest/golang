@@ -623,10 +623,6 @@ walkexpr(Node **np, NodeList **init)
 		default:
 			walkexpr(&n->right, init);
 			break;
-		case OSEND:
-			XXX: must convert this to a call to chansend3 that also receives
-			the pointer to the lvalue and sets it as it should
-			
 		case ORECV:
 			// x = <-c; n->left is x, n->right->left is c.
 			// orderstmt made sure x is addressable.
