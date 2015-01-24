@@ -296,6 +296,7 @@ struct	G
 	void*	param;		// passed parameter on wakeup
 	uint32	atomicstatus;
 	int64	goid;
+	int64	gappid;	// go application it, inherited until changed -nemo
 	int64	waitsince;	// approx time when the G become blocked
 	String	waitreason;	// if status==Gwaiting
 	G*	schedlink;
@@ -918,7 +919,7 @@ void	runtime·entersyscall(void);
 void	runtime·reentersyscall(uintptr, uintptr);
 void	runtime·entersyscallblock(void);
 void	runtime·exitsyscall(void);
-G*	runtime·newproc1(FuncVal*, byte*, int32, int32, void*);
+G*	runtime·newproc1(FuncVal*, byte*, int32, int32, void*, int64);
 bool	runtime·sigsend(int32 sig);
 intgo	runtime·callers(intgo, uintptr*, intgo);
 intgo	runtime·gcallers(G*, intgo, uintptr*, intgo);

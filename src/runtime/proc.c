@@ -172,8 +172,8 @@ runtime·newsysmon(void)
 static void
 dumpgstatus(G* gp)
 {
-	runtime·printf("runtime: gp: gp=%p, goid=%D, gp->atomicstatus=%x\n", gp, gp->goid, runtime·readgstatus(gp));
-	runtime·printf("runtime:  g:  g=%p, goid=%D,  g->atomicstatus=%x\n", g, g->goid, runtime·readgstatus(g));
+	runtime·printf("runtime: gp: gp=%p, goid=%D, gp->atomicstatus=%x, gappid=%D\n", gp, gp->goid, runtime·readgstatus(gp), gp->gappid);
+	runtime·printf("runtime:  g:  g=%p, goid=%D,  g->atomicstatus=%x, gappid=%D\n", g, g->goid, runtime·readgstatus(g), g->gappid);
 }
 
 static void
@@ -1038,6 +1038,7 @@ runtime·newextram(void)
 	mp->lockedg = gp;
 	gp->lockedm = mp;
 	gp->goid = runtime·xadd64(&runtime·sched.goidgen, 1);
+	gp->gappid = gp->goid;
 	if(raceenabled)
 		gp->racectx = runtime·racegostart(runtime·newextram);
 	// put on allg for garbage collector
@@ -2130,13 +2131,14 @@ newproc_m(void)
 	void *callerpc;
 	FuncVal *fn;
 	int32 siz;
+	int64 gappid;
 
 	siz = g->m->scalararg[0];
 	callerpc = (void*)g->m->scalararg[1];	
+	gappid = g->m->scalararg[2];
 	argp = g->m->ptrarg[0];
 	fn = (FuncVal*)g->m->ptrarg[1];
-
-	runtime·newproc1(fn, argp, siz, 0, callerpc);
+	runtime·newproc1(fn, argp, siz, 0, callerpc, gappid);
 	g->m->ptrarg[0] = nil;
 	g->m->ptrarg[1] = nil;
 }
@@ -2162,6 +2164,7 @@ runtime·newproc(int32 siz, FuncVal* fn, ...)
 	g->m->locks++;
 	g->m->scalararg[0] = siz;
 	g->m->scalararg[1] = (uintptr)runtime·getcallerpc(&siz);
+	g->m->scalararg[2] = g->gappid;
 	g->m->ptrarg[0] = argp;
 	g->m->ptrarg[1] = fn;
 	mfn = newproc_m;
@@ -2176,7 +2179,7 @@ void runtime·main(void);
 // address of the go statement that created this.  The new g is put
 // on the queue of g's waiting to run.
 G*
-runtime·newproc1(FuncVal *fn, byte *argp, int32 narg, int32 nret, void *callerpc)
+runtime·newproc1(FuncVal *fn, byte *argp, int32 narg, int32 nret, void *callerpc, int64 gappid)
 {
 	byte *sp;
 	G *newg;
@@ -2237,6 +2240,7 @@ runtime·newproc1(FuncVal *fn, byte *argp, int32 narg, int32 nret, void *callerp
 		p->goidcacheend = p->goidcache + GoidCacheBatch;
 	}
 	newg->goid = p->goidcache++;
+	newg->gappid = gappid;
 	if(raceenabled)
 		newg->racectx = runtime·racegostart((void*)callerpc);
 	runqput(p, newg);
@@ -2824,7 +2828,7 @@ checkdead(void)
 		case Grunning:
 		case Gsyscall:
 			runtime·unlock(&runtime·allglock);
-			runtime·printf("runtime: checkdead: find g %D in status %d\n", gp->goid, s);
+			runtime·printf("runtime: checkdead: find g %D app %D in status %d\n", gp->goid, gp->gappid, s);
 			runtime·throw("checkdead: runnable g");
 			break;
 		}

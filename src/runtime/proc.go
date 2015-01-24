@@ -55,6 +55,8 @@ func main() {
 
 	memstats.enablegc = true // now that runtime is initialized, GC is okay
 
+	g.gappid = g.goid
+
 	main_init()
 
 	needUnlock = false
@@ -244,3 +246,24 @@ func allgadd(gp *g) {
 	allglen = uintptr(len(allgs))
 	unlock(&allglock)
 }
+
+// Make the current goroutine the root of a new application.
+// All goroutines created by it from now on inherit the application id.
+func NewApp() {
+	gp := getg()
+	gp.gappid = gp.goid
+}
+
+
+// Return the application it for the current goroutine.
+func AppId() int64 {
+	gp := getg()
+	return gp.gappid
+}
+
+// Return the current goroutine id.
+func GoId() int64 {
+	gp := getg()
+	return gp.goid
+}
+

@@ -1511,7 +1511,7 @@ gc(struct gc_args *args)
 	if(ConcurrentSweep && !args->eagersweep) {
 		runtime·lock(&runtime·gclock);
 		if(runtime·sweep.g == nil)
-			runtime·sweep.g = runtime·newproc1(&bgsweepv, nil, 0, 0, gc);
+			runtime·sweep.g = runtime·newproc1(&bgsweepv, nil, 0, 0, gc, 0);
 		else if(runtime·sweep.parked) {
 			runtime·sweep.parked = false;
 			runtime·ready(runtime·sweep.g);
