@@ -108,6 +108,7 @@ func chansend2(chanType *byte, hchan chan<- any, elem *any) (res bool)
 func closechan(hchan any)
 func closechan2(hchan any, err interface{})
 func cerror(hchan any) error
+func cclosed(hchan any) bool
 
 // *byte is really *runtime.Type
 func writebarrierptr(dst *any, src any)

@@ -1912,6 +1912,7 @@ static	struct
 
 	{"append",	LNAME,		Txxx,		OAPPEND},
 	{"cap",		LNAME,		Txxx,		OCAP},
+	{"cclosed",	LNAME,		Txxx,		OCCLOSED},
 	{"cerror",		LNAME,		Txxx,		OCERROR},
 	{"close",		LNAME,		Txxx,		OCLOSE},
 	{"complex",	LNAME,		Txxx,		OCOMPLEX},

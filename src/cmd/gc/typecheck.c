@@ -1273,6 +1273,31 @@ reswitch:
 		n->type = t;
 		goto ret;
 
+	case OCCLOSED:
+		ok |= Erv;
+		args = n->list;
+		if(args == nil) {
+			yyerror("missing argument to cclosed");
+			goto error;
+		}
+		if(args->next != nil) {
+			yyerror("too many arguments to cclosed");
+			goto error;
+		}
+		n->left = args->n;
+		n->list = nil;
+		typecheck(&n->left, Erv);
+		defaultlit(&n->left, T);
+		l = n->left;
+		if((t = l->type) == T)
+			goto error;
+		if(t->etype != TCHAN) {
+			yyerror("invalid operation: %N (non-chan type %T)", n, t);
+			goto error;
+		}
+		n->type = types[TBOOL];
+		goto ret;
+
 	case OCERROR:
 		ok |= Erv;
 		args = n->list;
@@ -1297,7 +1322,6 @@ reswitch:
 		}
 		n->type = errortype;
 		goto ret;
-
 
 	case OCLOSE:
 		// accept opt. second arg and don't fail on close for
@@ -1937,6 +1961,7 @@ checkdefergo(Node *n)
 		break;
 	case OAPPEND:
 	case OCAP:
+	case OCCLOSED:
 	case OCERROR:
 	case OCOMPLEX:
 	case OIMAG:

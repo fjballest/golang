@@ -343,6 +343,18 @@ func (e chanError) Error() string {
 	return string(e)
 }
 
+// Return true if the channel is closed and all data has been received from it.
+// Not called closed() because that might be a typical name in existing programs.
+func cclosed(c *hchan) bool {
+	if c == nil {
+		return true
+	}
+	lock(&c.lock)
+	closed := c.closed != 0 && (c.dataqsiz == 0 || c.qcount <= 0)
+	unlock(&c.lock)
+	return closed
+}
+
 func cerror(c *hchan) error {
 	if c == nil {
 		return nil

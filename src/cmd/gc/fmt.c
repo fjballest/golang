@@ -122,6 +122,7 @@ goopnames[] =
 	[OCALL]		= "function call",	// not actual syntax
 	[OCAP]		= "cap",
 	[OCASE]		= "case",
+	[OCCLOSED]	= "cclosed",
 	[OCERROR]	= "cerror",
 	[OCLOSE]	= "close",
 	[OCOMPLEX]	= "complex",
@@ -962,6 +963,7 @@ static int opprec[] = {
 	[OCALLMETH] = 8,
 	[OCALL] = 8,
 	[OCAP] = 8,
+	[OCCLOSED] = 8,
 	[OCERROR] = 8,
 	[OCLOSE] = 8,
 	[OCONVIFACE] = 8,
@@ -1299,6 +1301,7 @@ exprfmt(Fmt *f, Node *n, int prec)
 		if(n->left && n->right)
 			return fmtprint(f, "%#O(%N, %N)", n->op, n->left, n->right);
 		// else fall
+	case OCCLOSED:
 	case OCERROR:
 	case OREAL:
 	case OIMAG:
