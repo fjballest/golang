@@ -58,6 +58,11 @@ func TestNM(t *testing.T) {
 	switch runtime.GOOS {
 	case "android", "nacl":
 		t.Skipf("skipping on %s", runtime.GOOS)
+	case "darwin":
+		switch runtime.GOARCH {
+		case "arm", "arm64":
+			t.Skipf("skipping on %s/%s, cannot fork", runtime.GOOS, runtime.GOARCH)
+		}
 	}
 
 	tmpDir, err := ioutil.TempDir("", "TestNM")

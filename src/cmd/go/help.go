@@ -47,7 +47,7 @@ environment variable (see 'go help gopath').
 If no import paths are given, the action applies to the
 package in the current directory.
 
-There are three reserved names for paths that should not be used
+There are four reserved names for paths that should not be used
 for packages to be built with the go tool:
 
 - "main" denotes the top-level package in a stand-alone executable.
@@ -58,6 +58,9 @@ system.
 
 - "std" is like all but expands to just the packages in the standard
 Go library.
+
+- "cmd" expands to the Go repository's commands and their
+internal libraries.
 
 An import path is a pattern if it includes one or more "..." wildcards,
 each of which can match any string, including the empty string and
@@ -359,4 +362,44 @@ constraints, but the go command stops scanning for build constraints
 at the first item in the file that is not a blank line or //-style
 line comment.
 	`,
+}
+
+var helpBuildmode = &Command{
+	UsageLine: "buildmode",
+	Short:     "description of build modes",
+	Long: `
+The 'go build' and 'go install' commands take a -buildmode argument which
+indicates which kind of object file is to be built. Currently supported values
+are:
+
+	-buildmode=archive
+		Build the listed non-main packages into .a files. Packages named
+		main are ignored.
+
+	-buildmode=c-archive
+		Build the listed main package, plus all packages it imports,
+		into a C archive file. The only callable symbols will be those
+		functions marked as exported. Requires exactly one main package
+		to be listed.
+
+	-buildmode=c-shared
+		Build the listed main packages, plus all packages that they
+		import, into C shared libraries. The only callable symbols will
+		be those functions marked as exported. Non-main packages are
+		ignored.
+
+	-buildmode=default
+		Listed main packages are built into executables and listed
+		non-main packages are built into .a files (the default
+		behavior).
+
+	-buildmode=shared
+		Combine all the listed non-main packages into a single shared
+		library that will be used when building with the -linkshared
+		option. Packages named main are ignored.
+
+	-buildmode=exe
+		Build the listed main packages and everything they import into
+		executables. Packages not named main are ignored.
+`,
 }

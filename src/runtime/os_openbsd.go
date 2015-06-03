@@ -4,6 +4,8 @@
 
 package runtime
 
+import "unsafe"
+
 //go:noescape
 func setitimer(mode int32, new, old *itimerval)
 
@@ -12,6 +14,9 @@ func sigaction(sig int32, new, old *sigactiont)
 
 //go:noescape
 func sigaltstack(new, old *stackt)
+
+//go:noescape
+func sigfwd(fn uintptr, sig uint32, info *siginfo, ctx unsafe.Pointer)
 
 //go:noescape
 func sigprocmask(mode int32, new uint32) uint32
@@ -26,7 +31,7 @@ func raiseproc(sig int32)
 func tfork(param *tforkt, psize uintptr, mm *m, gg *g, fn uintptr) int32
 
 //go:noescape
-func thrsleep(ident uintptr, clock_id int32, tsp *timespec, lock uintptr, abort *int32) int32
+func thrsleep(ident uintptr, clock_id int32, tsp *timespec, lock uintptr, abort *uint32) int32
 
 //go:noescape
 func thrwakeup(ident uintptr, n int32) int32

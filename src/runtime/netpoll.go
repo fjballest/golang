@@ -71,7 +71,7 @@ type pollCache struct {
 
 var (
 	netpollInited uint32
-	pollcache pollCache
+	pollcache     pollCache
 )
 
 //go:linkname net_runtime_pollServerInit net.runtime_pollServerInit
@@ -237,10 +237,10 @@ func net_runtime_pollSetDeadline(pd *pollDesc, d int64, mode int) {
 	}
 	unlock(&pd.lock)
 	if rg != nil {
-		goready(rg)
+		goready(rg, 3)
 	}
 	if wg != nil {
-		goready(wg)
+		goready(wg, 3)
 	}
 }
 
@@ -266,28 +266,30 @@ func net_runtime_pollUnblock(pd *pollDesc) {
 	}
 	unlock(&pd.lock)
 	if rg != nil {
-		goready(rg)
+		goready(rg, 3)
 	}
 	if wg != nil {
-		goready(wg)
+		goready(wg, 3)
 	}
 }
 
 // make pd ready, newly runnable goroutines (if any) are returned in rg/wg
-func netpollready(gpp **g, pd *pollDesc, mode int32) {
-	var rg, wg *g
+// May run during STW, so write barriers are not allowed.
+//go:nowritebarrier
+func netpollready(gpp *guintptr, pd *pollDesc, mode int32) {
+	var rg, wg guintptr
 	if mode == 'r' || mode == 'r'+'w' {
-		rg = netpollunblock(pd, 'r', true)
+		rg.set(netpollunblock(pd, 'r', true))
 	}
 	if mode == 'w' || mode == 'r'+'w' {
-		wg = netpollunblock(pd, 'w', true)
+		wg.set(netpollunblock(pd, 'w', true))
 	}
-	if rg != nil {
-		rg.schedlink = *gpp
+	if rg != 0 {
+		rg.ptr().schedlink = *gpp
 		*gpp = rg
 	}
-	if wg != nil {
-		wg.schedlink = *gpp
+	if wg != 0 {
+		wg.ptr().schedlink = *gpp
 		*gpp = wg
 	}
 }
@@ -333,7 +335,7 @@ func netpollblock(pd *pollDesc, mode int32, waitio bool) bool {
 	// this is necessary because runtime_pollUnblock/runtime_pollSetDeadline/deadlineimpl
 	// do the opposite: store to closing/rd/wd, membarrier, load of rg/wg
 	if waitio || netpollcheckerr(pd, mode) == 0 {
-		gopark(netpollblockcommit, unsafe.Pointer(gpp), "IO wait")
+		gopark(netpollblockcommit, unsafe.Pointer(gpp), "IO wait", traceEvGoBlockNet, 5)
 	}
 	// be careful to not lose concurrent READY notification
 	old := xchguintptr(gpp, 0)
@@ -401,10 +403,10 @@ func netpolldeadlineimpl(pd *pollDesc, seq uintptr, read, write bool) {
 	}
 	unlock(&pd.lock)
 	if rg != nil {
-		goready(rg)
+		goready(rg, 0)
 	}
 	if wg != nil {
-		goready(wg)
+		goready(wg, 0)
 	}
 }
 

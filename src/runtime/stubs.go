@@ -8,8 +8,9 @@ import "unsafe"
 
 // Declarations for runtime services implemented in C or assembly.
 
-const ptrSize = 4 << (^uintptr(0) >> 63) // unsafe.Sizeof(uintptr(0)) but an ideal const
-const regSize = 4 << (^uintreg(0) >> 63) // unsafe.Sizeof(uintreg(0)) but an ideal const
+const ptrSize = 4 << (^uintptr(0) >> 63)             // unsafe.Sizeof(uintptr(0)) but an ideal const
+const regSize = 4 << (^uintreg(0) >> 63)             // unsafe.Sizeof(uintreg(0)) but an ideal const
+const spAlign = 1*(1-goarch_arm64) + 16*goarch_arm64 // SP alignment: 1 normally, 16 for ARM64
 
 // Should be a built-in for unsafe.Pointer?
 //go:nosplit
@@ -17,6 +18,9 @@ func add(p unsafe.Pointer, x uintptr) unsafe.Pointer {
 	return unsafe.Pointer(uintptr(p) + x)
 }
 
+// getg returns the pointer to the current g.
+// The compiler rewrites calls to this function into instructions
+// that fetch the g directly (from TLS or from the dedicated register).
 func getg() *g
 
 // mcall switches from the g to the g0 stack and invokes fn(g),
@@ -29,7 +33,10 @@ func getg() *g
 // run other goroutines.
 //
 // mcall can only be called from g stacks (not g0, not gsignal).
-//go:noescape
+//
+// This must NOT be go:noescape: if fn is a stack-allocated closure,
+// fn puts g on a run queue, and g executes before fn returns, the
+// closure will be invalidated while it is still executing.
 func mcall(fn func(*g))
 
 // systemstack runs fn on a system stack.
@@ -60,6 +67,11 @@ func badsystemstack() {
 // in memclr_*.s
 //go:noescape
 func memclr(ptr unsafe.Pointer, n uintptr)
+
+//go:linkname reflect_memclr reflect.memclr
+func reflect_memclr(ptr unsafe.Pointer, n uintptr) {
+	memclr(ptr, n)
+}
 
 // memmove copies n bytes from "from" to "to".
 // in memmove_*.s
@@ -139,6 +151,22 @@ func atomicloaduintptr(ptr *uintptr) uintptr
 //go:noescape
 func atomicloaduint(ptr *uint) uint
 
+// TODO: Write native implementations of int64 atomic ops (or improve
+// inliner). These portable ones can't be inlined right now, so we're
+// taking an extra function call hit.
+
+func atomicstoreint64(ptr *int64, new int64) {
+	atomicstore64((*uint64)(unsafe.Pointer(ptr)), uint64(new))
+}
+
+func atomicloadint64(ptr *int64) int64 {
+	return int64(atomicload64((*uint64)(unsafe.Pointer(ptr))))
+}
+
+func xaddint64(ptr *int64, delta int64) int64 {
+	return int64(xadd64((*uint64)(unsafe.Pointer(ptr)), delta))
+}
+
 //go:noescape
 func setcallerpc(argp unsafe.Pointer, pc uintptr)
 
@@ -188,6 +216,13 @@ const _NoArgs = ^uintptr(0)
 func morestack()
 func rt0_go()
 
+// stackBarrier records that the stack has been unwound past a certain
+// point. It is installed over a return PC on the stack. It must
+// retrieve the original return PC from g.stkbuf, increment
+// g.stkbufPos to record that the barrier was hit, and jump to the
+// original return PC.
+func stackBarrier()
+
 // return0 is a stub used to return 0 from deferproc.
 // It is called at the very end of deferproc to signal
 // the calling Go function that it should not jump
@@ -234,3 +269,13 @@ func prefetcht0(addr uintptr)
 func prefetcht1(addr uintptr)
 func prefetcht2(addr uintptr)
 func prefetchnta(addr uintptr)
+
+func unixnanotime() int64 {
+	sec, nsec := time_now()
+	return sec*1e9 + int64(nsec)
+}
+
+// round n up to a multiple of a.  a must be a power of 2.
+func round(n, a uintptr) uintptr {
+	return (n + a - 1) &^ (a - 1)
+}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,15 +18,18 @@ import (
 	"text/template"
 )
 
-// testEnv excludes GODEBUG from the environment
-// to prevent its output from breaking tests that
-// are trying to parse other command output.
 func testEnv(cmd *exec.Cmd) *exec.Cmd {
 	if cmd.Env != nil {
 		panic("environment already set")
 	}
 	for _, env := range os.Environ() {
+		// Exclude GODEBUG from the environment to prevent its output
+		// from breaking tests that are trying to parse other command output.
 		if strings.HasPrefix(env, "GODEBUG=") {
+			continue
+		}
+		// Exclude GOTRACEBACK for the same reason.
+		if strings.HasPrefix(env, "GOTRACEBACK=") {
 			continue
 		}
 		cmd.Env = append(cmd.Env, env)
@@ -37,6 +41,11 @@ func executeTest(t *testing.T, templ string, data interface{}, extra ...string) 
 	switch runtime.GOOS {
 	case "android", "nacl":
 		t.Skipf("skipping on %s", runtime.GOOS)
+	case "darwin":
+		switch runtime.GOARCH {
+		case "arm", "arm64":
+			t.Skipf("skipping on %s/%s, no fork", runtime.GOOS, runtime.GOARCH)
+		}
 	}
 
 	checkStaleRuntime(t)
@@ -64,7 +73,14 @@ func executeTest(t *testing.T, templ string, data interface{}, extra ...string) 
 	}
 
 	for i := 0; i < len(extra); i += 2 {
-		if err := ioutil.WriteFile(filepath.Join(dir, extra[i]), []byte(extra[i+1]), 0666); err != nil {
+		fname := extra[i]
+		contents := extra[i+1]
+		if d, _ := filepath.Split(fname); d != "" {
+			if err := os.Mkdir(filepath.Join(dir, d), 0755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := ioutil.WriteFile(filepath.Join(dir, fname), []byte(contents), 0666); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -214,6 +230,14 @@ func TestMainGoroutineId(t *testing.T) {
 	want := "panic: test\n\ngoroutine 1 [running]:\n"
 	if !strings.HasPrefix(output, want) {
 		t.Fatalf("output does not start with %q:\n%s", want, output)
+	}
+}
+
+func TestNoHelperGoroutines(t *testing.T) {
+	output := executeTest(t, noHelperGoroutinesSource, nil)
+	matches := regexp.MustCompile(`goroutine [0-9]+ \[`).FindAllStringSubmatch(output, -1)
+	if len(matches) != 1 || matches[0][0] != "goroutine 1 [" {
+		t.Fatalf("want to see only goroutine 1, see:\n%s", output)
 	}
 }
 
@@ -428,6 +452,22 @@ const mainGoroutineIdSource = `
 package main
 func main() {
 	panic("test")
+}
+`
+
+const noHelperGoroutinesSource = `
+package main
+import (
+	"runtime"
+	"time"
+)
+func init() {
+	i := 0
+	runtime.SetFinalizer(&i, func(p *int) {})
+	time.AfterFunc(time.Hour, func() {})
+	panic("oops")
+}
+func main() {
 }
 `
 

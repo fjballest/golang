@@ -69,7 +69,7 @@ nocgo:
 	BL	runtime·schedinit(SB)
 
 	// create a new goroutine to start program
-	MOVD	$runtime·main·f(SB), R3		// entry
+	MOVD	$runtime·mainPC(SB), R3		// entry
 	MOVDU	R3, -8(R1)
 	MOVDU	R0, -8(R1)
 	MOVDU	R0, -8(R1)
@@ -82,8 +82,8 @@ nocgo:
 	MOVD	R0, 1(R0)
 	RETURN
 
-DATA	runtime·main·f+0(SB)/8,$runtime·main(SB)
-GLOBL	runtime·main·f(SB),RODATA,$8
+DATA	runtime·mainPC+0(SB)/8,$runtime·main(SB)
+GLOBL	runtime·mainPC(SB),RODATA,$8
 
 TEXT runtime·breakpoint(SB),NOSPLIT,$-8-0
 	MOVD	R0, 2(R0) // TODO: TD
@@ -303,6 +303,24 @@ TEXT runtime·morestack(SB),NOSPLIT,$-8-0
 TEXT runtime·morestack_noctxt(SB),NOSPLIT,$-8-0
 	MOVD	R0, R11
 	BR	runtime·morestack(SB)
+
+TEXT runtime·stackBarrier(SB),NOSPLIT,$0
+	// We came here via a RET to an overwritten LR.
+	// R3 may be live. Other registers are available.
+
+	// Get the original return PC, g.stkbar[g.stkbarPos].savedLRVal.
+	MOVD	(g_stkbar+slice_array)(g), R4
+	MOVD	g_stkbarPos(g), R5
+	MOVD	$stkbar__size, R6
+	MULLD	R5, R6
+	ADD	R4, R6
+	MOVD	stkbar_savedLRVal(R6), R6
+	// Record that this stack barrier was hit.
+	ADD	$1, R5
+	MOVD	R5, g_stkbarPos(g)
+	// Jump to the original return PC.
+	MOVD	R6, CTR
+	BR	(CTR)
 
 // reflectcall: call a function with the given argument list
 // func call(argtype *_type, f *FuncVal, arg *byte, argsize, retoffset uint32).
@@ -609,12 +627,42 @@ TEXT runtime·atomicor8(SB), NOSPLIT, $0-9
 	// Shift val for aligned ptr.  R4 = val << R6
 	SLD	R6, R4, R4
 
-atomicor8_again:
+again:
 	SYNC
 	LWAR	(R5), R6
 	OR	R4, R6
 	STWCCC	R6, (R5)
-	BNE	atomicor8_again
+	BNE	again
+	SYNC
+	ISYNC
+	RETURN
+
+// void	runtime·atomicand8(byte volatile*, byte);
+TEXT runtime·atomicand8(SB), NOSPLIT, $0-9
+	MOVD	ptr+0(FP), R3
+	MOVBZ	val+8(FP), R4
+	// Align ptr down to 4 bytes so we can use 32-bit load/store.
+	// R5 = (R3 << 0) & ~3
+	RLDCR	$0, R3, $~3, R5
+	// Compute val shift.
+#ifdef GOARCH_ppc64
+	// Big endian.  ptr = ptr ^ 3
+	XOR	$3, R3
+#endif
+	// R6 = ((ptr & 3) * 8) = (ptr << 3) & (3*8)
+	RLDC	$3, R3, $(3*8), R6
+	// Shift val for aligned ptr.  R4 = val << R6 | ^(0xFF << R6)
+	MOVD	$0xFF, R7
+	SLD	R6, R4
+	SLD	R6, R7
+	XOR $-1, R7
+	OR	R7, R4
+again:
+	SYNC
+	LWAR	(R5), R6
+	AND	R4, R6
+	STWCCC	R6, (R5)
+	BNE	again
 	SYNC
 	ISYNC
 	RETURN
@@ -656,11 +704,11 @@ TEXT ·asmcgocall(SB),NOSPLIT,$0-16
 	BL	asmcgocall<>(SB)
 	RET
 
-TEXT ·asmcgocall_errno(SB),NOSPLIT,$0-24
+TEXT ·asmcgocall_errno(SB),NOSPLIT,$0-20
 	MOVD	fn+0(FP), R3
 	MOVD	arg+8(FP), R4
 	BL	asmcgocall<>(SB)
-	MOVD	R3, ret+16(FP)
+	MOVW	R3, ret+16(FP)
 	RET
 
 // asmcgocall common code. fn in R3, arg in R4. returns errno in R3.
@@ -853,32 +901,36 @@ TEXT setg_gcc<>(SB),NOSPLIT,$-8-0
 	MOVD	R4, LR
 	RET
 
-TEXT runtime·getcallerpc(SB),NOSPLIT,$-8-16
-	MOVD	0(R1), R3
+TEXT runtime·getcallerpc(SB),NOSPLIT,$8-16
+	MOVD	16(R1), R3		// LR saved by caller
+	MOVD	runtime·stackBarrierPC(SB), R4
+	CMP	R3, R4
+	BNE	nobar
+	// Get original return PC.
+	BL	runtime·nextBarrierPC(SB)
+	MOVD	8(R1), R3
+nobar:
 	MOVD	R3, ret+8(FP)
 	RETURN
 
-TEXT runtime·gogetcallerpc(SB),NOSPLIT,$-8-16
-	MOVD	0(R1), R3
-	MOVD	R3,ret+8(FP)
-	RETURN
-
-TEXT runtime·setcallerpc(SB),NOSPLIT,$-8-16
+TEXT runtime·setcallerpc(SB),NOSPLIT,$8-16
 	MOVD	pc+8(FP), R3
-	MOVD	R3, 0(R1)		// set calling pc
+	MOVD	16(R1), R4
+	MOVD	runtime·stackBarrierPC(SB), R5
+	CMP	R4, R5
+	BEQ	setbar
+	MOVD	R3, 16(R1)		// set LR in caller
 	RETURN
+setbar:
+	// Set the stack barrier return PC.
+	MOVD	R3, 8(R1)
+	BL	runtime·setNextBarrierPC(SB)
+	RET
 
 TEXT runtime·getcallersp(SB),NOSPLIT,$0-16
 	MOVD	argp+0(FP), R3
 	SUB	$8, R3
 	MOVD	R3, ret+8(FP)
-	RETURN
-
-// func gogetcallersp(p unsafe.Pointer) uintptr
-TEXT runtime·gogetcallersp(SB),NOSPLIT,$0-16
-	MOVD	sp+0(FP), R3
-	SUB	$8, R3
-	MOVD	R3,ret+8(FP)
 	RETURN
 
 TEXT runtime·abort(SB),NOSPLIT,$-8-0
@@ -969,30 +1021,30 @@ eq:
 	RETURN
 
 // eqstring tests whether two strings are equal.
+// The compiler guarantees that strings passed
+// to eqstring have equal length.
 // See runtime_test.go:eqstring_generic for
 // equivalent Go code.
 TEXT runtime·eqstring(SB),NOSPLIT,$0-33
-	MOVD	s1len+8(FP), R4
-	MOVD	s2len+24(FP), R5
-	CMP	R4, R5
-	BNE	noteq
-
 	MOVD	s1str+0(FP), R3
 	MOVD	s2str+16(FP), R4
+	MOVD	$1, R5
+	MOVB	R5, ret+32(FP)
+	CMP	R3, R4
+	BNE	2(PC)
+	RETURN
+	MOVD	s1len+8(FP), R5
 	SUB	$1, R3
 	SUB	$1, R4
 	ADD	R3, R5, R8
 loop:
 	CMP	R3, R8
-	BNE	4(PC)
-	MOVD	$1, R3
-	MOVB	R3, ret+32(FP)
+	BNE	2(PC)
 	RETURN
 	MOVBZU	1(R3), R6
 	MOVBZU	1(R4), R7
 	CMP	R6, R7
 	BEQ	loop
-noteq:
 	MOVB	R0, ret+32(FP)
 	RETURN
 
@@ -1051,7 +1103,7 @@ notfound:
 	MOVD	R3, ret+32(FP)
 	RETURN
 
-TEXT strings·IndexByte(SB),NOSPLIT,$0
+TEXT strings·IndexByte(SB),NOSPLIT,$0-32
 	MOVD	p+0(FP), R3
 	MOVD	b_len+8(FP), R4
 	MOVBZ	c+16(FP), R5	// byte to find
@@ -1073,146 +1125,6 @@ loop:
 notfound:
 	MOVD	$-1, R3
 	MOVD	R3, ret+24(FP)
-	RETURN
-
-
-// A Duff's device for zeroing memory.
-// The compiler jumps to computed addresses within
-// this routine to zero chunks of memory.  Do not
-// change this code without also changing the code
-// in ../../cmd/9g/ggen.c:/^clearfat.
-// R0: always zero
-// R3 (aka REGRT1): ptr to memory to be zeroed - 8
-// On return, R3 points to the last zeroed dword.
-TEXT runtime·duffzero(SB), NOSPLIT, $-8-0
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
-	MOVDU	R0, 8(R3)
 	RETURN
 
 TEXT runtime·fastrand1(SB), NOSPLIT, $0-4
@@ -1253,10 +1165,8 @@ TEXT _cgo_topofstack(SB),NOSPLIT,$-8
 TEXT runtime·goexit(SB),NOSPLIT,$-8-0
 	MOVD	R0, R0	// NOP
 	BL	runtime·goexit1(SB)	// does not return
-
-TEXT runtime·getg(SB),NOSPLIT,$-8-8
-	MOVD	g, ret+0(FP)
-	RETURN
+	// traceback from goexit1 must hit code range of goexit
+	MOVD	R0, R0	// NOP
 
 TEXT runtime·prefetcht0(SB),NOSPLIT,$0-8
 	RETURN

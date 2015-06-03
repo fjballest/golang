@@ -1,6 +1,5 @@
-// run
-
 // +build !nacl
+// run
 
 // Copyright 2014 The Go Authors.  All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -185,6 +184,17 @@ func main() {
 		goarch = runtime.GOARCH
 	}
 
+	version, err := exec.Command("go", "tool", "compile", "-V").Output()
+	if err != nil {
+		bug()
+		fmt.Printf("running go tool compile -V: %v\n", err)
+		return
+	}
+	if strings.Contains(string(version), "framepointer") {
+		// Skip this test if GOEXPERIMENT=framepointer
+		return
+	}
+
 	dir, err := ioutil.TempDir("", "go-test-nosplit")
 	if err != nil {
 		bug()
@@ -242,6 +252,9 @@ TestCases:
 			fmt.Fprintf(&buf, "#define CALL BL\n#define REGISTER (CTR)\n#define RET RETURN\n")
 		case "arm":
 			fmt.Fprintf(&buf, "#define CALL BL\n#define REGISTER (R0)\n")
+		case "arm64":
+			ptrSize = 8
+			fmt.Fprintf(&buf, "#define CALL BL\n#define REGISTER (R0)\n")
 		case "amd64":
 			ptrSize = 8
 			fmt.Fprintf(&buf, "#define REGISTER AX\n")
@@ -270,9 +283,16 @@ TestCases:
 
 				// The limit was originally 128 but is now 512.
 				// Instead of rewriting the test cases above, adjust
-				// the first stack frame to use up the extra 32 bytes.
+				// the first stack frame to use up the extra bytes.
 				if i == 0 {
 					size += 512 - 128
+					// Noopt builds have a larger stackguard.
+					// See ../cmd/dist/buildruntime.go:stackGuardMultiplier
+					for _, s := range strings.Split(os.Getenv("GO_GCFLAGS"), " ") {
+						if s == "-N" {
+							size += 640
+						}
+					}
 				}
 
 				if size%ptrSize == 4 {

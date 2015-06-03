@@ -2,18 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Routines that are implemented in assembly in asm_{amd64,386}.s
+// Routines that are implemented in assembly in asm_{amd64,386,arm,arm64}.s
 
-// +build arm ppc64 ppc64le
+// +build ppc64 ppc64le
 
 package runtime
 
 import _ "unsafe" // for go:linkname
-
-//go:linkname strings_Compare strings.Compare
-func strings_Compare(s1, s2 string) int {
-	return cmpstring(s1, s2)
-}
 
 func cmpstring(s1, s2 string) int {
 	l := len(s1)

@@ -4,7 +4,7 @@
 
 // Central free lists.
 //
-// See malloc.h for an overview.
+// See malloc.go for an overview.
 //
 // The MCentral doesn't actually contain the list of free objects; the MSpan does.
 // Each MCentral is two lists of MSpans: those with free objects (c->nonempty)
@@ -12,7 +12,13 @@
 
 package runtime
 
-import "unsafe"
+// Central list of free objects of a given size.
+type mcentral struct {
+	lock      mutex
+	sizeclass int32
+	nonempty  mspan // list of spans with a free object
+	empty     mspan // list of spans with no free objects (or cached in an mcache)
+}
 
 // Initialize a single central free list.
 func mCentral_Init(c *mcentral, sizeclass int32) {
@@ -23,6 +29,24 @@ func mCentral_Init(c *mcentral, sizeclass int32) {
 
 // Allocate a span to use in an MCache.
 func mCentral_CacheSpan(c *mcentral) *mspan {
+	// Perform proportional sweep work. We don't directly reuse
+	// the spans we're sweeping here for this allocation because
+	// these can hold any size class. We'll sweep one more span
+	// below and use that because it will have the right size
+	// class and be hot in our cache.
+	pagesOwed := int64(mheap_.sweepPagesPerByte * float64(memstats.heap_live-memstats.heap_marked))
+	if pagesOwed-int64(mheap_.pagesSwept) > 1 {
+		// Get the debt down to one page, which we're likely
+		// to take care of below (if we don't, that's fine;
+		// we'll pick up the slack later).
+		for pagesOwed-int64(atomicload64(&mheap_.pagesSwept)) > 1 {
+			if gosweepone() == ^uintptr(0) {
+				mheap_.sweepPagesPerByte = 0
+				break
+			}
+		}
+	}
+
 	lock(&c.lock)
 	sg := mheap_.sweepgen
 retry:
@@ -167,7 +191,7 @@ func mCentral_FreeSpan(c *mcentral, s *mspan, n int32, start gclinkptr, end gcli
 	s.needzero = 1
 	s.freelist = 0
 	unlock(&c.lock)
-	unmarkspan(uintptr(s.start)<<_PageShift, s.npages<<_PageShift)
+	heapBitsForSpan(s.base()).initSpan(s.layout())
 	mHeap_Free(&mheap_, s, 0)
 	return true
 }
@@ -198,6 +222,6 @@ func mCentral_Grow(c *mcentral) *mspan {
 	}
 	tail.ptr().next = 0
 	s.freelist = head
-	markspan(unsafe.Pointer(uintptr(s.start)<<_PageShift), size, n, size*n < s.npages<<_PageShift)
+	heapBitsForSpan(s.base()).initSpan(s.layout())
 	return s
 }

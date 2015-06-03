@@ -20,6 +20,7 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -185,7 +186,7 @@ func tryOneName(cfg *dnsConfig, name string, qtype uint16) (string, []dnsRR, err
 				continue
 			}
 			cname, addrs, err := answer(name, server, msg, qtype)
-			if err == nil || err.(*DNSError).Err == noSuchHost {
+			if err == nil || err.(*DNSError).Err == errNoSuchHost.Error() {
 				return cname, addrs, err
 			}
 			lastErr = err
@@ -213,102 +214,106 @@ func convertRR_AAAA(records []dnsRR) []IP {
 	return addrs
 }
 
+// cfg is used for the storage and reparsing of /etc/resolv.conf
 var cfg struct {
-	ch        chan struct{}
-	mu        sync.RWMutex // protects dnsConfig and dnserr
-	dnsConfig *dnsConfig
-	dnserr    error
+	// ch is used as a semaphore that only allows one lookup at a time to
+	// recheck resolv.conf.  It acts as guard for lastChecked and modTime.
+	ch          chan struct{}
+	lastChecked time.Time // last time resolv.conf was checked
+	modTime     time.Time // time of resolv.conf modification
+
+	mu        sync.RWMutex // protects dnsConfig
+	dnsConfig *dnsConfig   // parsed resolv.conf structure used in lookups
 }
+
 var onceLoadConfig sync.Once
 
-// Assume dns config file is /etc/resolv.conf here
-func loadDefaultConfig() {
-	loadConfig("/etc/resolv.conf", 5*time.Second, nil)
-}
-
-func loadConfig(resolvConfPath string, reloadTime time.Duration, quit <-chan chan struct{}) {
-	var mtime time.Time
-	cfg.ch = make(chan struct{}, 1)
-	if fi, err := os.Stat(resolvConfPath); err != nil {
-		cfg.dnserr = err
-	} else {
-		mtime = fi.ModTime()
-		cfg.dnsConfig, cfg.dnserr = dnsReadConfig(resolvConfPath)
+func initCfg() {
+	// Set dnsConfig, modTime, and lastChecked so we don't parse
+	// resolv.conf twice the first time.
+	cfg.dnsConfig = systemConf().resolv
+	if cfg.dnsConfig == nil {
+		cfg.dnsConfig = dnsReadConfig("/etc/resolv.conf")
 	}
-	go func() {
-		for {
-			time.Sleep(reloadTime)
-			select {
-			case qresp := <-quit:
-				qresp <- struct{}{}
-				return
-			case <-cfg.ch:
-			}
 
-			// In case of error, we keep the previous config
-			fi, err := os.Stat(resolvConfPath)
-			if err != nil {
-				continue
-			}
-			// If the resolv.conf mtime didn't change, do not reload
-			m := fi.ModTime()
-			if m.Equal(mtime) {
-				continue
-			}
-			mtime = m
-			// In case of error, we keep the previous config
-			ncfg, err := dnsReadConfig(resolvConfPath)
-			if err != nil || len(ncfg.servers) == 0 {
-				continue
-			}
-			cfg.mu.Lock()
-			cfg.dnsConfig = ncfg
-			cfg.dnserr = nil
-			cfg.mu.Unlock()
-		}
-	}()
+	if fi, err := os.Stat("/etc/resolv.conf"); err == nil {
+		cfg.modTime = fi.ModTime()
+	}
+	cfg.lastChecked = time.Now()
+
+	// Prepare ch so that only one loadConfig may run at once
+	cfg.ch = make(chan struct{}, 1)
+	cfg.ch <- struct{}{}
 }
 
-func lookup(name string, qtype uint16) (cname string, addrs []dnsRR, err error) {
+func loadConfig(resolvConfPath string) {
+	onceLoadConfig.Do(initCfg)
+
+	// ensure only one loadConfig at a time checks /etc/resolv.conf
+	select {
+	case <-cfg.ch:
+		defer func() { cfg.ch <- struct{}{} }()
+	default:
+		return
+	}
+
+	now := time.Now()
+	if cfg.lastChecked.After(now.Add(-5 * time.Second)) {
+		return
+	}
+	cfg.lastChecked = now
+
+	if fi, err := os.Stat(resolvConfPath); err == nil {
+		if fi.ModTime().Equal(cfg.modTime) {
+			return
+		}
+		cfg.modTime = fi.ModTime()
+	} else {
+		// If modTime wasn't set prior, assume nothing has changed.
+		if cfg.modTime.IsZero() {
+			return
+		}
+		cfg.modTime = time.Time{}
+	}
+
+	ncfg := dnsReadConfig(resolvConfPath)
+	cfg.mu.Lock()
+	cfg.dnsConfig = ncfg
+	cfg.mu.Unlock()
+}
+
+func lookup(name string, qtype uint16) (cname string, rrs []dnsRR, err error) {
 	if !isDomainName(name) {
 		return name, nil, &DNSError{Err: "invalid domain name", Name: name}
 	}
-	onceLoadConfig.Do(loadDefaultConfig)
 
-	select {
-	case cfg.ch <- struct{}{}:
-	default:
-	}
-
+	loadConfig("/etc/resolv.conf")
 	cfg.mu.RLock()
-	defer cfg.mu.RUnlock()
+	resolv := cfg.dnsConfig
+	cfg.mu.RUnlock()
 
-	if cfg.dnserr != nil || cfg.dnsConfig == nil {
-		err = cfg.dnserr
-		return
-	}
 	// If name is rooted (trailing dot) or has enough dots,
 	// try it by itself first.
 	rooted := len(name) > 0 && name[len(name)-1] == '.'
-	if rooted || count(name, '.') >= cfg.dnsConfig.ndots {
+	if rooted || count(name, '.') >= resolv.ndots {
 		rname := name
 		if !rooted {
 			rname += "."
 		}
 		// Can try as ordinary name.
-		cname, addrs, err = tryOneName(cfg.dnsConfig, rname, qtype)
+		cname, rrs, err = tryOneName(resolv, rname, qtype)
 		if rooted || err == nil {
 			return
 		}
 	}
 
 	// Otherwise, try suffixes.
-	for i := 0; i < len(cfg.dnsConfig.search); i++ {
-		rname := name + "." + cfg.dnsConfig.search[i]
+	for _, suffix := range resolv.search {
+		rname := name + "." + suffix
 		if rname[len(rname)-1] != '.' {
 			rname += "."
 		}
-		cname, addrs, err = tryOneName(cfg.dnsConfig, rname, qtype)
+		cname, rrs, err = tryOneName(resolv, rname, qtype)
 		if err == nil {
 			return
 		}
@@ -316,8 +321,8 @@ func lookup(name string, qtype uint16) (cname string, addrs []dnsRR, err error) 
 
 	// Last ditch effort: try unsuffixed only if we haven't already,
 	// that is, name is not rooted and has less than ndots dots.
-	if count(name, '.') < cfg.dnsConfig.ndots {
-		cname, addrs, err = tryOneName(cfg.dnsConfig, name+".", qtype)
+	if count(name, '.') < resolv.ndots {
+		cname, rrs, err = tryOneName(resolv, name+".", qtype)
 		if err == nil {
 			return
 		}
@@ -332,6 +337,35 @@ func lookup(name string, qtype uint16) (cname string, addrs []dnsRR, err error) 
 	return
 }
 
+// hostLookupOrder specifies the order of LookupHost lookup strategies.
+// It is basically a simplified representation of nsswitch.conf.
+// "files" means /etc/hosts.
+type hostLookupOrder int
+
+const (
+	// hostLookupCgo means defer to cgo.
+	hostLookupCgo      hostLookupOrder = iota
+	hostLookupFilesDNS                 // files first
+	hostLookupDNSFiles                 // dns first
+	hostLookupFiles                    // only files
+	hostLookupDNS                      // only DNS
+)
+
+var lookupOrderName = map[hostLookupOrder]string{
+	hostLookupCgo:      "cgo",
+	hostLookupFilesDNS: "files,dns",
+	hostLookupDNSFiles: "dns,files",
+	hostLookupFiles:    "files",
+	hostLookupDNS:      "dns",
+}
+
+func (o hostLookupOrder) String() string {
+	if s, ok := lookupOrderName[o]; ok {
+		return s
+	}
+	return "hostLookupOrder=" + strconv.Itoa(int(o)) + "??"
+}
+
 // goLookupHost is the native Go implementation of LookupHost.
 // Used only if cgoLookupHost refuses to handle the request
 // (that is, only if cgoLookupHost is the stub in cgo_stub.go).
@@ -339,12 +373,18 @@ func lookup(name string, qtype uint16) (cname string, addrs []dnsRR, err error) 
 // depending on our lookup code, so that Go and C get the same
 // answers.
 func goLookupHost(name string) (addrs []string, err error) {
-	// Use entries from /etc/hosts if they match.
-	addrs = lookupStaticHost(name)
-	if len(addrs) > 0 {
-		return
+	return goLookupHostOrder(name, hostLookupFilesDNS)
+}
+
+func goLookupHostOrder(name string, order hostLookupOrder) (addrs []string, err error) {
+	if order == hostLookupFilesDNS || order == hostLookupFiles {
+		// Use entries from /etc/hosts if they match.
+		addrs = lookupStaticHost(name)
+		if len(addrs) > 0 || order == hostLookupFiles {
+			return
+		}
 	}
-	ips, err := goLookupIP(name)
+	ips, err := goLookupIPOrder(name, order)
 	if err != nil {
 		return
 	}
@@ -355,23 +395,30 @@ func goLookupHost(name string) (addrs []string, err error) {
 	return
 }
 
+// lookup entries from /etc/hosts
+func goLookupIPFiles(name string) (addrs []IPAddr) {
+	for _, haddr := range lookupStaticHost(name) {
+		haddr, zone := splitHostZone(haddr)
+		if ip := ParseIP(haddr); ip != nil {
+			addr := IPAddr{IP: ip, Zone: zone}
+			addrs = append(addrs, addr)
+		}
+	}
+	return
+}
+
 // goLookupIP is the native Go implementation of LookupIP.
 // Used only if cgoLookupIP refuses to handle the request
 // (that is, only if cgoLookupIP is the stub in cgo_stub.go).
-// Normally we let cgo use the C library resolver instead of
-// depending on our lookup code, so that Go and C get the same
-// answers.
-func goLookupIP(name string) (addrs []IP, err error) {
-	// Use entries from /etc/hosts if possible.
-	haddrs := lookupStaticHost(name)
-	if len(haddrs) > 0 {
-		for _, haddr := range haddrs {
-			if ip := ParseIP(haddr); ip != nil {
-				addrs = append(addrs, ip)
-			}
-		}
-		if len(addrs) > 0 {
-			return
+func goLookupIP(name string) (addrs []IPAddr, err error) {
+	return goLookupIPOrder(name, hostLookupFilesDNS)
+}
+
+func goLookupIPOrder(name string, order hostLookupOrder) (addrs []IPAddr, err error) {
+	if order == hostLookupFilesDNS || order == hostLookupFiles {
+		addrs = goLookupIPFiles(name)
+		if len(addrs) > 0 || order == hostLookupFiles {
+			return addrs, nil
 		}
 	}
 	type racer struct {
@@ -396,13 +443,24 @@ func goLookupIP(name string) (addrs []IP, err error) {
 		}
 		switch racer.qtype {
 		case dnsTypeA:
-			addrs = append(addrs, convertRR_A(racer.rrs)...)
+			for _, ip := range convertRR_A(racer.rrs) {
+				addr := IPAddr{IP: ip}
+				addrs = append(addrs, addr)
+			}
 		case dnsTypeAAAA:
-			addrs = append(addrs, convertRR_AAAA(racer.rrs)...)
+			for _, ip := range convertRR_AAAA(racer.rrs) {
+				addr := IPAddr{IP: ip}
+				addrs = append(addrs, addr)
+			}
 		}
 	}
-	if len(addrs) == 0 && lastErr != nil {
-		return nil, lastErr
+	if len(addrs) == 0 {
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		if order == hostLookupDNSFiles {
+			addrs = goLookupIPFiles(name)
+		}
 	}
 	return addrs, nil
 }

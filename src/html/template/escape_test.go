@@ -1547,6 +1547,28 @@ func TestEnsurePipelineContains(t *testing.T) {
 			"($).X | urlquery | html | print",
 			[]string{"urlquery", "html"},
 		},
+		{
+			"{{.X | print 2 | .f 3}}",
+			".X | print 2 | .f 3 | urlquery | html",
+			[]string{"urlquery", "html"},
+		},
+		{
+			"{{.X | html | print 2 | .f 3}}",
+			".X | urlquery | html | print 2 | .f 3",
+			[]string{"urlquery", "html"},
+		},
+		{
+			// covering issue 10801
+			"{{.X | js.x }}",
+			".X | js.x | urlquery | html",
+			[]string{"urlquery", "html"},
+		},
+		{
+			// covering issue 10801
+			"{{.X | (print 12 | js).x }}",
+			".X | (print 12 | js).x | urlquery | html",
+			[]string{"urlquery", "html"},
+		},
 	}
 	for i, test := range tests {
 		tmpl := template.Must(template.New("test").Parse(test.input))
@@ -1683,6 +1705,21 @@ func TestPipeToMethodIsEscaped(t *testing.T) {
 		if str != expect {
 			t.Errorf("expected %q got %q", expect, str)
 		}
+	}
+}
+
+// Unlike text/template, html/template crashed if given an incomplete
+// template, that is, a template that had been named but not given any content.
+// This is issue #10204.
+func TestErrorOnUndefined(t *testing.T) {
+	tmpl := New("undefined")
+
+	err := tmpl.Execute(nil, nil)
+	if err == nil {
+		t.Error("expected error")
+	}
+	if !strings.Contains(err.Error(), "incomplete") {
+		t.Errorf("expected error about incomplete template; got %s", err)
 	}
 }
 

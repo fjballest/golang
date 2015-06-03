@@ -510,14 +510,25 @@ if [ $(./testgo test fmt fmt fmt fmt fmt | wc -l) -ne 1 ] ; then
     ok=false
 fi
 
-# ensure that output of 'go list' is consistent between runs
-TEST go list is consistent
+TEST go list has a consistent order
 ./testgo list std > test_std.list || ok=false
 if ! ./testgo list std | cmp -s test_std.list - ; then
 	echo "go list std ordering is inconsistent"
 	ok=false
 fi
 rm -f test_std.list
+
+TEST go list std does not include commands
+if ./testgo list std | grep cmd/; then
+	echo "go list std shows commands"
+	ok=false
+fi
+
+TEST go list cmd only shows commands
+if ./testgo list cmd | grep -v 'cmd/'; then
+	echo "go list cmd shows non-commands"
+	ok=false
+fi
 
 # issue 4096. Validate the output of unsuccessful go install foo/quxx 
 TEST unsuccessful go install should mention missing package
@@ -726,12 +737,6 @@ elif ! grep "case-insensitive file name collision" $d/out >/dev/null; then
 	echo go list example/b did not report file name collision.
 	ok=false
 fi
-
-TEST go get cover
-./testgo get golang.org/x/tools/cmd/cover || ok=false
-
-unset GOPATH
-rm -rf $d
 
 TEST go get -t "code.google.com/p/go-get-issue-8181/{a,b}"
 d=$(TMPDIR=/var/tmp mktemp -d -t testgoXXX)
@@ -1058,28 +1063,40 @@ fi
 
 TEST 'go generate handles simple command'
 if ! ./testgo generate ./testdata/generate/test1.go > testdata/std.out; then
-	echo "go test ./testdata/generate/test1.go failed to run"
+	echo "go generate ./testdata/generate/test1.go failed to run"
 	ok=false
 elif ! grep 'Success' testdata/std.out > /dev/null; then
-	echo "go test ./testdata/generate/test1.go generated wrong output"
+	echo "go generate ./testdata/generate/test1.go generated wrong output"
 	ok=false
 fi
 
 TEST 'go generate handles command alias'
 if ! ./testgo generate ./testdata/generate/test2.go > testdata/std.out; then
-	echo "go test ./testdata/generate/test2.go failed to run"
+	echo "go generate ./testdata/generate/test2.go failed to run"
 	ok=false
 elif ! grep 'Now is the time for all good men' testdata/std.out > /dev/null; then
-	echo "go test ./testdata/generate/test2.go generated wrong output"
+	echo "go generate ./testdata/generate/test2.go generated wrong output"
 	ok=false
 fi
 
 TEST 'go generate variable substitution'
 if ! ./testgo generate ./testdata/generate/test3.go > testdata/std.out; then
-	echo "go test ./testdata/generate/test3.go failed to run"
+	echo "go generate ./testdata/generate/test3.go failed to run"
 	ok=false
-elif ! grep "$GOARCH test3.go p xyzp/test3.go/123" testdata/std.out > /dev/null; then
-	echo "go test ./testdata/generate/test3.go generated wrong output"
+elif ! grep "$GOARCH test3.go:7 pabc xyzp/test3.go/123" testdata/std.out > /dev/null; then
+	echo "go generate ./testdata/generate/test3.go generated wrong output"
+	ok=false
+fi
+
+TEST 'go generate run flag'
+if ! ./testgo generate -run y.s ./testdata/generate/test4.go > testdata/std.out; then
+	echo "go test -run yes ./testdata/generate/test4.go failed to run"
+	ok=false
+elif ! grep "yes" testdata/std.out > /dev/null; then
+	echo "go generate -run yes ./testdata/generate/test4.go did not select yes"
+	ok=false
+elif grep "no" testdata/std.out > /dev/null; then
+	echo "go generate -run yes ./testdata/generate/test4.go selected no"
 	ok=false
 fi
 
@@ -1107,6 +1124,16 @@ elif ! grep -q 'missing argument for Printf' $d/err; then
 	ok=false
 fi
 unset GOPATH
+rm -rf $d
+
+TEST go get ./rsc.io/toolstash '(golang.org/issue/9767)'
+d=$(TMPDIR=/var/tmp mktemp -d -t testgoXXX)
+export GOPATH=$d
+export testgo=$(pwd)/testgo
+mkdir -p $GOPATH/src/rsc.io
+(cd $GOPATH/src/rsc.io && $testgo get ./toolstash) || ok=false
+unset GOPATH
+unset testgo
 rm -rf $d
 
 # clean up

@@ -119,29 +119,29 @@ func raceinit() uintptr {
 	// Round data segment to page boundaries, because it's used in mmap().
 	start := ^uintptr(0)
 	end := uintptr(0)
-	if start > uintptr(unsafe.Pointer(&noptrdata)) {
-		start = uintptr(unsafe.Pointer(&noptrdata))
+	if start > firstmoduledata.noptrdata {
+		start = firstmoduledata.noptrdata
 	}
-	if start > uintptr(unsafe.Pointer(&data)) {
-		start = uintptr(unsafe.Pointer(&data))
+	if start > firstmoduledata.data {
+		start = firstmoduledata.data
 	}
-	if start > uintptr(unsafe.Pointer(&noptrbss)) {
-		start = uintptr(unsafe.Pointer(&noptrbss))
+	if start > firstmoduledata.noptrbss {
+		start = firstmoduledata.noptrbss
 	}
-	if start > uintptr(unsafe.Pointer(&bss)) {
-		start = uintptr(unsafe.Pointer(&bss))
+	if start > firstmoduledata.bss {
+		start = firstmoduledata.bss
 	}
-	if end < uintptr(unsafe.Pointer(&enoptrdata)) {
-		end = uintptr(unsafe.Pointer(&enoptrdata))
+	if end < firstmoduledata.enoptrdata {
+		end = firstmoduledata.enoptrdata
 	}
-	if end < uintptr(unsafe.Pointer(&edata)) {
-		end = uintptr(unsafe.Pointer(&edata))
+	if end < firstmoduledata.edata {
+		end = firstmoduledata.edata
 	}
-	if end < uintptr(unsafe.Pointer(&enoptrbss)) {
-		end = uintptr(unsafe.Pointer(&enoptrbss))
+	if end < firstmoduledata.enoptrbss {
+		end = firstmoduledata.enoptrbss
 	}
-	if end < uintptr(unsafe.Pointer(&ebss)) {
-		end = uintptr(unsafe.Pointer(&ebss))
+	if end < firstmoduledata.ebss {
+		end = firstmoduledata.ebss
 	}
 	size := round(end-start, _PageSize)
 	racecall(&__tsan_map_shadow, start, size, 0, 0)
@@ -227,26 +227,6 @@ func racereadrangepc(addr unsafe.Pointer, sz, callpc, pc uintptr) {
 }
 
 //go:nosplit
-func racewriteobjectpc(addr unsafe.Pointer, t *_type, callpc, pc uintptr) {
-	kind := t.kind & _KindMask
-	if kind == _KindArray || kind == _KindStruct {
-		racewriterangepc(addr, t.size, callpc, pc)
-	} else {
-		racewritepc(addr, callpc, pc)
-	}
-}
-
-//go:nosplit
-func racereadobjectpc(addr unsafe.Pointer, t *_type, callpc, pc uintptr) {
-	kind := t.kind & _KindMask
-	if kind == _KindArray || kind == _KindStruct {
-		racereadrangepc(addr, t.size, callpc, pc)
-	} else {
-		racereadpc(addr, callpc, pc)
-	}
-}
-
-//go:nosplit
 func raceacquire(addr unsafe.Pointer) {
 	raceacquireg(getg(), addr)
 }
@@ -314,7 +294,7 @@ func RaceReleaseMerge(addr unsafe.Pointer) {
 
 //go:nosplit
 
-// RaceEnable re-enables handling of race events in the current goroutine.
+// RaceDisable disables handling of race events in the current goroutine.
 func RaceDisable() {
 	_g_ := getg()
 	if _g_.raceignore == 0 {
@@ -325,7 +305,7 @@ func RaceDisable() {
 
 //go:nosplit
 
-// RaceDisable disables handling of race events in the current goroutine.
+// RaceEnable re-enables handling of race events in the current goroutine.
 func RaceEnable() {
 	_g_ := getg()
 	_g_.raceignore--

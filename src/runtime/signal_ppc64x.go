@@ -50,12 +50,14 @@ func dumpregs(c *sigctxt) {
 	print("trap ", hex(c.trap()), "\n")
 }
 
+// May run during STW, so write barriers are not allowed.
+//go:nowritebarrier
 func sighandler(sig uint32, info *siginfo, ctxt unsafe.Pointer, gp *g) {
 	_g_ := getg()
 	c := &sigctxt{info, ctxt}
 
 	if sig == _SIGPROF {
-		sigprof((*byte)(unsafe.Pointer(uintptr(c.pc()))), (*byte)(unsafe.Pointer(uintptr(c.sp()))), (*byte)(unsafe.Pointer(uintptr(c.link()))), gp, _g_.m)
+		sigprof(uintptr(c.pc()), uintptr(c.sp()), uintptr(c.link()), gp, _g_.m)
 		return
 	}
 	flags := int32(_SigThrow)
@@ -111,7 +113,7 @@ func sighandler(sig uint32, info *siginfo, ctxt unsafe.Pointer, gp *g) {
 	}
 
 	_g_.m.throwing = 1
-	_g_.m.caughtsig = gp
+	_g_.m.caughtsig.set(gp)
 	startpanic()
 
 	if sig < uint32(len(sigtable)) {

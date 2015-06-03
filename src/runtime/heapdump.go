@@ -13,6 +13,17 @@ package runtime
 
 import "unsafe"
 
+//go:linkname runtime_debug_WriteHeapDump runtime/debug.WriteHeapDump
+func runtime_debug_WriteHeapDump(fd uintptr) {
+	stopTheWorld("write heap dump")
+
+	systemstack(func() {
+		writeheapdump_m(fd)
+	})
+
+	startTheWorld()
+}
+
 const (
 	fieldKindEol       = 0
 	fieldKindPtr       = 1
@@ -219,18 +230,10 @@ type childInfo struct {
 // dump kinds & offsets of interesting fields in bv
 func dumpbv(cbv *bitvector, offset uintptr) {
 	bv := gobv(*cbv)
-	for i := uintptr(0); i < uintptr(bv.n); i += bitsPerPointer {
-		switch bv.bytedata[i/8] >> (i % 8) & 3 {
-		default:
-			throw("unexpected pointer bits")
-		case _BitsDead:
-			// BitsDead has already been processed in makeheapobjbv.
-			// We should only see it in stack maps, in which case we should continue processing.
-		case _BitsScalar:
-			// ok
-		case _BitsPointer:
+	for i := uintptr(0); i < uintptr(bv.n); i++ {
+		if bv.bytedata[i/8]>>(i%8)&1 == 1 {
 			dumpint(fieldKindPtr)
-			dumpint(uint64(offset + i/_BitsPerPointer*ptrSize))
+			dumpint(uint64(offset + i*ptrSize))
 		}
 	}
 }
@@ -260,7 +263,7 @@ func dumpframe(s *stkframe, arg unsafe.Pointer) bool {
 	var bv bitvector
 	if stkmap != nil && stkmap.n > 0 {
 		bv = stackmapdata(stkmap, pcdata)
-		dumpbvtypes(&bv, unsafe.Pointer(s.varp-uintptr(bv.n/_BitsPerPointer*ptrSize)))
+		dumpbvtypes(&bv, unsafe.Pointer(s.varp-uintptr(bv.n*ptrSize)))
 	} else {
 		bv.n = -1
 	}
@@ -308,7 +311,7 @@ func dumpframe(s *stkframe, arg unsafe.Pointer) bool {
 	} else if stkmap.n > 0 {
 		// Locals bitmap information, scan just the pointers in
 		// locals.
-		dumpbv(&bv, s.varp-uintptr(bv.n)/_BitsPerPointer*ptrSize-s.sp)
+		dumpbv(&bv, s.varp-uintptr(bv.n)*ptrSize-s.sp)
 	}
 	dumpint(fieldKindEol)
 
@@ -344,7 +347,7 @@ func dumpgoroutine(gp *g) {
 	dumpint(uint64(gp.goid))
 	dumpint(uint64(gp.gopc))
 	dumpint(uint64(readgstatus(gp)))
-	dumpbool(gp.issystem)
+	dumpbool(isSystemGoroutine(gp))
 	dumpbool(false) // isbackground
 	dumpint(uint64(gp.waitsince))
 	dumpstr(gp.waitreason)
@@ -413,19 +416,20 @@ func finq_callback(fn *funcval, obj unsafe.Pointer, nret uintptr, fint *_type, o
 }
 
 func dumproots() {
+	// TODO(mwhudson): dump datamask etc from all objects
 	// data segment
-	dumpbvtypes(&gcdatamask, unsafe.Pointer(&data))
+	dumpbvtypes(&firstmoduledata.gcdatamask, unsafe.Pointer(firstmoduledata.data))
 	dumpint(tagData)
-	dumpint(uint64(uintptr(unsafe.Pointer(&data))))
-	dumpmemrange(unsafe.Pointer(&data), uintptr(unsafe.Pointer(&edata))-uintptr(unsafe.Pointer(&data)))
-	dumpfields(gcdatamask)
+	dumpint(uint64(firstmoduledata.data))
+	dumpmemrange(unsafe.Pointer(firstmoduledata.data), firstmoduledata.edata-firstmoduledata.data)
+	dumpfields(firstmoduledata.gcdatamask)
 
 	// bss segment
-	dumpbvtypes(&gcbssmask, unsafe.Pointer(&bss))
+	dumpbvtypes(&firstmoduledata.gcbssmask, unsafe.Pointer(firstmoduledata.bss))
 	dumpint(tagBSS)
-	dumpint(uint64(uintptr(unsafe.Pointer(&bss))))
-	dumpmemrange(unsafe.Pointer(&bss), uintptr(unsafe.Pointer(&ebss))-uintptr(unsafe.Pointer(&bss)))
-	dumpfields(gcbssmask)
+	dumpint(uint64(firstmoduledata.bss))
+	dumpmemrange(unsafe.Pointer(firstmoduledata.bss), firstmoduledata.ebss-firstmoduledata.bss)
+	dumpfields(firstmoduledata.gcbssmask)
 
 	// MSpan.types
 	allspans := h_allspans
@@ -632,7 +636,7 @@ func dumpmemprof() {
 	}
 }
 
-var dumphdr = []byte("go1.4 heap dump\n")
+var dumphdr = []byte("go1.5 heap dump\n")
 
 func mdump() {
 	// make sure we're done sweeping
@@ -701,29 +705,31 @@ func dumpbvtypes(bv *bitvector, base unsafe.Pointer) {
 func makeheapobjbv(p uintptr, size uintptr) bitvector {
 	// Extend the temp buffer if necessary.
 	nptr := size / ptrSize
-	if uintptr(len(tmpbuf)) < nptr*_BitsPerPointer/8+1 {
+	if uintptr(len(tmpbuf)) < nptr/8+1 {
 		if tmpbuf != nil {
 			sysFree(unsafe.Pointer(&tmpbuf[0]), uintptr(len(tmpbuf)), &memstats.other_sys)
 		}
-		n := nptr*_BitsPerPointer/8 + 1
+		n := nptr/8 + 1
 		p := sysAlloc(n, &memstats.other_sys)
 		if p == nil {
 			throw("heapdump: out of memory")
 		}
 		tmpbuf = (*[1 << 30]byte)(p)[:n]
 	}
-	// Copy and compact the bitmap.
-	var i uintptr
-	for i = 0; i < nptr; i++ {
-		off := (p + i*ptrSize - mheap_.arena_start) / ptrSize
-		bitp := (*uint8)(unsafe.Pointer(mheap_.arena_start - off/wordsPerBitmapByte - 1))
-		shift := uint8((off % wordsPerBitmapByte) * gcBits)
-		bits := (*bitp >> (shift + 2)) & _BitsMask
-		if bits == _BitsDead {
-			break // end of heap object
-		}
-		tmpbuf[i*_BitsPerPointer/8] &^= (_BitsMask << ((i * _BitsPerPointer) % 8))
-		tmpbuf[i*_BitsPerPointer/8] |= bits << ((i * _BitsPerPointer) % 8)
+	// Convert heap bitmap to pointer bitmap.
+	for i := uintptr(0); i < nptr/8+1; i++ {
+		tmpbuf[i] = 0
 	}
-	return bitvector{int32(i * _BitsPerPointer), &tmpbuf[0]}
+	i := uintptr(0)
+	hbits := heapBitsForAddr(p)
+	for ; i < nptr; i++ {
+		if i >= 2 && !hbits.isMarked() {
+			break // end of object
+		}
+		if hbits.isPointer() {
+			tmpbuf[i/8] |= 1 << (i % 8)
+		}
+		hbits = hbits.next()
+	}
+	return bitvector{int32(i), &tmpbuf[0]}
 }

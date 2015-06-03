@@ -25,9 +25,6 @@ import (
 )
 
 const (
-	maxValueLength   = 4096
-	maxHeaderLines   = 1024
-	chunkSize        = 4 << 10  // 4 KB chunks
 	defaultMaxMemory = 32 << 20 // 32 MB
 )
 
@@ -172,8 +169,9 @@ type Request struct {
 	// The HTTP client ignores Form and uses Body instead.
 	Form url.Values
 
-	// PostForm contains the parsed form data from POST or PUT
-	// body parameters.
+	// PostForm contains the parsed form data from POST, PATCH,
+	// or PUT body parameters.
+	//
 	// This field is only available after ParseForm is called.
 	// The HTTP client ignores PostForm and uses Body instead.
 	PostForm url.Values
@@ -364,12 +362,15 @@ func (r *Request) WriteProxy(w io.Writer) error {
 
 // extraHeaders may be nil
 func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header) error {
-	host := req.Host
+	// According to RFC 6874, an HTTP client, proxy, or other
+	// intermediary must remove any IPv6 zone identifier attached
+	// to an outgoing URI.
+	host := removeZone(req.Host)
 	if host == "" {
 		if req.URL == nil {
 			return errors.New("http: Request.Write on Request with no Host or URL set")
 		}
-		host = req.URL.Host
+		host = removeZone(req.URL.Host)
 	}
 
 	ruri := req.URL.RequestURI()
@@ -456,6 +457,23 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header) err
 	return nil
 }
 
+// removeZone removes IPv6 zone identifer from host.
+// E.g., "[fe80::1%en0]:8080" to "[fe80::1]:8080"
+func removeZone(host string) string {
+	if !strings.HasPrefix(host, "[") {
+		return host
+	}
+	i := strings.LastIndex(host, "]")
+	if i < 0 {
+		return host
+	}
+	j := strings.LastIndex(host[:i], "%")
+	if j < 0 {
+		return host
+	}
+	return host[:j] + host[i:]
+}
+
 // ParseHTTPVersion parses a HTTP version string.
 // "HTTP/1.0" returns (1, 0, true).
 func ParseHTTPVersion(vers string) (major, minor int, ok bool) {
@@ -489,6 +507,13 @@ func ParseHTTPVersion(vers string) (major, minor int, ok bool) {
 // If the provided body is also an io.Closer, the returned
 // Request.Body is set to body and will be closed by the Client
 // methods Do, Post, and PostForm, and Transport.RoundTrip.
+//
+// NewRequest returns a Request suitable for use with Client.Do or
+// Transport.RoundTrip.
+// To create a request for use with testing a Server Handler use either
+// ReadRequest or manually update the Request fields. See the Request
+// type's documentation for the difference between inbound and outbound
+// request fields.
 func NewRequest(method, urlStr string, body io.Reader) (*Request, error) {
 	u, err := url.Parse(urlStr)
 	if err != nil {
@@ -536,10 +561,11 @@ func (r *Request) BasicAuth() (username, password string, ok bool) {
 // parseBasicAuth parses an HTTP Basic Authentication string.
 // "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
 func parseBasicAuth(auth string) (username, password string, ok bool) {
-	if !strings.HasPrefix(auth, "Basic ") {
+	const prefix = "Basic "
+	if !strings.HasPrefix(auth, prefix) {
 		return
 	}
-	c, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(auth, "Basic "))
+	c, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
 	if err != nil {
 		return
 	}
@@ -587,7 +613,7 @@ func putTextprotoReader(r *textproto.Reader) {
 	textprotoReaderPool.Put(r)
 }
 
-// ReadRequest reads and parses a request from b.
+// ReadRequest reads and parses an incoming request from b.
 func ReadRequest(b *bufio.Reader) (req *Request, err error) {
 
 	tp := newTextprotoReader(b)
@@ -672,7 +698,7 @@ func ReadRequest(b *bufio.Reader) (req *Request, err error) {
 // MaxBytesReader is similar to io.LimitReader but is intended for
 // limiting the size of incoming request bodies. In contrast to
 // io.LimitReader, MaxBytesReader's result is a ReadCloser, returns a
-// non-EOF error for a Read beyond the limit, and Closes the
+// non-EOF error for a Read beyond the limit, and closes the
 // underlying reader when its Close method is called.
 //
 // MaxBytesReader prevents clients from accidentally or maliciously

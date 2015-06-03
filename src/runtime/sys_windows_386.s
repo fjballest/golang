@@ -213,9 +213,11 @@ TEXT runtime·externalthreadhandler(SB),NOSPLIT,$0
 	MOVL	CX, g_stackguard1(SP)
 	MOVL	DX, (g_stack+stack_hi)(SP)
 
+	PUSHL	AX			// room for return value
 	PUSHL	16(BP)			// arg for handler
 	CALL	8(BP)
 	POPL	CX
+	POPL	AX			// pass return value to Windows in AX
 
 	get_tls(CX)
 	MOVL	g(CX), CX
@@ -248,7 +250,7 @@ TEXT runtime·callbackasm1+0(SB),NOSPLIT,$0
 	SUBL	$runtime·callbackasm(SB), AX
 	MOVL	$0, DX
 	MOVL	$5, BX	// divide by 5 because each call instruction in runtime·callbacks is 5 bytes long
-	DIVL	BX,
+	DIVL	BX
 
 	// find correspondent runtime·cbctxts table entry
 	MOVL	runtime·cbctxts(SB), BX

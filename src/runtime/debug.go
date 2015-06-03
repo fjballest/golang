@@ -22,17 +22,12 @@ func GOMAXPROCS(n int) int {
 		return ret
 	}
 
-	semacquire(&worldsema, false)
-	gp := getg()
-	gp.m.gcing = 1
-	systemstack(stoptheworld)
+	stopTheWorld("GOMAXPROCS")
 
-	// newprocs will be processed by starttheworld
+	// newprocs will be processed by startTheWorld
 	newprocs = int32(n)
 
-	gp.m.gcing = 0
-	semrelease(&worldsema)
-	systemstack(starttheworld)
+	startTheWorld()
 	return ret
 }
 

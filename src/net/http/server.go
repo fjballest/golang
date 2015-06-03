@@ -61,6 +61,7 @@ type ResponseWriter interface {
 	// WriteHeader (or Write) has no effect unless the modified
 	// headers were declared as trailers by setting the
 	// "Trailer" header before the call to WriteHeader.
+	// To suppress implicit response headers, set their value to nil.
 	Header() Header
 
 	// Write writes the data to the connection as part of an HTTP reply.
@@ -191,20 +192,14 @@ func (c *conn) noteClientGone() {
 	c.clientGone = true
 }
 
-// A switchReader can have its Reader changed at runtime.
-// It's not safe for concurrent Reads and switches.
-type switchReader struct {
-	io.Reader
-}
-
 // A switchWriter can have its Writer changed at runtime.
 // It's not safe for concurrent Writes and switches.
 type switchWriter struct {
 	io.Writer
 }
 
-// A liveSwitchReader is a switchReader that's safe for concurrent
-// reads and switches, if its mutex is held.
+// A liveSwitchReader can have its Reader changed at runtime. It's
+// safe for concurrent reads and switches, if its mutex is held.
 type liveSwitchReader struct {
 	sync.Mutex
 	r io.Reader
@@ -786,6 +781,9 @@ func (cw *chunkWriter) writeHeader(p []byte) {
 		foreachHeaderElement(v, cw.res.declareTrailer)
 	}
 
+	te := header.get("Transfer-Encoding")
+	hasTE := te != ""
+
 	// If the handler is done but never sent a Content-Length
 	// response header and this is our first (and last) write, set
 	// it, even to zero. This helps HTTP/1.0 clients keep their
@@ -798,7 +796,9 @@ func (cw *chunkWriter) writeHeader(p []byte) {
 	// write non-zero bytes.  If it's actually 0 bytes and the
 	// handler never looked at the Request.Method, we just don't
 	// send a Content-Length header.
-	if w.handlerDone && !trailers && bodyAllowedForStatus(w.status) && header.get("Content-Length") == "" && (!isHEAD || len(p) > 0) {
+	// Further, we don't send an automatic Content-Length if they
+	// set a Transfer-Encoding, because they're generally incompatible.
+	if w.handlerDone && !trailers && !hasTE && bodyAllowedForStatus(w.status) && header.get("Content-Length") == "" && (!isHEAD || len(p) > 0) {
 		w.contentLength = int64(len(p))
 		setHeader.contentLength = strconv.AppendInt(cw.res.clenBuf[:0], int64(len(p)), 10)
 	}
@@ -850,7 +850,7 @@ func (cw *chunkWriter) writeHeader(p []byte) {
 	if bodyAllowedForStatus(code) {
 		// If no content type, apply sniffing algorithm to body.
 		_, haveType := header["Content-Type"]
-		if !haveType {
+		if !haveType && !hasTE {
 			setHeader.contentType = DetectContentType(p)
 		}
 	} else {
@@ -863,8 +863,6 @@ func (cw *chunkWriter) writeHeader(p []byte) {
 		setHeader.date = appendTime(cw.res.dateBuf[:0], time.Now())
 	}
 
-	te := header.get("Transfer-Encoding")
-	hasTE := te != ""
 	if hasCL && hasTE && te != "identity" {
 		// TODO: return an error if WriteHeader gets a return parameter
 		// For now just ignore the Content-Length.
@@ -987,7 +985,7 @@ func statusLine(req *Request, code int) string {
 	return line
 }
 
-// bodyAllowed returns true if a Write is allowed for this response type.
+// bodyAllowed reports whether a Write is allowed for this response type.
 // It's illegal to call this before the header has been flushed.
 func (w *response) bodyAllowed() bool {
 	if !w.wroteHeader {
@@ -1328,6 +1326,7 @@ func (f HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 // The error message should be plain text.
 func Error(w ResponseWriter, error string, code int) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(code)
 	fmt.Fprintln(w, error)
 }

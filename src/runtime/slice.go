@@ -8,14 +8,14 @@ import (
 	"unsafe"
 )
 
-type sliceStruct struct {
+type slice struct {
 	array unsafe.Pointer
 	len   int
 	cap   int
 }
 
 // TODO: take uintptrs instead of int64s?
-func makeslice(t *slicetype, len64 int64, cap64 int64) sliceStruct {
+func makeslice(t *slicetype, len64, cap64 int64) slice {
 	// NOTE: The len > MaxMem/elemsize check here is not strictly necessary,
 	// but it produces a 'len out of range' error instead of a 'cap out of range' error
 	// when someone does make([]T, bignumber). 'cap out of range' is true too,
@@ -30,19 +30,16 @@ func makeslice(t *slicetype, len64 int64, cap64 int64) sliceStruct {
 		panic(errorString("makeslice: cap out of range"))
 	}
 	p := newarray(t.elem, uintptr(cap))
-	return sliceStruct{p, len, cap}
+	return slice{p, len, cap}
 }
 
-// TODO: take uintptr instead of int64?
-func growslice(t *slicetype, old sliceStruct, n int64) sliceStruct {
+func growslice(t *slicetype, old slice, n int) slice {
 	if n < 1 {
 		panic(errorString("growslice: invalid n"))
 	}
 
-	cap64 := int64(old.cap) + n
-	cap := int(cap64)
-
-	if int64(cap) != cap64 || cap < old.cap || t.elem.size > 0 && uintptr(cap) > _MaxMem/uintptr(t.elem.size) {
+	cap := old.cap + n
+	if cap < old.cap || t.elem.size > 0 && uintptr(cap) > _MaxMem/uintptr(t.elem.size) {
 		panic(errorString("growslice: cap out of range"))
 	}
 
@@ -53,7 +50,9 @@ func growslice(t *slicetype, old sliceStruct, n int64) sliceStruct {
 
 	et := t.elem
 	if et.size == 0 {
-		return sliceStruct{old.array, old.len, cap}
+		// append should not create a slice with nil pointer but non-zero len.
+		// We assume that append doesn't need to preserve old.array in this case.
+		return slice{unsafe.Pointer(&zerobase), old.len, cap}
 	}
 
 	newcap := old.cap
@@ -85,17 +84,20 @@ func growslice(t *slicetype, old sliceStruct, n int64) sliceStruct {
 		memclr(add(p, lenmem), capmem-lenmem)
 	} else {
 		// Note: can't use rawmem (which avoids zeroing of memory), because then GC can scan unitialized memory.
-		// TODO(rsc): Use memmove when !needwb().
 		p = newarray(et, uintptr(newcap))
-		for i := 0; i < old.len; i++ {
-			typedmemmove(et, add(p, uintptr(i)*et.size), add(old.array, uintptr(i)*et.size))
+		if !writeBarrierEnabled {
+			memmove(p, old.array, lenmem)
+		} else {
+			for i := uintptr(0); i < lenmem; i += et.size {
+				typedmemmove(et, add(p, i), add(old.array, i))
+			}
 		}
 	}
 
-	return sliceStruct{p, old.len, newcap}
+	return slice{p, old.len, newcap}
 }
 
-func slicecopy(to sliceStruct, fm sliceStruct, width uintptr) int {
+func slicecopy(to, fm slice, width uintptr) int {
 	if fm.len == 0 || to.len == 0 {
 		return 0
 	}

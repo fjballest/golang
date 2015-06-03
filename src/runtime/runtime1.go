@@ -58,13 +58,6 @@ var (
 	iswindows int32
 )
 
-// Information about what cpu features are available.
-// Set on startup in asm_{x86/amd64}.s.
-var (
-//cpuid_ecx uint32
-//cpuid_edx uint32
-)
-
 func goargs() {
 	if GOOS == "windows" {
 		return
@@ -87,7 +80,7 @@ func goenvs_unix() {
 
 	envs = make([]string, n)
 	for i := int32(0); i < n; i++ {
-		envs[i] = gostringnocopy(argv_index(argv, argc+1+i))
+		envs[i] = gostring(argv_index(argv, argc+1+i))
 	}
 }
 
@@ -95,45 +88,47 @@ func environ() []string {
 	return envs
 }
 
-func testAtomic64() {
-	var z64, x64 uint64
+// TODO: These should be locals in testAtomic64, but we don't 8-byte
+// align stack variables on 386.
+var test_z64, test_x64 uint64
 
-	z64 = 42
-	x64 = 0
-	prefetcht0(uintptr(unsafe.Pointer(&z64)))
-	prefetcht1(uintptr(unsafe.Pointer(&z64)))
-	prefetcht2(uintptr(unsafe.Pointer(&z64)))
-	prefetchnta(uintptr(unsafe.Pointer(&z64)))
-	if cas64(&z64, x64, 1) {
+func testAtomic64() {
+	test_z64 = 42
+	test_x64 = 0
+	prefetcht0(uintptr(unsafe.Pointer(&test_z64)))
+	prefetcht1(uintptr(unsafe.Pointer(&test_z64)))
+	prefetcht2(uintptr(unsafe.Pointer(&test_z64)))
+	prefetchnta(uintptr(unsafe.Pointer(&test_z64)))
+	if cas64(&test_z64, test_x64, 1) {
 		throw("cas64 failed")
 	}
-	if x64 != 0 {
+	if test_x64 != 0 {
 		throw("cas64 failed")
 	}
-	x64 = 42
-	if !cas64(&z64, x64, 1) {
+	test_x64 = 42
+	if !cas64(&test_z64, test_x64, 1) {
 		throw("cas64 failed")
 	}
-	if x64 != 42 || z64 != 1 {
+	if test_x64 != 42 || test_z64 != 1 {
 		throw("cas64 failed")
 	}
-	if atomicload64(&z64) != 1 {
+	if atomicload64(&test_z64) != 1 {
 		throw("load64 failed")
 	}
-	atomicstore64(&z64, (1<<40)+1)
-	if atomicload64(&z64) != (1<<40)+1 {
+	atomicstore64(&test_z64, (1<<40)+1)
+	if atomicload64(&test_z64) != (1<<40)+1 {
 		throw("store64 failed")
 	}
-	if xadd64(&z64, (1<<40)+1) != (2<<40)+2 {
+	if xadd64(&test_z64, (1<<40)+1) != (2<<40)+2 {
 		throw("xadd64 failed")
 	}
-	if atomicload64(&z64) != (2<<40)+2 {
+	if atomicload64(&test_z64) != (2<<40)+2 {
 		throw("xadd64 failed")
 	}
-	if xchg64(&z64, (3<<40)+3) != (2<<40)+2 {
+	if xchg64(&test_z64, (3<<40)+3) != (2<<40)+2 {
 		throw("xchg64 failed")
 	}
-	if atomicload64(&z64) != (3<<40)+3 {
+	if atomicload64(&test_z64) != (3<<40)+3 {
 		throw("xchg64 failed")
 	}
 }
@@ -306,7 +301,10 @@ type dbgVar struct {
 
 // TODO(rsc): Make GC respect debug.invalidptr.
 
-// Holds variables parsed from GODEBUG env var.
+// Holds variables parsed from GODEBUG env var,
+// except for "memprofilerate" since there is an
+// existing int var for that value, which may
+// already have an initial value.
 var debug struct {
 	allocfreetrace int32
 	efence         int32
@@ -318,6 +316,8 @@ var debug struct {
 	schedtrace     int32
 	wbshadow       int32
 	gccheckmark    int32
+	sbrk           int32
+	gcpacertrace   int32
 }
 
 var dbgvars = []dbgVar{
@@ -331,12 +331,11 @@ var dbgvars = []dbgVar{
 	{"schedtrace", &debug.schedtrace},
 	{"wbshadow", &debug.wbshadow},
 	{"gccheckmark", &debug.gccheckmark},
+	{"sbrk", &debug.sbrk},
+	{"gcpacertrace", &debug.gcpacertrace},
 }
 
 func parsedebugvars() {
-	// gccheckmark is enabled by default for the 1.5 dev cycle
-	debug.gccheckmark = 1
-
 	for p := gogetenv("GODEBUG"); p != ""; {
 		field := ""
 		i := index(p, ",")
@@ -350,9 +349,17 @@ func parsedebugvars() {
 			continue
 		}
 		key, value := field[:i], field[i+1:]
-		for _, v := range dbgvars {
-			if v.name == key {
-				*v.value = int32(atoi(value))
+
+		// Update MemProfileRate directly here since it
+		// is int, not int32, and should only be updated
+		// if specified in GODEBUG.
+		if key == "memprofilerate" {
+			MemProfileRate = atoi(value)
+		} else {
+			for _, v := range dbgvars {
+				if v.name == key {
+					*v.value = int32(atoi(value))
+				}
 			}
 		}
 	}
@@ -416,27 +423,12 @@ func gomcache() *mcache {
 	return getg().m.mcache
 }
 
-var typelink, etypelink [0]byte
-
 //go:linkname reflect_typelinks reflect.typelinks
 //go:nosplit
-func reflect_typelinks() []*_type {
-	var ret []*_type
-	sp := (*slice)(unsafe.Pointer(&ret))
-	sp.array = (*byte)(unsafe.Pointer(&typelink))
-	sp.len = uint((uintptr(unsafe.Pointer(&etypelink)) - uintptr(unsafe.Pointer(&typelink))) / unsafe.Sizeof(ret[0]))
-	sp.cap = sp.len
+func reflect_typelinks() [][]*_type {
+	ret := [][]*_type{firstmoduledata.typelinks}
+	for datap := firstmoduledata.next; datap != nil; datap = datap.next {
+		ret = append(ret, datap.typelinks)
+	}
 	return ret
-}
-
-// TODO: move back into mgc0.c when converted to Go
-func readgogc() int32 {
-	p := gogetenv("GOGC")
-	if p == "" {
-		return 100
-	}
-	if p == "off" {
-		return -1
-	}
-	return int32(atoi(p))
 }

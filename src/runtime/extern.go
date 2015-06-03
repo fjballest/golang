@@ -45,6 +45,10 @@ a comma-separated list of name=val pairs. Supported names are:
 	This should only be used as a temporary workaround to diagnose buggy code.
 	The real fix is to not store integers in pointer-typed locations.
 
+	memprofilerate: setting memprofilerate=X will update the value of runtime.MemProfileRate.
+	When set to 0 memory profiling is disabled.  Refer to the description of
+	MemProfileRate for the default value.
+
 	scheddetail: setting schedtrace=X and scheddetail=1 causes the scheduler to emit
 	detailed multiline info every X milliseconds, describing state of the scheduler,
 	processors, threads and goroutines.
@@ -53,18 +57,6 @@ a comma-separated list of name=val pairs. Supported names are:
 	error every X milliseconds, summarizing the scheduler state.
 
 	scavenge: scavenge=1 enables debugging mode of heap scavenger.
-
-	wbshadow: setting wbshadow=1 enables a shadow copy of the heap
-	used to detect missing write barriers at the next write to a
-	given location. If a bug can be detected in this mode it is
-	typically easy to understand, since the crash says quite
-	clearly what kind of word has missed a write barrier.
-	Setting wbshadow=2 checks the shadow copy during garbage
-	collection as well. Bugs detected at garbage collection can be
-	difficult to understand, because there is no context for what
-	the found word means. Typically you have to reproduce the
-	problem with allocfreetrace=1 in order to understand the type
-	of the badly updated word.
 
 	gccheckmark: setting gccheckmark=1 enables verification of the
 	garbage collector's concurrent mark phase by performing a
@@ -110,7 +102,7 @@ func Caller(skip int) (pc uintptr, file string, line int, ok bool) {
 	// and what it called, so that we can see if it
 	// "called" sigpanic.
 	var rpc [2]uintptr
-	if callers(1+skip-1, &rpc[0], 2) < 2 {
+	if callers(1+skip-1, rpc[:]) < 2 {
 		return
 	}
 	f := findfunc(rpc[1])
@@ -157,7 +149,7 @@ func Callers(skip int, pc []uintptr) int {
 	if len(pc) == 0 {
 		return 0
 	}
-	return callers(skip, &pc[0], len(pc))
+	return callers(skip, pc)
 }
 
 // GOROOT returns the root of the Go tree.

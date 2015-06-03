@@ -741,3 +741,38 @@ func TestUninitializedRead(t *testing.T) {
 	}
 
 }
+
+// Negative header size should not cause panic.
+// Issues 10959 and 10960.
+func TestNegativeHdrSize(t *testing.T) {
+	f, err := os.Open("testdata/neg-size.tar")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	r := NewReader(f)
+	_, err = r.Next()
+	if err != ErrHeader {
+		t.Error("want ErrHeader, got", err)
+	}
+	io.Copy(ioutil.Discard, r)
+}
+
+// This used to hang in (*sparseFileReader).readHole due to missing
+// verification of sparse offsets against file size.
+func TestIssue10968(t *testing.T) {
+	f, err := os.Open("testdata/issue10968.tar")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	r := NewReader(f)
+	_, err = r.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = io.Copy(ioutil.Discard, r)
+	if err != io.ErrUnexpectedEOF {
+		t.Fatalf("expected %q, got %q", io.ErrUnexpectedEOF, err)
+	}
+}

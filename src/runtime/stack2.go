@@ -57,9 +57,9 @@ functions to make sure that this limit cannot be violated.
 const (
 	// StackSystem is a number of additional bytes to add
 	// to each stack below the usual guard area for OS-specific
-	// purposes like signal handling. Used on Windows and on
-	// Plan 9 because they do not use a separate stack.
-	_StackSystem = goos_windows*512*ptrSize + goos_plan9*512
+	// purposes like signal handling. Used on Windows, Plan 9,
+	// and Darwin/ARM because they do not use a separate stack.
+	_StackSystem = goos_windows*512*ptrSize + goos_plan9*512 + goos_darwin*goarch_arm*1024
 
 	// The minimum size of stack used by Go code
 	_StackMin = 2048
@@ -84,7 +84,7 @@ const (
 
 	// The stack guard is a pointer this many bytes above the
 	// bottom of the stack.
-	_StackGuard = 640 + _StackSystem
+	_StackGuard = 640*stackGuardMultiplier + _StackSystem
 
 	// After a stack split check the SP is allowed to be this
 	// many bytes below the stack guard.  This saves an instruction

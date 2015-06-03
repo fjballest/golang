@@ -35,10 +35,8 @@ var maxstring uintptr = 256 // a hint for print
 
 //go:nosplit
 func gostringnocopy(str *byte) string {
-	var s string
-	sp := (*stringStruct)(unsafe.Pointer(&s))
-	sp.str = unsafe.Pointer(str)
-	sp.len = findnull(str)
+	ss := stringStruct{str: unsafe.Pointer(str), len: findnull(str)}
+	s := *(*string)(unsafe.Pointer(&ss))
 	for {
 		ms := maxstring
 		if uintptr(len(s)) <= ms || casuintptr(&maxstring, ms, uintptr(len(s))) {
@@ -66,43 +64,4 @@ func gostringw(strw *uint16) string {
 	}
 	b[n2] = 0 // for luck
 	return s[:n2]
-}
-
-func strcmp(s1, s2 *byte) int32 {
-	p1 := (*[_MaxMem/2 - 1]byte)(unsafe.Pointer(s1))
-	p2 := (*[_MaxMem/2 - 1]byte)(unsafe.Pointer(s2))
-
-	for i := uintptr(0); ; i++ {
-		c1 := p1[i]
-		c2 := p2[i]
-		if c1 < c2 {
-			return -1
-		}
-		if c1 > c2 {
-			return +1
-		}
-		if c1 == 0 {
-			return 0
-		}
-	}
-}
-
-func strncmp(s1, s2 *byte, n uintptr) int32 {
-	p1 := (*[_MaxMem/2 - 1]byte)(unsafe.Pointer(s1))
-	p2 := (*[_MaxMem/2 - 1]byte)(unsafe.Pointer(s2))
-
-	for i := uintptr(0); i < n; i++ {
-		c1 := p1[i]
-		c2 := p2[i]
-		if c1 < c2 {
-			return -1
-		}
-		if c1 > c2 {
-			return +1
-		}
-		if c1 == 0 {
-			break
-		}
-	}
-	return 0
 }

@@ -24,6 +24,8 @@
 // unnecessary rechecks of sig.mask, but it cannot lead to missed signals
 // nor deadlocks.
 
+// +build !plan9
+
 package runtime
 
 import "unsafe"
@@ -151,17 +153,17 @@ func signal_disable(s uint32) {
 	sigdisable(s)
 }
 
+// Must only be called from a single goroutine at a time.
+func signal_ignore(s uint32) {
+	if int(s) >= len(sig.wanted)*32 {
+		return
+	}
+	sig.wanted[s/32] &^= 1 << (s & 31)
+	sigignore(s)
+}
+
 // This runs on a foreign stack, without an m or a g.  No stack split.
 //go:nosplit
 func badsignal(sig uintptr) {
-	// Some external libraries, for example, OpenBLAS, create worker threads in
-	// a global constructor. If we're doing cpu profiling, and the SIGPROF signal
-	// comes to one of the foreign threads before we make our first cgo call, the
-	// call to cgocallback below will bring down the whole process.
-	// It's better to miss a few SIGPROF signals than to abort in this case.
-	// See http://golang.org/issue/9456.
-	if _SIGPROF != 0 && sig == _SIGPROF && needextram != 0 {
-		return
-	}
 	cgocallback(unsafe.Pointer(funcPC(sigsend)), noescape(unsafe.Pointer(&sig)), unsafe.Sizeof(sig))
 }

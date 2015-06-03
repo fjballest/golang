@@ -463,6 +463,10 @@ func (tr *Reader) readHeader() *Header {
 	hdr.Uid = int(tr.octal(s.next(8)))
 	hdr.Gid = int(tr.octal(s.next(8)))
 	hdr.Size = tr.octal(s.next(12))
+	if hdr.Size < 0 {
+		tr.err = ErrHeader
+		return nil
+	}
 	hdr.ModTime = time.Unix(tr.octal(s.next(12)), 0)
 	s.next(8) // chksum
 	hdr.Typeflag = s.next(1)[0]
@@ -786,6 +790,9 @@ func (sfr *sparseFileReader) Read(b []byte) (n int, err error) {
 		}
 		// Otherwise, we're at the end of the file
 		return 0, io.EOF
+	}
+	if sfr.tot < sfr.sp[0].offset {
+		return 0, io.ErrUnexpectedEOF
 	}
 	if sfr.pos < sfr.sp[0].offset {
 		// We're in a hole

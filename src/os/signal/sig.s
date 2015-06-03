@@ -4,7 +4,7 @@
 
 // Assembly to get into package runtime without using exported symbols.
 
-// +build amd64 amd64p32 arm 386 ppc64 ppc64le
+// +build amd64 amd64p32 arm arm64 386 ppc64 ppc64le
 
 #include "textflag.h"
 
@@ -23,6 +23,9 @@ TEXT ·signal_disable(SB),NOSPLIT,$0
 
 TEXT ·signal_enable(SB),NOSPLIT,$0
 	JMP runtime·signal_enable(SB)
+
+TEXT ·signal_ignore(SB),NOSPLIT,$0
+	JMP runtime·signal_ignore(SB)
 
 TEXT ·signal_recv(SB),NOSPLIT,$0
 	JMP runtime·signal_recv(SB)

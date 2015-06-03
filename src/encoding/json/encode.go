@@ -113,8 +113,8 @@ import (
 // a JSON tag of "-".
 //
 // Map values encode as JSON objects.
-// The map's key type must be string; the object keys are used directly
-// as map keys.
+// The map's key type must be string; the map keys are used as JSON object
+// keys, subject to the UTF-8 coercion described for string values above.
 //
 // Pointer values encode as the value pointed to.
 // A nil pointer encodes as the null JSON object.
@@ -274,8 +274,6 @@ func (e *encodeState) marshal(v interface{}) (err error) {
 func (e *encodeState) error(err error) {
 	panic(err)
 }
-
-var byteSliceType = reflect.TypeOf([]byte(nil))
 
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {

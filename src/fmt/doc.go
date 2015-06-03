@@ -138,20 +138,23 @@
 	formatting considerations apply for operands that implement
 	certain interfaces. In order of application:
 
-	1. If an operand implements the Formatter interface, it will
+	1. If the operand is a reflect.Value, the concrete value it
+	holds is printed as if it was the operand.
+
+	2. If an operand implements the Formatter interface, it will
 	be invoked. Formatter provides fine control of formatting.
 
-	2. If the %v verb is used with the # flag (%#v) and the operand
+	3. If the %v verb is used with the # flag (%#v) and the operand
 	implements the GoStringer interface, that will be invoked.
 
 	If the format (which is implicitly %v for Println etc.) is valid
 	for a string (%s %q %v %x %X), the following two rules apply:
 
-	3. If an operand implements the error interface, the Error method
+	4. If an operand implements the error interface, the Error method
 	will be invoked to convert the object to a string, which will then
 	be formatted as required by the verb (if any).
 
-	4. If an operand implements method String() string, that method
+	5. If an operand implements method String() string, that method
 	will be invoked to convert the object to a string, which will then
 	be formatted as required by the verb (if any).
 
@@ -178,8 +181,8 @@
 	However, the notation [n] immediately before the verb indicates that the
 	nth one-indexed argument is to be formatted instead. The same notation
 	before a '*' for a width or precision selects the argument index holding
-	the value. After processing a bracketed expression [n], arguments n+1,
-	n+2, etc. will be processed unless otherwise directed.
+	the value. After processing a bracketed expression [n], subsequent verbs
+	will use arguments n+1, n+2, etc. unless otherwise directed.
 
 	For example,
 		fmt.Sprintf("%[2]d %[1]d\n", 11, 22)
@@ -225,7 +228,9 @@
 		%!s(PANIC=bad)
 
 	The %!s just shows the print verb in use when the failure
-	occurred.
+	occurred. If the panic is caused by a nil receiver to an Error
+	or String method, however, the output is the undecorated
+	string, "<nil>".
 
 	Scanning
 

@@ -48,13 +48,14 @@ func mmap_fixed(v unsafe.Pointer, n uintptr, prot, flags, fd int32, offset uint3
 	return p
 }
 
+// Don't split the stack as this method may be invoked without a valid G, which
+// prevents us from allocating more stack.
 //go:nosplit
-func sysAlloc(n uintptr, stat *uint64) unsafe.Pointer {
+func sysAlloc(n uintptr, sysStat *uint64) unsafe.Pointer {
 	p := mmap(nil, n, _PROT_READ|_PROT_WRITE, _MAP_ANON|_MAP_PRIVATE, -1, 0)
 	if uintptr(p) < 4096 {
 		if uintptr(p) == _EACCES {
 			print("runtime: mmap: access denied\n")
-			print("if you're running SELinux, enable execmem for this process.\n")
 			exit(2)
 		}
 		if uintptr(p) == _EAGAIN {
@@ -63,19 +64,42 @@ func sysAlloc(n uintptr, stat *uint64) unsafe.Pointer {
 		}
 		return nil
 	}
-	xadd64(stat, int64(n))
+	mSysStatInc(sysStat, n)
 	return p
 }
 
 func sysUnused(v unsafe.Pointer, n uintptr) {
+	var s uintptr = hugePageSize // division by constant 0 is a compile-time error :(
+	if s != 0 && (uintptr(v)%s != 0 || n%s != 0) {
+		// See issue 8832
+		// Linux kernel bug: https://bugzilla.kernel.org/show_bug.cgi?id=93111
+		// Mark the region as NOHUGEPAGE so the kernel's khugepaged
+		// doesn't undo our DONTNEED request.  khugepaged likes to migrate
+		// regions which are only partially mapped to huge pages, including
+		// regions with some DONTNEED marks.  That needlessly allocates physical
+		// memory for our DONTNEED regions.
+		madvise(v, n, _MADV_NOHUGEPAGE)
+	}
 	madvise(v, n, _MADV_DONTNEED)
 }
 
 func sysUsed(v unsafe.Pointer, n uintptr) {
+	if hugePageSize != 0 {
+		// Undo the NOHUGEPAGE marks from sysUnused.  There is no alignment check
+		// around this call as spans may have been merged in the interim.
+		// Note that this might enable huge pages for regions which were
+		// previously disabled.  Unfortunately there is no easy way to detect
+		// what the previous state was, and in any case we probably want huge
+		// pages to back our heap if the kernel can arrange that.
+		madvise(v, n, _MADV_HUGEPAGE)
+	}
 }
 
-func sysFree(v unsafe.Pointer, n uintptr, stat *uint64) {
-	xadd64(stat, -int64(n))
+// Don't split the stack as this function may be invoked without a valid G,
+// which prevents us from allocating more stack.
+//go:nosplit
+func sysFree(v unsafe.Pointer, n uintptr, sysStat *uint64) {
+	mSysStatDec(sysStat, n)
 	munmap(v, n)
 }
 
@@ -109,8 +133,8 @@ func sysReserve(v unsafe.Pointer, n uintptr, reserved *bool) unsafe.Pointer {
 	return p
 }
 
-func sysMap(v unsafe.Pointer, n uintptr, reserved bool, stat *uint64) {
-	xadd64(stat, int64(n))
+func sysMap(v unsafe.Pointer, n uintptr, reserved bool, sysStat *uint64) {
+	mSysStatInc(sysStat, n)
 
 	// On 64-bit, we don't actually have v reserved, so tread carefully.
 	if !reserved {
