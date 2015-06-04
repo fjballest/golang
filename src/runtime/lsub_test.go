@@ -179,3 +179,20 @@ func TestChanCloseIntErr(t *testing.T) {
 		t.Fatal("close did not panic with int error")
 	}
 }
+
+/*
+//nemo: test that chan send can return a value
+func TestChanSendVal(t *testing.T) {
+	c := make(chan bool, 1)
+	ok := c <- true
+	if !ok {
+		t.Fatal("bad send return value")
+	}
+	close(c)
+	ok = c <- true
+	if ok {
+		t.Fatal("bad send return value")
+	}
+}
+
+*/

@@ -228,6 +228,7 @@ func callrecv(n *Node) bool {
 		OCALLINTER,
 		OCALLFUNC,
 		ORECV,
+		OSEND,
 		OCAP,
 		OLEN,
 		OCOPY,
@@ -1096,7 +1097,7 @@ OpSwitch:
 		break OpSwitch
 
 	case OSEND:
-		ok |= Etop
+		ok |= Etop|Erv
 		l := typecheck(&n.Left, Erv)
 		typecheck(&n.Right, Erv)
 		defaultlit(&n.Left, nil)
@@ -1127,9 +1128,8 @@ OpSwitch:
 		n.Right = assignconv(r, l.Type.Type, "send")
 
 		// TODO: more aggressive
-		n.Etype = 0
-
-		n.Type = nil
+		// n.Etype = 0
+		n.Type = Types[TBOOL]
 		break OpSwitch
 
 	case OSLICE:

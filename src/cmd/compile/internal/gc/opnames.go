@@ -111,6 +111,7 @@ var opnames = []string{
 	ORUNESTR:         "RUNESTR",
 	OSELRECV:         "SELRECV",
 	OSELRECV2:        "SELRECV2",
+	OSELSEND:         "SELSEND",
 	OIOTA:            "IOTA",
 	OREAL:            "REAL",
 	OIMAG:            "IMAG",

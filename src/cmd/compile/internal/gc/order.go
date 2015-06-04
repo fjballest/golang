@@ -972,6 +972,16 @@ func orderexpr(np **Node, order *Order, lhs *Node) {
 		orderexprlist(n.List, order)
 		orderexprlist(n.Rlist, order)
 
+	case OSEND:
+		// Special: value being sent is passed as a pointer; make it addressable.
+		// This is now required and not just in orderstmt because send can now be
+		// an expression.
+		t := marktemp(order);
+		orderexpr(&n.Left, order, nil)
+		orderexpr(&n.Right, order, nil)
+		orderaddrtemp(&n.Right, order)
+		cleantemp(t, order)
+
 		// Addition of strings turns into a function call.
 	// Allocate a temporary to hold the strings.
 	// Fewer than 5 strings use direct runtime helpers.

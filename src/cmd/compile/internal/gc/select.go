@@ -48,18 +48,21 @@ func typecheckselect(sel *Node) {
 				if (n.Right.Op == OCONVNOP || n.Right.Op == OCONVIFACE) && n.Right.Implicit {
 					n.Right = n.Right.Left
 				}
-
-				if n.Right.Op != ORECV {
+				switch n.Right.Op {
+				case ORECV:
+					n.Op = OSELRECV
+				case OSEND:
+					// n.Op = OSELSEND
+					Yyerror("select send w/ assign not yet implemented")
+				default:
 					Yyerror("select assignment must have receive on right hand side")
-					break
 				}
 
-				n.Op = OSELRECV
 
 				// convert x, ok = <-c into OSELRECV2(x, <-c) with ntest=ok
 			case OAS2RECV:
 				if n.Rlist.N.Op != ORECV {
-					Yyerror("select assignment must have receive on right hand side")
+					Yyerror("select assignment/2 must have receive on right hand side")
 					break
 				}
 
@@ -128,6 +131,8 @@ func walkselect(sel *Node) {
 				// ok already
 			case OSEND:
 				ch = n.Left
+			case OSELSEND:
+				Fatal("walkselect OSELSEND not implemented")
 
 			case OSELRECV, OSELRECV2:
 				ch = n.Right.Left
@@ -183,7 +188,8 @@ func walkselect(sel *Node) {
 		case OSEND:
 			n.Right = Nod(OADDR, n.Right, nil)
 			typecheck(&n.Right, Erv)
-
+		case OSELSEND:
+			Fatal("walkselect OSELSEND not implemented")
 		case OSELRECV, OSELRECV2:
 			if n.Op == OSELRECV2 && n.Ntest == nil {
 				n.Op = OSELRECV
@@ -227,6 +233,9 @@ func walkselect(sel *Node) {
 			ch := n.Left
 
 			r.Ntest = mkcall1(chanfn("selectnbsend", 2, ch.Type), Types[TBOOL], &r.Ninit, typename(ch.Type), ch, n.Right)
+
+		case OSELSEND:
+			Fatal("walkselect OSELSEND not implemented")
 
 			// if c != nil && selectnbrecv(&v, c) { body } else { default body }
 		case OSELRECV:
@@ -291,6 +300,9 @@ func walkselect(sel *Node) {
 				// selectsend(sel *byte, hchan *chan any, elem *any) (selected bool);
 			case OSEND:
 				r.Ntest = mkcall1(chanfn("selectsend", 2, n.Left.Type), Types[TBOOL], &r.Ninit, var_, n.Left, n.Right)
+
+			case OSELSEND:
+				Fatal("walkselect OSELSEND not implemented")
 
 				// selectrecv(sel *byte, hchan *chan any, elem *any) (selected bool);
 			case OSELRECV:

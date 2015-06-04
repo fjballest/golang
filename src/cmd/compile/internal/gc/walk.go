@@ -1646,7 +1646,9 @@ func walkexpr(np **Node, init **NodeList) {
 		n1 = assignconv(n1, n.Left.Type.Type, "chan send")
 		walkexpr(&n1, init)
 		n1 = Nod(OADDR, n1, nil)
-		n = mkcall1(chanfn("chansend1", 2, n.Left.Type), nil, init, typename(n.Left.Type), n.Left, n1)
+		n = mkcall1(chanfn("chansend2", 2, n.Left.Type),
+			Types[TBOOL], init, typename(n.Left.Type), n.Left, n1)
+		n.Type = Types[TBOOL]
 		goto ret
 
 	case OCLOSURE:

@@ -930,7 +930,7 @@ expr:
 	{
 		$$ = Nod(ORSH, $1, $3);
 	}
-	/* not an expression anymore, but left in so we can give a good error */
+	/* nemo: this is now an expression and not just a hook to give good errors */
 |	expr LCOMM expr
 	{
 		$$ = Nod(OSEND, $1, $3);
