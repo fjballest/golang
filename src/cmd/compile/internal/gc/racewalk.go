@@ -320,6 +320,8 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 		// should not appear in AST by now
 	case OSEND,
 		ORECV,
+		OCCLOSED,
+		OCERROR,
 		OCLOSE,
 		ONEW,
 		OXCASE,

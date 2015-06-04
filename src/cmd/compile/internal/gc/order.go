@@ -470,6 +470,8 @@ func orderstmt(n *Node, order *Order) {
 
 	case OAS2,
 		OCLOSE,
+		OCCLOSED,
+		OCERROR,
 		OCOPY,
 		OPRINT,
 		OPRINTN,

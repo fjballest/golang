@@ -2130,6 +2130,8 @@ var syms = []struct {
 	{"var", LVAR, Txxx, OXXX},
 	{"append", LNAME, Txxx, OAPPEND},
 	{"cap", LNAME, Txxx, OCAP},
+	{"cclosed", LNAME, Txxx, OCCLOSED},
+	{"cerror", LNAME, Txxx, OCERROR},
 	{"close", LNAME, Txxx, OCLOSE},
 	{"complex", LNAME, Txxx, OCOMPLEX},
 	{"copy", LNAME, Txxx, OCOPY},

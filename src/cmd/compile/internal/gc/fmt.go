@@ -117,6 +117,8 @@ var goopnames = []string{
 	OCALL:     "function call", // not actual syntax
 	OCAP:      "cap",
 	OCASE:     "case",
+	OCCLOSED:  "cclosed",
+	OCERROR:   "cerror",
 	OCLOSE:    "close",
 	OCOMPLEX:  "complex",
 	OCOM:      "^",
@@ -968,6 +970,8 @@ var opprec = []int{
 	OCALLMETH:     8,
 	OCALL:         8,
 	OCAP:          8,
+	OCCLOSED:      8,
+	OCERROR:       8,
 	OCLOSE:        8,
 	OCONVIFACE:    8,
 	OCONVNOP:      8,
@@ -1338,11 +1342,18 @@ func exprfmt(n *Node, prec int) string {
 		}
 		return fmt.Sprintf("%v(%v)", n.Type, Hconv(n.List, obj.FmtComma))
 
+	case OCLOSE:
+		// nemo: close with 2nd arg
+		if n.Left != nil && n.Right != nil {
+			return fmt.Sprintf("%v(%v, %v)", Oconv(int(n.Op), obj.FmtSharp), n.Left, n.Right)
+		}
+		fallthrough
 	case OREAL,
 		OIMAG,
 		OAPPEND,
 		OCAP,
-		OCLOSE,
+		OCERROR,
+		OCCLOSED,
 		ODELETE,
 		OLEN,
 		OMAKE,

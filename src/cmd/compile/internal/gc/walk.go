@@ -167,6 +167,8 @@ func walkstmt(np **Node) {
 		OAS2RECV,
 		OAS2FUNC,
 		OAS2MAPR,
+		OCCLOSED,
+		OCERROR,
 		OCLOSE,
 		OCOPY,
 		OCALLMETH,
@@ -1424,12 +1426,31 @@ func walkexpr(np **Node, init **NodeList) {
 		n = copyany(n, init, flag_race)
 		goto ret
 
+	case OCCLOSED:
+		fn := syslook("cclosed", 1)
+		substArgTypes(fn, n.Left.Type)
+		n = mkcall1(fn, Types[TBOOL], init, n.Left)
+		goto ret
+
+	case OCERROR:
+		fn := syslook("cerror", 1)
+		substArgTypes(fn, n.Left.Type)
+		n = mkcall1(fn, errortype, init, n.Left)
+		goto ret
+
 		// cannot use chanfn - closechan takes any, not chan any
 	case OCLOSE:
-		fn := syslook("closechan", 1)
-
-		substArgTypes(fn, n.Left.Type)
-		n = mkcall1(fn, nil, init, n.Left)
+		// nemo: check for two arguments; this should always call closechan2 perhaps with
+		// a nil 2nd argument; but it's ok for now.
+		if n.Right == nil {
+			fn := syslook("closechan", 1)
+			substArgTypes(fn, n.Left.Type)
+			n = mkcall1(fn, nil, init, n.Left)
+		} else {
+			fn := syslook("closechan2", 1)
+			substArgTypes(fn, n.Left.Type)
+			n = mkcall1(fn, nil, init, n.Left, n.Right)
+		}
 		goto ret
 
 	case OMAKECHAN:

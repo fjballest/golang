@@ -12,6 +12,8 @@ const (
 	maxAlign  = 8
 	hchanSize = unsafe.Sizeof(hchan{}) + uintptr(-int(unsafe.Sizeof(hchan{}))&(maxAlign-1))
 	debugChan = false
+
+	maxerr = 128
 )
 
 type hchan struct {
@@ -19,12 +21,14 @@ type hchan struct {
 	dataqsiz uint           // size of the circular queue
 	buf      unsafe.Pointer // points to an array of dataqsiz elements
 	elemsize uint16
+	errlen   uint16		// nemo: error length.
 	closed   uint32
 	elemtype *_type // element type
 	sendx    uint   // send index
 	recvx    uint   // receive index
 	recvq    waitq  // list of recv waiters
 	sendq    waitq  // list of send waiters
+	err      [maxerr]byte	// nemo: error given to close
 	lock     mutex
 }
 
@@ -152,7 +156,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 	lock(&c.lock)
 	if c.closed != 0 {
 		unlock(&c.lock)
-		panic("send on closed channel")
+		return true	// nemo: send on a closed channel does not block or panic.
 	}
 
 	if c.dataqsiz == 0 { // synchronous channel
@@ -206,7 +210,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 			if c.closed == 0 {
 				throw("chansend: spurious wakeup")
 			}
-			panic("send on closed channel")
+			// nemo: don't panic("send on closed channel")
 		}
 		gp.param = nil
 		if mysg.releasetime > 0 {
@@ -244,7 +248,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 		lock(&c.lock)
 		if c.closed != 0 {
 			unlock(&c.lock)
-			panic("send on closed channel")
+			return true	// nemo: don't panic
 		}
 	}
 
@@ -278,15 +282,76 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
 	return true
 }
 
-func closechan(c *hchan) {
+// nemo: errors as reported by cerror()
+type chanError string
+func (e chanError) Error() string {
+	return string(e)
+}
+
+// nemo: return true if the channel is closed and all data has been received from it.
+// Not called closed() because that might be a typical name in existing programs.
+func cclosed(c *hchan) bool {
 	if c == nil {
-		panic("close of nil channel")
+		return true
 	}
+	lock(&c.lock)
+	closed := c.closed != 0 && (c.dataqsiz == 0 || c.qcount <= 0)
+	unlock(&c.lock)
+	return closed
+}
+
+// nemo: report the error for the chan close()
+func cerror(c *hchan) error {
+	if c == nil {
+		return nil
+	}
+	lock(&c.lock)
+	if c.closed == 0 || c.errlen == 0 || c.err[0] == 0 {
+		unlock(&c.lock)
+		return nil
+	}
+	msg := gostringn(&c.err[0], int(c.errlen))
+	unlock(&c.lock)
+	return chanError(msg)
+}
+
+// nemo: error strings for acceptable 2nd arguments to close/2.
+func chanerrstr(e interface{}) string {
+	if e == nil {
+		return ""
+	}
+	switch v := e.(type) {
+	case nil:
+		return ""
+	case stringer:
+		return v.String()
+	case error:
+		return v.Error()
+	case string:
+		return v
+	default:
+		panic("close errors must be a string or an error")
+	}
+}
+
+
+func closechan(c *hchan) {
+	// nemo: now calls closechan2
+	closechan2(c, nil)
+}
+
+func closechan2(c *hchan, e interface{}) {
+	if c == nil {
+		return	// nemo: don't panic.
+	}
+
+	// chanerrstr may panic; do that before holding locks
+	estr := chanerrstr(e)
 
 	lock(&c.lock)
 	if c.closed != 0 {
 		unlock(&c.lock)
-		panic("close of closed channel")
+		return	// nemo: don't panic.
 	}
 
 	if raceenabled {
@@ -296,6 +361,19 @@ func closechan(c *hchan) {
 	}
 
 	c.closed = 1
+
+	// nemo: record error string
+	c.errlen = uint16(0)
+	if estr != "" {
+		n := (*stringStruct)(unsafe.Pointer(&estr)).len
+		if n > maxerr {
+			n = maxerr
+		}
+		c.errlen = uint16(n)
+		c.err[c.errlen] = 0
+		p := (*stringStruct)(unsafe.Pointer(&estr)).str
+		memmove(unsafe.Pointer(&c.err[0]), p, uintptr(c.errlen))
+	}
 
 	// release all readers
 	for {

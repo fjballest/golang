@@ -1556,11 +1556,22 @@ OpSwitch:
 		n.Type = t
 		break OpSwitch
 
-	case OCLOSE:
-		if onearg(n, "%v", Oconv(int(n.Op), 0)) < 0 {
+	case OCCLOSED, OCERROR:
+		// nemo: new builtins
+		ok |= Erv
+		args := n.List
+		if args == nil {
+			Yyerror("missing argument for %v", n)
 			n.Type = nil
 			return
 		}
+		if args.Next != nil {
+			Yyerror("too many arguments for %v", n)
+			n.Type = nil
+			return
+		}
+		n.Left = args.N
+		n.List = nil
 		typecheck(&n.Left, Erv)
 		defaultlit(&n.Left, nil)
 		l := n.Left
@@ -1574,13 +1585,60 @@ OpSwitch:
 			n.Type = nil
 			return
 		}
+		if n.Op == OCCLOSED {
+			n.Type = Types[TBOOL]
+		} else {
+			n.Type = errortype
+		}
+		break OpSwitch
 
-		if t.Chan&Csend == 0 {
-			Yyerror("invalid operation: %v (cannot close receive-only channel)", n)
+	case OCLOSE:
+		// nemo: accept opt. second arg and don't fail on close for
+		// send only channels.
+		args := n.List
+		if args == nil {
+			Yyerror("missing argument for close")
+			n.Type = nil
+			return
+		}
+		if args.Next != nil && args.Next.Next != nil {
+			Yyerror("too many arguments for close")
 			n.Type = nil
 			return
 		}
 
+		// nemo: this probably isn'tneeded. n should be ok already.
+		n.Left = args.N
+		if args.Next != nil {
+			n.Right = args.Next.N
+		} else {
+			n.Right = nil
+		}
+		n.List = nil
+
+		typecheck(&n.Left, Erv)
+		defaultlit(&n.Left, nil)
+		l := n.Left
+		t := l.Type
+		if t == nil {
+			n.Type = nil
+			return
+		}
+		if t.Etype != TCHAN {
+			Yyerror("invalid operation: %v (non-chan type %v)", n, t)
+			n.Type = nil
+			return
+		}
+		if n.Right != nil {
+			typecheck(&n.Right, Erv)
+			defaultlit(&n.Right, nil)
+			t = n.Right.Type
+			if t == nil {
+				n.Type = nil
+				return
+			}
+			// TODO: check that the type is string or an error type.
+		}
 		ok |= Etop
 		break OpSwitch
 
@@ -2307,6 +2365,8 @@ func checkdefergo(n *Node) {
 
 	case OAPPEND,
 		OCAP,
+		OCCLOSED,
+		OCERROR,
 		OCOMPLEX,
 		OIMAG,
 		OLEN,

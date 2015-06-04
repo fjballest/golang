@@ -497,6 +497,11 @@ asyncrecv:
 	}
 	goto retc
 
+sclose:
+	// nemo: don't panic. it's just closed.
+	selunlock(sel)
+	goto retc
+
 asyncsend:
 	// can send to buffer
 	if raceenabled {
@@ -590,11 +595,6 @@ retc:
 		blockevent(cas.releasetime-t0, 2)
 	}
 	return cas.pc, cas.so
-
-sclose:
-	// send on closed channel
-	selunlock(sel)
-	panic("send on closed channel")
 }
 
 func (c *hchan) sortkey() uintptr {
