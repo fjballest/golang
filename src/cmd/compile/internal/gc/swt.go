@@ -249,7 +249,7 @@ func (s *exprSwitch) walk(sw *Node) {
 		def = cc[0].node.Right
 		cc = cc[1:]
 	} else {
-		def = Nod(OBREAK, nil, nil)
+		def = Nod(OCBREAK, nil, nil)
 	}
 
 	// handle the cases in order
@@ -343,7 +343,7 @@ func casebody(sw *Node, typeswvar *Node) {
 	var cas *NodeList  // cases
 	var stat *NodeList // statements
 	var def *Node      // defaults
-	br := Nod(OBREAK, nil, nil)
+	br := Nod(OCBREAK, nil, nil)
 
 	for l := sw.List; l != nil; l = l.Next {
 		n := l.N
@@ -565,7 +565,7 @@ func (s *typeSwitch) walk(sw *Node) {
 		def = cc[0].node.Right
 		cc = cc[1:]
 	} else {
-		def = Nod(OBREAK, nil, nil)
+		def = Nod(OCBREAK, nil, nil)
 	}
 
 	// insert type equality check into each case block

@@ -1388,7 +1388,7 @@ talph:
 	case LIGNORE:
 		goto l0
 
-	case LFOR, LIF, LSWITCH, LSELECT:
+	case LFOR, LIF, LSWITCH, LSELECT, LDOSELECT:
 		loophack = 1 // see comment about loophack above
 	}
 
@@ -2109,6 +2109,7 @@ var syms = []struct {
 	{"const", LCONST, Txxx, OXXX},
 	{"continue", LCONTINUE, Txxx, OXXX},
 	{"default", LDEFAULT, Txxx, OXXX},
+	{"doselect", LDOSELECT, Txxx, OXXX},
 	{"else", LELSE, Txxx, OXXX},
 	{"defer", LDEFER, Txxx, OXXX},
 	{"fallthrough", LFALL, Txxx, OXXX},
@@ -2413,6 +2414,7 @@ var lexn = []struct {
 	{LDEC, "DEC"},
 	{LDEFAULT, "DEFAULT"},
 	{LDEFER, "DEFER"},
+	{LDOSELECT, "DOSELECT"},
 	{LELSE, "ELSE"},
 	{LEQ, "EQ"},
 	{LFALL, "FALL"},
@@ -2469,6 +2471,7 @@ var yytfix = []struct {
 	{"LDDD", "..."},
 	{"LDEFAULT", "default"},
 	{"LDEFER", "defer"},
+	{"LDOSELECT", "doselect"},
 	{"LELSE", "else"},
 	{"LFALL", "fallthrough"},
 	{"LFOR", "for"},

@@ -335,7 +335,7 @@ func walkselect(sel *Node) {
 		r.Nbody = list(r.Nbody, Nod(OVARKILL, selv, nil))
 
 		r.Nbody = concat(r.Nbody, cas.Nbody)
-		r.Nbody = list(r.Nbody, Nod(OBREAK, nil, nil))
+		r.Nbody = list(r.Nbody, Nod(OCBREAK, nil, nil))
 		init = list(init, r)
 	}
 

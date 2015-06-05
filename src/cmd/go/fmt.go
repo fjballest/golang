@@ -9,13 +9,11 @@ import (
 	"path/filepath"
 )
 
-func init() {
-	addBuildFlagsNX(cmdFmt)
-}
+var fmtS bool
 
 var cmdFmt = &Command{
 	Run:       runFmt,
-	UsageLine: "fmt [-n] [-x] [packages]",
+	UsageLine: "fmt [-n] [-x] [-S] [packages]",
 	Short:     "run gofmt on package sources",
 	Long: `
 Fmt runs the command 'gofmt -l -w' on the packages named
@@ -26,11 +24,17 @@ For more about specifying packages, see 'go help packages'.
 
 The -n flag prints commands that would be executed.
 The -x flag prints commands as they are executed.
+Under the -S flag, gofmt does not print implicit struct/interface keywords.
 
 To run gofmt with specific options, run gofmt itself.
 
 See also: go fix, go vet.
 	`,
+}
+
+func init() {
+	addBuildFlagsNX(cmdFmt)
+	cmdFmt.Flag.BoolVar(&fmtS, "S", false, "do not print implicit struct/interface keywords")
 }
 
 func runFmt(cmd *Command, args []string) {
@@ -39,7 +43,11 @@ func runFmt(cmd *Command, args []string) {
 		// Use pkg.gofiles instead of pkg.Dir so that
 		// the command only applies to this package,
 		// not to packages in subdirectories.
-		run(stringList(gofmt, "-l", "-w", relPaths(pkg.allgofiles)))
+		if fmtS {
+			run(stringList(gofmt, "-l", "-w", "-S", relPaths(pkg.allgofiles)))
+		} else {
+			run(stringList(gofmt, "-l", "-w", relPaths(pkg.allgofiles)))
+		}
 	}
 }
 

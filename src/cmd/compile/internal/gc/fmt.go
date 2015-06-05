@@ -114,6 +114,7 @@ var goopnames = []string{
 	OAS:       "=",
 	OAS2:      "=",
 	OBREAK:    "break",
+	OCBREAK:    "break",
 	OCALL:     "function call", // not actual syntax
 	OCAP:      "cap",
 	OCASE:     "case",
@@ -162,6 +163,7 @@ var goopnames = []string{
 	ORETURN:   "return",
 	ORSH:      ">>",
 	OSELECT:   "select",
+	ODOSELECT: "doselect",
 	OSEND:     "<-",
 	OSUB:      "-",
 	OSWITCH:   "switch",
@@ -911,7 +913,7 @@ func stmtfmt(n *Node) string {
 
 		f += fmt.Sprintf("for %v = range %v { %v }", Hconv(n.List, obj.FmtComma), n.Right, n.Nbody)
 
-	case OSELECT, OSWITCH:
+	case OSELECT, ODOSELECT, OSWITCH:
 		if fmtmode == FErr {
 			f += fmt.Sprintf("%v statement", Oconv(int(n.Op), 0))
 			break
@@ -934,7 +936,7 @@ func stmtfmt(n *Node) string {
 			f += fmt.Sprintf("default: %v", n.Nbody)
 		}
 
-	case OBREAK,
+	case OBREAK, OCBREAK,
 		OCONTINUE,
 		OGOTO,
 		OFALL,
@@ -1055,6 +1057,7 @@ var opprec = []int{
 	OAS2RECV:    -1,
 	OASOP:       -1,
 	OBREAK:      -1,
+	OCBREAK:      -1,
 	OCASE:       -1,
 	OCONTINUE:   -1,
 	ODCL:        -1,
@@ -1070,6 +1073,7 @@ var opprec = []int{
 	ORANGE:      -1,
 	ORETURN:     -1,
 	OSELECT:     -1,
+	ODOSELECT:   -1,
 	OSWITCH:     -1,
 	OXCASE:      -1,
 	OXFALL:      -1,

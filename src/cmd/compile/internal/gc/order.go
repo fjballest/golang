@@ -592,7 +592,7 @@ func orderstmt(n *Node, order *Order) {
 		orderstmtlist(n.List, order)
 
 		// Special: n->left is not an expression; save as is.
-	case OBREAK,
+	case OBREAK, OCBREAK,
 		OCONTINUE,
 		ODCL,
 		ODCLCONST,
@@ -761,7 +761,7 @@ func orderstmt(n *Node, order *Order) {
 	// reordered after the channel evaluation for a different
 	// case (if p were nil, then the timing of the fault would
 	// give this away).
-	case OSELECT:
+	case OSELECT, ODOSELECT:
 		t := marktemp(order)
 
 		var tmp1 *Node

@@ -979,6 +979,7 @@ func newextram() {
 	mp.lockedg = gp
 	gp.lockedm = mp
 	gp.goid = int64(xadd64(&sched.goidgen, 1))
+	gp.gappid = gp.goid
 	if raceenabled {
 		gp.racectx = racegostart(funcPC(newextram))
 	}
@@ -2176,8 +2177,12 @@ func malg(stacksize int32) *g {
 func newproc(siz int32, fn *funcval) {
 	argp := add(unsafe.Pointer(&fn), ptrSize)
 	pc := getcallerpc(unsafe.Pointer(&siz))
+	appid := int64(0)
+	if _g_ := getg(); _g_ != nil {
+		appid = _g_.gappid
+	}
 	systemstack(func() {
-		newproc1(fn, (*uint8)(argp), siz, 0, pc)
+		newproc1(fn, (*uint8)(argp), siz, 0, appid, pc)
 	})
 }
 
@@ -2185,7 +2190,7 @@ func newproc(siz int32, fn *funcval) {
 // at argp and returning nret bytes of results.  callerpc is the
 // address of the go statement that created this.  The new g is put
 // on the queue of g's waiting to run.
-func newproc1(fn *funcval, argp *uint8, narg int32, nret int32, callerpc uintptr) *g {
+func newproc1(fn *funcval, argp *uint8, narg int32, nret int32, appid int64, callerpc uintptr) *g {
 	_g_ := getg()
 
 	if fn == nil {
@@ -2251,6 +2256,7 @@ func newproc1(fn *funcval, argp *uint8, narg int32, nret int32, callerpc uintptr
 		_p_.goidcacheend = _p_.goidcache + _GoidCacheBatch
 	}
 	newg.goid = int64(_p_.goidcache)
+	newg.gappid = appid
 	_p_.goidcache++
 	if raceenabled {
 		newg.racectx = racegostart(callerpc)

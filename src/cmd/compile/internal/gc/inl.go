@@ -220,6 +220,7 @@ func ishairy(n *Node, budget *int) bool {
 		ORANGE,
 		OFOR,
 		OSELECT,
+		ODOSELECT,
 		OSWITCH,
 		OPROC,
 		ODEFER,

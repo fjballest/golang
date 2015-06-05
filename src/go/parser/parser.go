@@ -61,6 +61,8 @@ type parser struct {
 	// (maintained by open/close LabelScope)
 	labelScope  *ast.Scope     // label scope for current function
 	targetStack [][]*ast.Ident // stack of unresolved labels
+
+	implStructOk, implInterOk bool
 }
 
 func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
@@ -441,7 +443,7 @@ func syncStmt(p *parser) {
 		switch p.tok {
 		case token.BREAK, token.CONST, token.CONTINUE, token.DEFER,
 			token.FALLTHROUGH, token.FOR, token.GO, token.GOTO,
-			token.IF, token.RETURN, token.SELECT, token.SWITCH,
+			token.IF, token.RETURN, token.SELECT, token.DOSELECT, token.SWITCH,
 			token.TYPE, token.VAR:
 			// Return only if parser made some progress since last
 			// sync or if it has not reached 10 sync calls without
@@ -722,8 +724,19 @@ func (p *parser) parseStructType() *ast.StructType {
 		defer un(trace(p, "StructType"))
 	}
 
-	pos := p.expect(token.STRUCT)
-	lbrace := p.expect(token.LBRACE)
+	var pos, lbrace token.Pos
+	implicit := p.implStructOk && p.tok == token.LBRACE
+	if implicit {
+		pos = p.expect(token.LBRACE)
+		lbrace = pos
+	} else {
+		pos = p.expect(token.STRUCT)
+		lbrace = p.expect(token.LBRACE)
+	}
+	old := p.implStructOk
+	p.implStructOk = false
+	defer func() {p.implStructOk = old}()
+
 	scope := ast.NewScope(nil) // struct scope
 	var list []*ast.Field
 	for p.tok == token.IDENT || p.tok == token.MUL || p.tok == token.LPAREN {
@@ -741,6 +754,7 @@ func (p *parser) parseStructType() *ast.StructType {
 			List:    list,
 			Closing: rbrace,
 		},
+		Implicit: implicit,
 	}
 }
 
@@ -948,13 +962,26 @@ func (p *parser) parseInterfaceType() *ast.InterfaceType {
 		defer un(trace(p, "InterfaceType"))
 	}
 
-	pos := p.expect(token.INTERFACE)
-	lbrace := p.expect(token.LBRACE)
+	var pos, lbrace token.Pos
+	implicit := p.implInterOk && p.tok == token.LBRACE
+	if implicit {
+		pos = p.expect(token.LBRACE)
+		lbrace = pos
+	} else {
+		pos = p.expect(token.INTERFACE)
+		lbrace = p.expect(token.LBRACE)
+	}
+	p.implInterOk = false
+
 	scope := ast.NewScope(nil) // interface scope
 	var list []*ast.Field
 	for p.tok == token.IDENT {
 		list = append(list, p.parseMethodSpec(scope))
 	}
+	if implicit && len(list) > 0 {
+		p.error(pos, "implicit interface is ok only for empty interfaces")
+	}
+
 	rbrace := p.expect(token.RBRACE)
 
 	return &ast.InterfaceType{
@@ -964,6 +991,7 @@ func (p *parser) parseInterfaceType() *ast.InterfaceType {
 			List:    list,
 			Closing: rbrace,
 		},
+		Implicit: implicit,
 	}
 }
 
@@ -1001,7 +1029,9 @@ func (p *parser) parseChanType() *ast.ChanType {
 		p.expect(token.CHAN)
 		dir = ast.RECV
 	}
+	p.implInterOk = true
 	value := p.parseType()
+	p.implInterOk = false
 
 	return &ast.ChanType{Begin: pos, Arrow: arrow, Dir: dir, Value: value}
 }
@@ -1020,6 +1050,13 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	case token.FUNC:
 		typ, _ := p.parseFuncType()
 		return typ
+	case token.LBRACE:
+		if p.implStructOk {
+			return p.parseStructType()
+		}
+		if p.implInterOk {
+			return p.parseInterfaceType()
+		}
 	case token.INTERFACE:
 		return p.parseInterfaceType()
 	case token.MAP:
@@ -2047,6 +2084,64 @@ func (p *parser) parseSelectStmt() *ast.SelectStmt {
 	return &ast.SelectStmt{Select: pos, Body: body}
 }
 
+func (p *parser) parseDoSelectStmt() *ast.DoSelectStmt {
+	if p.trace {
+		defer un(trace(p, "DoSelectStmt"))
+	}
+
+	pos := p.expect(token.DOSELECT)
+	p.openScope()
+	defer p.closeScope()
+
+	var s1, s2, s3 ast.Stmt
+	if p.tok != token.LBRACE {
+		prevLev := p.exprLev
+		p.exprLev = -1
+		if p.tok != token.SEMICOLON {
+			isRange := false
+			if p.tok == token.RANGE {
+				isRange = true
+			} else {
+				s2, isRange = p.parseSimpleStmt(basic)
+			}
+			if isRange {
+				p.error(pos, "unexpected range")
+				// but ignore it for now
+			}
+		}
+		if p.tok == token.SEMICOLON {
+			p.next()
+			s1 = s2
+			s2 = nil
+			if p.tok != token.SEMICOLON {
+				s2, _ = p.parseSimpleStmt(basic)
+			}
+			p.expectSemi()
+			if p.tok != token.LBRACE {
+				s3, _ = p.parseSimpleStmt(basic)
+			}
+		}
+		p.exprLev = prevLev
+	}
+
+	lbrace := p.expect(token.LBRACE)
+	var list []ast.Stmt
+	for p.tok == token.CASE || p.tok == token.DEFAULT {
+		list = append(list, p.parseCommClause())
+	}
+	rbrace := p.expect(token.RBRACE)
+	p.expectSemi()
+	body := &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
+
+	return &ast.DoSelectStmt {
+		DoSelect: pos,
+		Init: s1,
+		Cond: p.makeExpr(s2, "boolean expression"),
+		Post: s3,
+		Body: body,
+	}
+}
+
 func (p *parser) parseForStmt() ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "ForStmt"))
@@ -2167,6 +2262,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		s = p.parseSwitchStmt()
 	case token.SELECT:
 		s = p.parseSelectStmt()
+	case token.DOSELECT:
+		s = p.parseDoSelectStmt()
 	case token.FOR:
 		s = p.parseForStmt()
 	case token.SEMICOLON:
@@ -2397,13 +2494,15 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	if p.trace {
 		defer un(trace(p, "Declaration"))
 	}
-
+	p.implStructOk = false
+	defer func() {p.implStructOk = false}()
 	var f parseSpecFunction
 	switch p.tok {
 	case token.CONST, token.VAR:
 		f = p.parseValueSpec
 
 	case token.TYPE:
+		p.implStructOk = true
 		f = p.parseTypeSpec
 
 	case token.FUNC:

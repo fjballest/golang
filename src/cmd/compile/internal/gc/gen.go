@@ -703,7 +703,7 @@ func gen(n *Node) {
 		if n.Defn != nil {
 			switch n.Defn.Op {
 			// so stmtlabel can find the label
-			case OFOR, OSWITCH, OSELECT:
+			case OFOR, OSWITCH, OSELECT, ODOSELECT:
 				n.Defn.Sym = lab.Sym
 			}
 		}
@@ -724,7 +724,7 @@ func gen(n *Node) {
 			lab.Gotopc = gjmp(lab.Gotopc)
 		}
 
-	case OBREAK:
+	case OBREAK, OCBREAK:
 		if n.Left != nil {
 			lab := n.Left.Sym.Label
 			if lab == nil {
@@ -737,18 +737,19 @@ func gen(n *Node) {
 				Yyerror("invalid break label %v", n.Left.Sym)
 				break
 			}
-
 			gjmp(lab.Breakpc)
 			break
 		}
 
-		if breakpc == nil {
+		if breakpc == nil || ubreakpc == nil {
 			Yyerror("break is not in a loop")
 			break
 		}
-
-		gjmp(breakpc)
-
+		if n.Op == OBREAK {
+			gjmp(ubreakpc)
+		} else {
+			gjmp(breakpc)
+		}
 	case OCONTINUE:
 		if n.Left != nil {
 			lab := n.Left.Sym.Label
@@ -775,9 +776,10 @@ func gen(n *Node) {
 		gjmp(continpc)
 
 	case OFOR:
-		sbreak := breakpc
+		sbreak, subreak := breakpc, ubreakpc
 		p1 := gjmp(nil)     //		goto test
 		breakpc = gjmp(nil) // break:	goto done
+		ubreakpc = breakpc
 		scontin := continpc
 		continpc = Pc
 
@@ -794,8 +796,9 @@ func gen(n *Node) {
 		Genlist(n.Nbody)                  //		body
 		gjmp(continpc)
 		Patch(breakpc, Pc) // done:
+		Patch(ubreakpc, Pc) // done:
 		continpc = scontin
-		breakpc = sbreak
+		breakpc, ubreakpc = sbreak, subreak
 		if lab != nil {
 			lab.Breakpc = nil
 			lab.Continpc = nil
@@ -813,10 +816,10 @@ func gen(n *Node) {
 		Patch(p3, Pc)                            // done:
 
 	case OSWITCH:
-		sbreak := breakpc
+		sbreak, subreak := breakpc, ubreakpc
 		p1 := gjmp(nil)     //		goto test
 		breakpc = gjmp(nil) // break:	goto done
-
+		ubreakpc = breakpc
 		// define break label
 		lab := stmtlabel(n)
 		if lab != nil {
@@ -826,16 +829,19 @@ func gen(n *Node) {
 		Patch(p1, Pc)      // test:
 		Genlist(n.Nbody)   //		switch(test) body
 		Patch(breakpc, Pc) // done:
-		breakpc = sbreak
+		Patch(ubreakpc, Pc) // done:
+		breakpc, ubreakpc = sbreak, subreak
 		if lab != nil {
 			lab.Breakpc = nil
 		}
 
-	case OSELECT:
-		sbreak := breakpc
+	case OSELECT, ODOSELECT:
+		sbreak, subreak := breakpc, ubreakpc
 		p1 := gjmp(nil)     //		goto test
 		breakpc = gjmp(nil) // break:	goto done
-
+		if n.Op == OSELECT {
+			ubreakpc = breakpc
+		}
 		// define break label
 		lab := stmtlabel(n)
 		if lab != nil {
@@ -846,6 +852,10 @@ func gen(n *Node) {
 		Genlist(n.Nbody)   //		select() body
 		Patch(breakpc, Pc) // done:
 		breakpc = sbreak
+		if n.Op == OSELECT {
+			Patch(ubreakpc, Pc) // done:
+			ubreakpc = subreak
+		}
 		if lab != nil {
 			lab.Breakpc = nil
 		}

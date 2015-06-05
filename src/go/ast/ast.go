@@ -383,6 +383,7 @@ type (
 		Struct     token.Pos  // position of "struct" keyword
 		Fields     *FieldList // list of field declarations
 		Incomplete bool       // true if (source) fields are missing in the Fields list
+		Implicit bool         // true if the 'struct' keyword is implicit in the decl.
 	}
 
 	// Pointer types are represented via StarExpr nodes.
@@ -399,6 +400,7 @@ type (
 		Interface  token.Pos  // position of "interface" keyword
 		Methods    *FieldList // list of methods
 		Incomplete bool       // true if (source) methods are missing in the Methods list
+		Implicit bool         // true if the 'interface' keyword is implicit in the decl.
 	}
 
 	// A MapType node represents a map type.
@@ -688,6 +690,15 @@ type (
 		Body   *BlockStmt // CommClauses only
 	}
 
+	// A DoSelectStmt node represents a doselect statement.
+	DoSelectStmt struct {
+		DoSelect token.Pos  // position of "doselect" keyword
+		Init Stmt           // initialization statement; or nil
+		Cond Expr           // condition; or nil
+		Post Stmt           // post iteration statement; or nil
+		Body   *BlockStmt   // CommClauses only
+	}
+
 	// A ForStmt represents a for statement.
 	ForStmt struct {
 		For  token.Pos // position of "for" keyword
@@ -729,6 +740,7 @@ func (s *SwitchStmt) Pos() token.Pos     { return s.Switch }
 func (s *TypeSwitchStmt) Pos() token.Pos { return s.Switch }
 func (s *CommClause) Pos() token.Pos     { return s.Case }
 func (s *SelectStmt) Pos() token.Pos     { return s.Select }
+func (s *DoSelectStmt) Pos() token.Pos   { return s.DoSelect }
 func (s *ForStmt) Pos() token.Pos        { return s.For }
 func (s *RangeStmt) Pos() token.Pos      { return s.For }
 
@@ -783,6 +795,7 @@ func (s *CommClause) End() token.Pos {
 	return s.Colon + 1
 }
 func (s *SelectStmt) End() token.Pos { return s.Body.End() }
+func (s *DoSelectStmt) End() token.Pos { return s.Body.End() }
 func (s *ForStmt) End() token.Pos    { return s.Body.End() }
 func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
 
@@ -808,6 +821,7 @@ func (*SwitchStmt) stmtNode()     {}
 func (*TypeSwitchStmt) stmtNode() {}
 func (*CommClause) stmtNode()     {}
 func (*SelectStmt) stmtNode()     {}
+func (*DoSelectStmt) stmtNode()   {}
 func (*ForStmt) stmtNode()        {}
 func (*RangeStmt) stmtNode()      {}
 

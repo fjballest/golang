@@ -855,7 +855,9 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		p.expr(x.Elt)
 
 	case *ast.StructType:
-		p.print(token.STRUCT)
+		if !p.DontPrintImplicits || !x.Implicit {
+			p.print(token.STRUCT)
+		}
 		p.fieldList(x.Fields, true, x.Incomplete)
 
 	case *ast.FuncType:
@@ -863,7 +865,9 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		p.signature(x.Params, x.Results)
 
 	case *ast.InterfaceType:
-		p.print(token.INTERFACE)
+		if !p.DontPrintImplicits || !x.Implicit {
+			p.print(token.INTERFACE)
+		}
 		p.fieldList(x.Methods, false, x.Incomplete)
 
 	case *ast.MapType:
@@ -1208,6 +1212,17 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 
 	case *ast.SelectStmt:
 		p.print(token.SELECT, blank)
+		body := s.Body
+		if len(body.List) == 0 && !p.commentBefore(p.posFor(body.Rbrace)) {
+			// print empty select statement w/o comments on one line
+			p.print(body.Lbrace, token.LBRACE, body.Rbrace, token.RBRACE)
+		} else {
+			p.block(body, 0)
+		}
+
+	case *ast.DoSelectStmt:
+		p.print(token.DOSELECT)
+		p.controlClause(true, s.Init, s.Cond, s.Post)
 		body := s.Body
 		if len(body.List) == 0 && !p.commentBefore(p.posFor(body.Rbrace)) {
 			// print empty select statement w/o comments on one line

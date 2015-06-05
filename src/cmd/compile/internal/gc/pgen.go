@@ -401,6 +401,7 @@ func compile(fn *Node) {
 
 	continpc = nil
 	breakpc = nil
+	ubreakpc = nil
 
 	pl = newplist()
 	pl.Name = Linksym(Curfn.Nname.Sym)

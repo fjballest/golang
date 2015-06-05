@@ -648,7 +648,7 @@ var Nacl bool
 
 var continpc *obj.Prog
 
-var breakpc *obj.Prog
+var breakpc, ubreakpc *obj.Prog
 
 var Pc *obj.Prog
 

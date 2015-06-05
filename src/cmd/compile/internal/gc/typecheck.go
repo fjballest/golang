@@ -2123,6 +2123,7 @@ OpSwitch:
 		break OpSwitch
 
 	case OBREAK,
+		OCBREAK,
 		OCONTINUE,
 		ODCL,
 		OEMPTY,
@@ -2204,7 +2205,7 @@ OpSwitch:
 		ok |= Etop
 		break OpSwitch
 
-	case OSELECT:
+	case OSELECT, ODOSELECT:
 		ok |= Etop
 		typecheckselect(n)
 		break OpSwitch
@@ -3987,7 +3988,7 @@ func markbreak(n *Node, implicit *Node) {
 	}
 
 	switch n.Op {
-	case OBREAK:
+	case OBREAK, OCBREAK:
 		if n.Left == nil {
 			if implicit != nil {
 				implicit.Hasbreak = true
@@ -4003,6 +4004,7 @@ func markbreak(n *Node, implicit *Node) {
 		OSWITCH,
 		OTYPESW,
 		OSELECT,
+		ODOSELECT,
 		ORANGE:
 		implicit = n
 		fallthrough
@@ -4034,6 +4036,7 @@ func markbreaklist(l *NodeList, implicit *Node) {
 				OSWITCH,
 				OTYPESW,
 				OSELECT,
+				ODOSELECT,
 				ORANGE:
 				lab = new(Label)
 				lab.Def = n.Defn
@@ -4097,7 +4100,7 @@ func isterminating(l *NodeList, top int) bool {
 	case OIF:
 		return isterminating(n.Nbody, 0) && isterminating(n.Nelse, 0)
 
-	case OSWITCH, OTYPESW, OSELECT:
+	case OSWITCH, OTYPESW, OSELECT, ODOSELECT:
 		if n.Hasbreak {
 			return false
 		}
@@ -4111,7 +4114,7 @@ func isterminating(l *NodeList, top int) bool {
 			}
 		}
 
-		if n.Op != OSELECT && def == 0 {
+		if n.Op != OSELECT && n.Op != ODOSELECT && def == 0 {
 			return false
 		}
 		return true

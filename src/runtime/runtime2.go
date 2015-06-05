@@ -253,6 +253,7 @@ type g struct {
 	racectx      uintptr
 	waiting      *sudog // sudog structures this g is waiting on (that have a valid elem ptr)
 	readyg       *g     // scratch for readyExecute
+	gappid       int64  // nemo: clive application id
 
 	// Per-G gcController state
 	gcalloc    uintptr // bytes allocated during this GC cycle

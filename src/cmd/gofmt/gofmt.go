@@ -31,7 +31,7 @@ var (
 	simplifyAST = flag.Bool("s", false, "simplify code")
 	doDiff      = flag.Bool("d", false, "display diffs instead of rewriting files")
 	allErrors   = flag.Bool("e", false, "report all errors (not just the first 10 on different lines)")
-
+	noImpls     = flag.Bool("S", false, "omit struct keyword in top-level type declarations")
 	// debugging
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
 )
@@ -107,7 +107,8 @@ func processFile(filename string, in io.Reader, out io.Writer, stdin bool) error
 		simplify(file)
 	}
 
-	res, err := format.Format(fileSet, file, sourceAdj, indentAdj, src, printer.Config{Mode: printerMode, Tabwidth: tabWidth})
+	cfg := printer.Config{Mode: printerMode, Tabwidth: tabWidth, DontPrintImplicits: *noImpls}
+	res, err := format.Format(fileSet, file, sourceAdj, indentAdj, src, cfg)
 	if err != nil {
 		return err
 	}

@@ -27,6 +27,7 @@ var runtimeInitTime int64
 // The main goroutine.
 func main() {
 	g := getg()
+	g.gappid = g.goid
 
 	// Racectx of m0->g0 is used only as the parent of the main goroutine.
 	// It must not be used for anything else.
@@ -322,4 +323,24 @@ func allgadd(gp *g) {
 	allg = &allgs[0]
 	allglen = uintptr(len(allgs))
 	unlock(&allglock)
+}
+
+// Return the application id for the current process (goroutine).
+func AppId() int64 {
+	g := getg()
+	return g.gappid
+}
+
+// Return the process id (goroutine id)
+func GoId() int64 {
+	g := getg()
+	return g.goid
+}
+
+// Make the current process the leader of a new application, with its own id
+// set to that of the process id.
+func NewApp() int64 {
+	g := getg()
+	g.gappid = g.goid
+	return g.gappid
 }

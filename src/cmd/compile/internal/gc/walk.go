@@ -210,6 +210,7 @@ func walkstmt(np **Node) {
 		addinit(&n, init)
 
 	case OBREAK,
+		OCBREAK,
 		ODCL,
 		OCONTINUE,
 		OFALL,
@@ -333,7 +334,7 @@ func walkstmt(np **Node) {
 	case ORETJMP:
 		break
 
-	case OSELECT:
+	case OSELECT, ODOSELECT:
 		walkselect(n)
 
 	case OSWITCH:

@@ -262,6 +262,18 @@ func Walk(v Visitor, node Node) {
 	case *SelectStmt:
 		Walk(v, n.Body)
 
+	case *DoSelectStmt:
+		if n.Init != nil {
+			Walk(v, n.Init)
+		}
+		if n.Cond != nil {
+			Walk(v, n.Cond)
+		}
+		if n.Post != nil {
+			Walk(v, n.Post)
+		}
+		Walk(v, n.Body)
+
 	case *ForStmt:
 		if n.Init != nil {
 			Walk(v, n.Init)

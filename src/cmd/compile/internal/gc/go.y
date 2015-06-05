@@ -43,6 +43,7 @@ import (
 %token	<sym>	LIF LIMPORT LINTERFACE LMAP LNAME
 %token	<sym>	LPACKAGE LRANGE LRETURN LSELECT LSTRUCT LSWITCH
 %token	<sym>	LTYPE LVAR
+%token	<sym>	LDOSELECT
 
 %token		LANDAND LANDNOT LBODY LCOMM LDEC LEQ LGE LGT
 %token		LIGNORE LINC LLE LLSH LLT LNE LOROR LRSH
@@ -63,7 +64,7 @@ import (
 %type	<node>	new_name dcl_name oexpr typedclname
 %type	<node>	onew_name
 %type	<node>	osimple_stmt pexpr pexpr_no_paren
-%type	<node>	pseudocall range_stmt select_stmt
+%type	<node>	pseudocall range_stmt select_stmt doselect_stmt doselect_hdr
 %type	<node>	simple_stmt
 %type	<node>	switch_stmt uexpr
 %type	<node>	xfndcl typedcl start_complit
@@ -75,7 +76,7 @@ import (
 %type	<list>	common_dcl constdcl constdcl1 constdcl_list typedcl_list
 
 %type	<node>	convtype comptype dotdotdot
-%type	<node>	indcl interfacetype structtype ptrtype
+%type	<node>	indcl interfacetype structtype ptrtype implstructtype implinterfacetype
 %type	<node>	recvchantype non_recvchantype othertype fnret_type fntype
 
 %type	<sym>	hidden_importsym hidden_pkg_importsym
@@ -468,6 +469,11 @@ typedcl:
 	{
 		$$ = typedcl1($1, $2, true);
 	}
+|
+	typedclname implstructtype
+	{
+		$$ = typedcl1($1, $2, true);
+	}
 
 simple_stmt:
 	expr
@@ -847,6 +853,54 @@ select_stmt:
 		$$.Lineno = typesw.Lineno;
 		$$.List = $4;
 		typesw = typesw.Left;
+	}
+
+doselect_hdr:
+		osimple_stmt ';' osimple_stmt ';' osimple_stmt
+		{
+			// init ; test ; incr
+			if $5 != nil && $5.Colas {
+				Yyerror("cannot declare in the doselect-increment");
+			}
+			$$ = Nod(OFOR, nil, nil);
+			if $1 != nil {
+				$$.Ninit = list1($1);
+			}
+			$$.Ntest = $3;
+			$$.Nincr = $5;
+		}
+	|	osimple_stmt
+		{
+			// normal test
+			$$ = Nod(OFOR, nil, nil);
+			$$.Ntest = $1;
+		}
+
+// If for{} or select{} change, this must be updated.
+// It dups what both do.
+doselect_stmt:
+	LDOSELECT
+	{
+		// for
+		markdcl();
+	}
+	doselect_hdr
+	{
+		// select
+		typesw = Nod(OXXX, typesw, nil);
+	}
+	LBODY caseblock_list '}'
+	{
+		// select
+		nd := Nod(ODOSELECT, nil, nil);
+		nd.Lineno = typesw.Lineno;
+		nd.List = $6;
+		typesw = typesw.Left;
+
+		// for
+		$$ = $3;
+		$$.Nbody = list1(nd)
+		popdcl();
 	}
 
 /*
@@ -1327,6 +1381,16 @@ othertype:
 		$$ = Nod(OTCHAN, $3, nil);
 		$$.Etype = Csend;
 	}
+|	LCHAN implinterfacetype
+	{
+		$$ = Nod(OTCHAN, $2, nil);
+		$$.Etype = Cboth;
+	}
+|	LCHAN LCOMM implinterfacetype
+	{
+		$$ = Nod(OTCHAN, $3, nil);
+		$$.Etype = Csend;
+	}
 |	LMAP '[' ntype ']' ntype
 	{
 		$$ = Nod(OTMAP, $3, $5);
@@ -1346,6 +1410,13 @@ recvchantype:
 		$$ = Nod(OTCHAN, $3, nil);
 		$$.Etype = Crecv;
 	}
+|
+	LCOMM LCHAN implinterfacetype
+	{
+		$$ = Nod(OTCHAN, $3, nil);
+		$$.Etype = Crecv;
+	}
+
 
 structtype:
 	LSTRUCT lbrace structdcl_list osemi '}'
@@ -1360,6 +1431,19 @@ structtype:
 		fixlbrace($2);
 	}
 
+implstructtype:
+	lbrace structdcl_list osemi '}'
+	{
+		$$ = Nod(OTSTRUCT, nil, nil);
+		$$.List = $2;
+		fixlbrace($1);
+	}
+|	lbrace '}'
+	{
+		$$ = Nod(OTSTRUCT, nil, nil);
+		fixlbrace($1);
+	}
+
 interfacetype:
 	LINTERFACE lbrace interfacedcl_list osemi '}'
 	{
@@ -1371,6 +1455,13 @@ interfacetype:
 	{
 		$$ = Nod(OTINTER, nil, nil);
 		fixlbrace($2);
+	}
+
+implinterfacetype:
+	lbrace '}'
+	{
+		$$ = Nod(OTINTER, nil, nil);
+		fixlbrace($1);
 	}
 
 /*
@@ -1798,6 +1889,7 @@ non_dcl_stmt:
 |	for_stmt
 |	switch_stmt
 |	select_stmt
+|	doselect_stmt
 |	if_stmt
 |	labelname ':'
 	{
