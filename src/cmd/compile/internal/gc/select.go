@@ -52,12 +52,10 @@ func typecheckselect(sel *Node) {
 				case ORECV:
 					n.Op = OSELRECV
 				case OSEND:
-					// n.Op = OSELSEND
-					Yyerror("select send w/ assign not yet implemented")
+					n.Op = OSELSEND
 				default:
 					Yyerror("select assignment must have receive on right hand side")
 				}
-
 
 				// convert x, ok = <-c into OSELRECV2(x, <-c) with ntest=ok
 			case OAS2RECV:
@@ -132,7 +130,16 @@ func walkselect(sel *Node) {
 			case OSEND:
 				ch = n.Left
 			case OSELSEND:
-				Fatal("walkselect OSELSEND not implemented")
+				ch = n.Right.Left
+				if n.Op == OSELSEND || n.Ntest == nil {
+					if n.Left == nil {
+						n = n.Right
+					} else {
+						n.Op = OAS
+					}
+					break
+				}
+				Fatal("walkselect OSELSEND with OAS2")
 
 			case OSELRECV, OSELRECV2:
 				ch = n.Right.Left
@@ -189,7 +196,10 @@ func walkselect(sel *Node) {
 			n.Right = Nod(OADDR, n.Right, nil)
 			typecheck(&n.Right, Erv)
 		case OSELSEND:
-			Fatal("walkselect OSELSEND not implemented")
+			n.Left = Nod(OADDR, n.Left, nil)
+			typecheck(&n.Left, Erv)
+			n.Right.Right = Nod(OADDR, n.Right.Right, nil)
+			typecheck(&n.Right.Right, Erv)
 		case OSELRECV, OSELRECV2:
 			if n.Op == OSELRECV2 && n.Ntest == nil {
 				n.Op = OSELRECV
@@ -234,8 +244,12 @@ func walkselect(sel *Node) {
 
 			r.Ntest = mkcall1(chanfn("selectnbsend", 2, ch.Type), Types[TBOOL], &r.Ninit, typename(ch.Type), ch, n.Right)
 
+			// if c != nil && channbselsend(c, &v, &ok) { body } else { default body }
 		case OSELSEND:
-			Fatal("walkselect OSELSEND not implemented")
+			r = Nod(OIF, nil, nil)
+			r.Ninit = cas.Ninit
+			ch := n.Right.Left
+			r.Ntest = mkcall1(chanfn("channbselsend", 2, ch.Type), Types[TBOOL], &r.Ninit, typename(ch.Type), ch, n.Right.Right, n.Left)
 
 			// if c != nil && selectnbrecv(&v, c) { body } else { default body }
 		case OSELRECV:
@@ -301,8 +315,11 @@ func walkselect(sel *Node) {
 			case OSEND:
 				r.Ntest = mkcall1(chanfn("selectsend", 2, n.Left.Type), Types[TBOOL], &r.Ninit, var_, n.Left, n.Right)
 
+				// chanselsend(sel *byte, hchan *chan any, elem *any, okp *bool) (selected bool);
 			case OSELSEND:
-				Fatal("walkselect OSELSEND not implemented")
+				r.Ntest = mkcall1(chanfn("chanselsend", 2, n.Right.Left.Type),
+					Types[TBOOL], &r.Ninit, var_,
+					n.Right.Left, n.Right.Right, n.Left)
 
 				// selectrecv(sel *byte, hchan *chan any, elem *any) (selected bool);
 			case OSELRECV:

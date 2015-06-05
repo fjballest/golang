@@ -865,6 +865,58 @@ func orderstmt(n *Node, order *Order) {
 
 					orderblock(&l.N.Ninit)
 
+				case OSELSEND:
+					if r.Colas {
+						t = r.Ninit
+						if t != nil && t.N.Op == ODCL && t.N.Left == r.Left {
+							t = t.Next
+						}
+						if t != nil && t.N.Op == ODCL && t.N.Left == r.Ntest {
+							t = t.Next
+						}
+						if t == nil {
+							r.Ninit = nil
+						}
+					}
+
+					if r.Ninit != nil {
+						Yyerror("ninit on select send")
+						dumplist("ninit", r.Ninit)
+					}
+
+					// case ok = c <- x
+					// r->left is ok, r->right is SEND, r->right->left is c, r->right->right is x
+					// r->left == N means 'case c<-x'.
+					// c is always evaluated; ok is only evaluated when assigned.
+					orderexpr(&r.Right.Left, order, nil)
+
+					if r.Right.Left.Op != ONAME {
+						r.Right.Left = ordercopyexpr(r.Right.Left, r.Right.Left.Type, order, 0)
+					}
+					orderexpr(&r.Right.Right, order, nil)
+					if !istemp(r.Right.Right) {
+						r.Right.Right = ordercopyexpr(r.Right.Right, r.Right.Right.Type, order, 0)
+					}
+
+					if r.Left != nil && isblank(r.Left) {
+						r.Left = nil
+					}
+					if r.Left != nil {
+						tmp1 = r.Left
+
+						if r.Colas {
+							tmp2 = Nod(ODCL, tmp1, nil)
+							typecheck(&tmp2, Etop)
+							l.N.Ninit = list(l.N.Ninit, tmp2)
+						}
+
+						r.Left = ordertemp(tmp1.Type, order, false)
+						tmp2 = Nod(OAS, tmp1, r.Left)
+						typecheck(&tmp2, Etop)
+						l.N.Ninit = list(l.N.Ninit, tmp2)
+					}
+					orderblock(&l.N.Ninit)
+
 				case OSEND:
 					if r.Ninit != nil {
 						Yyerror("ninit on select send")

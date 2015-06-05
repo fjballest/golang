@@ -107,6 +107,29 @@ func chansend2(t *chantype, c *hchan, elem unsafe.Pointer) bool {
 	return did
 }
 
+//go:nosplit
+func chanselsend(t *chantype, c *hchan, elem unsafe.Pointer, okp *bool) bool {
+	if t == nil {
+		return false	// prevent this from inlining
+	}
+	ok, did := chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+	if okp != nil {
+		*okp = did
+	}
+	return ok
+}
+
+//go:nosplit
+func channbselsend(t *chantype, c *hchan, elem unsafe.Pointer, okp *bool) bool {
+	if t == nil {
+		return false	// prevent this from inlining
+	}
+	ok, did := chansend(t, c, elem, false, getcallerpc(unsafe.Pointer(&t)))
+	if okp != nil {
+		*okp = did
+	}
+	return ok
+}
 
 /*
  * generic single channel send/recv
