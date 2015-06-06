@@ -162,22 +162,33 @@ func (f *fmt) integer(a int64, base uint64, signedness bool, digits string) {
 		return
 	}
 
+	negative := signedness == signed && a < 0
+	if negative {
+		a = -a
+	}
+
 	var buf []byte = f.intbuf[0:]
-	if f.widPresent {
-		width := f.wid
+	if f.widPresent || f.precPresent || f.plus || f.space {
+		width := f.wid + f.prec // Only one will be set, both are positive; this provides the maximum.
 		if base == 16 && f.sharp {
 			// Also adds "0x".
 			width += 2
+		}
+		if f.unicode {
+			// Also adds "U+".
+			width += 2
+			if f.uniQuote {
+				// Also adds " 'x'".
+				width += 1 + 1 + utf8.UTFMax + 1
+			}
+		}
+		if negative || f.plus || f.space {
+			width++
 		}
 		if width > nByte {
 			// We're going to need a bigger boat.
 			buf = make([]byte, width)
 		}
-	}
-
-	negative := signedness == signed && a < 0
-	if negative {
-		a = -a
 	}
 
 	// two ways to ask for extra leading zero digits: %.3d or %03d.
@@ -335,7 +346,7 @@ func (f *fmt) fmt_sbx(s string, b []byte, digits string) {
 		}
 		buf = append(buf, digits[c>>4], digits[c&0xF])
 	}
-	f.pad(buf)
+	f.buf.Write(buf)
 }
 
 // fmt_sx formats a string as a hexadecimal encoding of its bytes.

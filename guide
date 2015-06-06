@@ -1,6 +1,3 @@
-This is a description of the git setup and commands to use
-at any of the gits we might have.
-
 In short, we all work in the lsub branch, and keep the master branch for google
 version.
 
@@ -30,14 +27,14 @@ To make sure you are up to date
 
 	If you have a change that's going to take a long time you might want
 	to work in a new branch (eg, doselect)
-		git checkout -b cclosed
+		git checkout -b doselect
 		git add files
 		git commit -m 'doselect break and continue'
-		git push origin cclosed
+		git push origin doselect
 
 	Then, others might
-		git pull origin cclosed
-		git checkout cclosed
+		git pull origin doselect
+		git checkout doselect
 		.. take a look or work and then get back to our std. branch
 		git checkout lsub
 
@@ -52,51 +49,97 @@ To make sure you are up to date
 	but it's better to keep it there as a reference and also because others might be already using it.
 		git push origin :doselect	# remove this branch at git.lsub.org
 
-/zx/sys/golang
-	created as a clone of git.lsub.org with a remote added for google.
-		git clone git@git.lsub.org:Public/git/golang.git golang
-		git remote add upstream https://go.googlesource.com/go
-
-	has the usual master branch and a new lsub branch added using
-		git checkout -b lsub	go1.4.1 # create the local lsub branch here, for go 1.4.1
-		git push origin lsub	# push the lsub branch to git.lsub.org
-
-	See which branches are, (current flagged with *):
-		git branch
-	should show:
-		* lsub
- 		 master
-
-	the idea is that master is to be kept as in google, and lsub with our version.
 
 
-	To fetch changes from google, change to the master branch
-		git checkout master
-	pull changes from google
-		git fetch upstream
-	merge changes from upstream's master
-		git merge upstream/master
-	should be no conflicts, because we don't work in the master branch
-	now push to git.lsub.org
-		git push origin master
+SHARED REPO AT /zx/sys/golang
 
+The golang.git repo at git@git was created as a google fork:
+	git clone -bare https://go.googlesource.com/go
+The /zx clone is
+	git clone git@git.lsub.org:Public/git/golang.git golang
+	git remote add upstream https://go.googlesource.com/go
 
-	To merge google changes in the lsub branch:
-		git checkout lsub
-		git merge upstream/master
+Next commands show how to work in it:
 
-	have fun with conflicts, you might just
-		git checkout origin/master file
-	or
-		git checkout upstream/master file
-	to opt for the origin or the upstream version of the file
+Fetch changes from google
+	git fetch upstream
 
-	Push resulting changes to lsub's master
-		git push origin lsub
+make sure you are in the local master branch
+	git checkout master
 
-git.lsub.org
+merge changes from upstream's master
+	git merge upstream/master
 
-	created as a google fork using:
-		git clone -bare https://go.googlesource.com/go golang.git
-	keeps a lsub branch for our version
+have fun with conflicts, you might just
+	git checkout origin/master file
+or
+	git checkout upstream/master file
+to opt for the origin or the upstream version of the file
 
+Push resulting changes to lsub's master
+	git push
+
+LOCAL-REPOS FOR USERS
+
+You might just
+	git clone git@git.lsub.org:Public/git/golang.git golang
+
+and use
+
+git pull -v
+git status
+git add -vv --all .
+git commit  -m 'cmd fixes and adds'
+git push -v
+
+INSTALLING GO 1.5
+
+1. copy go 14 to /usr/local/go14 and build it within its own tree:
+	cp -a /usr/local/go /usr/local/go14
+	cd go14/src
+	GOROOT=/usr/local/go14
+	all.bash
+
+2. build go 15.
+	cd go/src
+	rm /usr/local/go/src/runtime/zruntime_defs_darwin_amd64.go # so it gets generated
+	GOROOT_BOOTSTRAP=/usr/local/go14
+	all.bash
+
+CHANGES MADE TO 1.4
+git show-branch '--more=100' lsub
+
+[lsub] guide
+[lsub^] cclosed added
+[lsub~2] tests
+[lsub~3] guide
+[lsub~4] goid and goappid for clive
+[lsub~5] fix for lsub chansend when using the ret value
+[lsub~6] fixes
+[lsub~7] ok := c <- v is broken. fix noted
+[lsub~8] lsub go fmt fix for struct
+[lsub~9] fixes in tests and in gofmt for implicit structs
+[lsub~10] struct optional only in the type decl. gofmt re-introduces it
+[lsub~11] doselect parsing and fmt
+[lsub~12] half done doselect for the go parser pkg
+[lsub~13] leave oselsend as todo
+[lsub~14] select send on closed is ok and does not panic
+[lsub~15] get rid of tests broken by our changes to chans
+[lsub~16] guide
+[lsub~17] send arg must be addressable also in expr
+[lsub~18] guide
+[lsub~19] send returns an error; but ok := c <- true failing
+[lsub~20] cerror added to the compiler and cclose panic on bad type fix
+[lsub~21] close(c, err) added to the compiler
+[lsub~22] Merge branch 'chanclose' of git.lsub.org:Public/git/golang into chanclose
+[lsub~22^2] closechan2 and cerror added
+[lsub~23] closechan2 and cerror added
+[lsub~24] do not panic on closes
+[lsub~25] mend
+[lsub~26] struct optional in type and field decl
+[lsub~27] guide
+[lsub~28] guide
+[lsub~29] doselect break and continue
+[lsub~30] doselect added but for changes in break and continue
+[lsub~31] initial change for doselect
+[lsub~32] guide

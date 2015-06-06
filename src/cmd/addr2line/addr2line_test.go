@@ -95,6 +95,11 @@ func TestAddr2Line(t *testing.T) {
 	switch runtime.GOOS {
 	case "nacl", "android":
 		t.Skipf("skipping on %s", runtime.GOOS)
+	case "darwin":
+		switch runtime.GOARCH {
+		case "arm", "arm64":
+			t.Skipf("skipping on %s/%s, cannot fork", runtime.GOOS, runtime.GOARCH)
+		}
 	}
 
 	syms := loadSyms(t)

@@ -144,7 +144,7 @@ func (p *printer) nextComment() {
 	p.commentOffset = infinity
 }
 
-// commentBefore returns true iff the current comment group occurs
+// commentBefore reports whether the current comment group occurs
 // before the next position in the source code and printing it does
 // not introduce implicit semicolons.
 //
@@ -496,29 +496,33 @@ func stripCommonPrefix(lines []string) {
 	// Compute maximum common white prefix of all but the first,
 	// last, and blank lines, and replace blank lines with empty
 	// lines (the first line starts with /* and has no prefix).
-	// In case of two-line comments, consider the last line for
-	// the prefix computation since otherwise the prefix would
-	// be empty.
+	// In cases where only the first and last lines are not blank,
+	// such as two-line comments, or comments where all inner lines
+	// are blank, consider the last line for the prefix computation
+	// since otherwise the prefix would be empty.
 	//
 	// Note that the first and last line are never empty (they
 	// contain the opening /* and closing */ respectively) and
 	// thus they can be ignored by the blank line check.
-	var prefix string
+	prefix := ""
+	prefixSet := false
 	if len(lines) > 2 {
-		first := true
 		for i, line := range lines[1 : len(lines)-1] {
-			switch {
-			case isBlank(line):
+			if isBlank(line) {
 				lines[1+i] = "" // range starts with lines[1]
-			case first:
-				prefix = commonPrefix(line, line)
-				first = false
-			default:
+			} else {
+				if !prefixSet {
+					prefix = line
+					prefixSet = true
+				}
 				prefix = commonPrefix(prefix, line)
 			}
+
 		}
-	} else { // len(lines) == 2, lines cannot be blank (contain /* and */)
-		line := lines[1]
+	}
+	// If we don't have a prefix yet, consider the last line.
+	if !prefixSet {
+		line := lines[len(lines)-1]
 		prefix = commonPrefix(line, line)
 	}
 
@@ -1216,7 +1220,7 @@ type Config struct {
 	Mode     Mode // default: 0
 	Tabwidth int  // default: 8
 	Indent   int  // default: 0 (all code is indented at least by this much)
-	ImplicitStruct bool	// if set, don't write struct in type decls.
+	DontPrintImplicits bool
 }
 
 // fprint implements Fprint and takes a nodesSizes map for setting up the printer state.

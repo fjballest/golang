@@ -49,7 +49,7 @@ func dotest(self bool) bool {
 	// the resulting binary looks like it was built from pclinetest.s,
 	// but we have renamed it to keep it away from the go tool.
 	pclinetestBinary = filepath.Join(pclineTempDir, "pclinetest")
-	command := fmt.Sprintf("go tool 6a -o %s.6 pclinetest.asm && go tool 6l -H linux -E main -o %s %s.6",
+	command := fmt.Sprintf("go tool asm -o %s.o pclinetest.asm && go tool link -H linux -E main -o %s %s.o",
 		pclinetestBinary, pclinetestBinary, pclinetestBinary)
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Stdout = os.Stdout
@@ -84,7 +84,11 @@ func crack(file string, t *testing.T) (*elf.File, *Table) {
 }
 
 func parse(file string, f *elf.File, t *testing.T) (*elf.File, *Table) {
-	symdat, err := f.Section(".gosymtab").Data()
+	s := f.Section(".gosymtab")
+	if s == nil {
+		t.Skip("no .gosymtab section")
+	}
+	symdat, err := s.Data()
 	if err != nil {
 		f.Close()
 		t.Fatalf("reading %s gosymtab: %v", file, err)

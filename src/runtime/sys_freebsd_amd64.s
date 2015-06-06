@@ -6,34 +6,10 @@
 // /usr/src/sys/kern/syscalls.master for syscall numbers.
 //
 
-#include "zasm_GOOS_GOARCH.h"
+#include "go_asm.h"
+#include "go_tls.h"
 #include "textflag.h"
 
-// FreeBSD 8, FreeBSD 9, and older versions that I have checked
-// do not restore R10 on exit from a "restarted" system call
-// if you use the SYSCALL instruction. This means that, for example,
-// if a signal arrives while the wait4 system call is executing,
-// the wait4 internally returns ERESTART, which makes the kernel
-// back up the PC to execute the SYSCALL instruction a second time.
-// However, since the kernel does not restore R10, the fourth
-// argument to the system call has been lost. (FreeBSD 9 also fails
-// to restore the fifth and sixth arguments, R8 and R9, although
-// some earlier versions did restore those correctly.)
-// The broken code is in fast_syscall in FreeBSD's amd64/amd64/exception.S.
-// It restores only DI, SI, DX, AX, and RFLAGS on system call return.
-// http://fxr.watson.org/fxr/source/amd64/amd64/exception.S?v=FREEBSD91#L399
-//
-// The INT $0x80 system call path (int0x80_syscall in FreeBSD's 
-// amd64/ia32/ia32_exception.S) does not have this problem,
-// but it expects the third argument in R10. Instead of rewriting
-// all the assembly in this file, #define SYSCALL to a safe simulation
-// using INT $0x80.
-//
-// INT $0x80 is a little slower than SYSCALL, but correctness wins.
-//
-// See golang.org/issue/6372.
-#define SYSCALL MOVQ R10, CX; INT $0x80
-	
 TEXT runtime·sys_umtx_op(SB),NOSPLIT,$0
 	MOVQ addr+0(FP), DI
 	MOVL mode+8(FP), SI
@@ -91,13 +67,17 @@ TEXT runtime·open(SB),NOSPLIT,$-8
 	MOVL	perm+12(FP), DX		// arg 3 mode
 	MOVL	$5, AX
 	SYSCALL
+	JCC	2(PC)
+	MOVL	$-1, AX
 	MOVL	AX, ret+16(FP)
 	RET
 
-TEXT runtime·close(SB),NOSPLIT,$-8
+TEXT runtime·closefd(SB),NOSPLIT,$-8
 	MOVL	fd+0(FP), DI		// arg 1 fd
 	MOVL	$6, AX
 	SYSCALL
+	JCC	2(PC)
+	MOVL	$-1, AX
 	MOVL	AX, ret+8(FP)
 	RET
 
@@ -107,6 +87,8 @@ TEXT runtime·read(SB),NOSPLIT,$-8
 	MOVL	n+16(FP), DX		// arg 3 count
 	MOVL	$3, AX
 	SYSCALL
+	JCC	2(PC)
+	MOVL	$-1, AX
 	MOVL	AX, ret+24(FP)
 	RET
 
@@ -116,6 +98,8 @@ TEXT runtime·write(SB),NOSPLIT,$-8
 	MOVL	n+16(FP), DX		// arg 3 count
 	MOVL	$4, AX
 	SYSCALL
+	JCC	2(PC)
+	MOVL	$-1, AX
 	MOVL	AX, ret+24(FP)
 	RET
 
@@ -204,9 +188,9 @@ TEXT runtime·sigtramp(SB),NOSPLIT,$64
 	MOVQ	R10, 40(SP)
 	
 	// g = m->signal
-	MOVQ	g_m(R10), BP
-	MOVQ	m_gsignal(BP), BP
-	MOVQ	BP, g(BX)
+	MOVQ	g_m(R10), AX
+	MOVQ	m_gsignal(AX), AX
+	MOVQ	AX, g(BX)
 	
 	MOVQ	DI, 0(SP)
 	MOVQ	SI, 8(SP)
@@ -278,7 +262,7 @@ TEXT runtime·usleep(SB),NOSPLIT,$16
 
 // set tls base to DI
 TEXT runtime·settls(SB),NOSPLIT,$8
-	ADDQ	$16, DI	// adjust for ELF: wants to use -16(FS) and -8(FS) for g and m
+	ADDQ	$8, DI	// adjust for ELF: wants to use -8(FS) for g and m
 	MOVQ	DI, 0(SP)
 	MOVQ	SP, SI
 	MOVQ	$129, DI	// AMD64_SET_FSBASE

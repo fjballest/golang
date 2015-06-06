@@ -24,6 +24,8 @@
 // unnecessary rechecks of sig.mask, but it cannot lead to missed signals
 // nor deadlocks.
 
+// +build !plan9
+
 package runtime
 
 import "unsafe"
@@ -45,7 +47,7 @@ const (
 
 // Called from sighandler to send a signal back out of the signal handling thread.
 // Reports whether the signal was sent. If not, the caller typically crashes the program.
-func sigsend(s int32) bool {
+func sigsend(s uint32) bool {
 	bit := uint32(1) << uint(s&31)
 	if !sig.inuse || s < 0 || int(s) >= 32*len(sig.wanted) || sig.wanted[s/32]&bit == 0 {
 		return false
@@ -67,7 +69,7 @@ Send:
 	for {
 		switch atomicload(&sig.state) {
 		default:
-			gothrow("sigsend: inconsistent state")
+			throw("sigsend: inconsistent state")
 		case sigIdle:
 			if cas(&sig.state, sigIdle, sigSending) {
 				break Send
@@ -103,7 +105,7 @@ func signal_recv() uint32 {
 		for {
 			switch atomicload(&sig.state) {
 			default:
-				gothrow("signal_recv: inconsistent state")
+				throw("signal_recv: inconsistent state")
 			case sigIdle:
 				if cas(&sig.state, sigIdle, sigReceiving) {
 					notetsleepg(&sig.note, -1)
@@ -139,7 +141,7 @@ func signal_enable(s uint32) {
 		return
 	}
 	sig.wanted[s/32] |= 1 << (s & 31)
-	sigenable_go(s)
+	sigenable(s)
 }
 
 // Must only be called from a single goroutine at a time.
@@ -148,7 +150,16 @@ func signal_disable(s uint32) {
 		return
 	}
 	sig.wanted[s/32] &^= 1 << (s & 31)
-	sigdisable_go(s)
+	sigdisable(s)
+}
+
+// Must only be called from a single goroutine at a time.
+func signal_ignore(s uint32) {
+	if int(s) >= len(sig.wanted)*32 {
+		return
+	}
+	sig.wanted[s/32] &^= 1 << (s & 31)
+	sigignore(s)
 }
 
 // This runs on a foreign stack, without an m or a g.  No stack split.
@@ -164,19 +175,4 @@ func badsignal(sig uintptr) {
 		return
 	}
 	cgocallback(unsafe.Pointer(funcPC(sigsend)), noescape(unsafe.Pointer(&sig)), unsafe.Sizeof(sig))
-}
-
-func sigenable_m()
-func sigdisable_m()
-
-func sigenable_go(s uint32) {
-	g := getg()
-	g.m.scalararg[0] = uintptr(s)
-	onM(sigenable_m)
-}
-
-func sigdisable_go(s uint32) {
-	g := getg()
-	g.m.scalararg[0] = uintptr(s)
-	onM(sigdisable_m)
 }

@@ -36,7 +36,6 @@ func mkEnv() []envVar {
 	env := []envVar{
 		{"GOARCH", goarch},
 		{"GOBIN", gobin},
-		{"GOCHAR", archChar},
 		{"GOEXE", exeSuffix},
 		{"GOHOSTARCH", runtime.GOARCH},
 		{"GOHOSTOS", runtime.GOOS},

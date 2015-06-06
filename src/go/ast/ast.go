@@ -383,7 +383,7 @@ type (
 		Struct     token.Pos  // position of "struct" keyword
 		Fields     *FieldList // list of field declarations
 		Incomplete bool       // true if (source) fields are missing in the Fields list
-		Optional	bool	// true if we can omit the 'struct' keyword here
+		Implicit bool         // true if the 'struct' keyword is implicit in the decl.
 	}
 
 	// Pointer types are represented via StarExpr nodes.
@@ -400,6 +400,7 @@ type (
 		Interface  token.Pos  // position of "interface" keyword
 		Methods    *FieldList // list of methods
 		Incomplete bool       // true if (source) methods are missing in the Methods list
+		Implicit bool         // true if the 'interface' keyword is implicit in the decl.
 	}
 
 	// A MapType node represents a map type.
@@ -487,7 +488,7 @@ func (x *MapType) End() token.Pos       { return x.Value.End() }
 func (x *ChanType) End() token.Pos      { return x.Value.End() }
 
 // exprNode() ensures that only expression/type nodes can be
-// assigned to an ExprNode.
+// assigned to an Expr.
 //
 func (*BadExpr) exprNode()        {}
 func (*Ident) exprNode()          {}
@@ -563,10 +564,11 @@ type (
 
 	// An EmptyStmt node represents an empty statement.
 	// The "position" of the empty statement is the position
-	// of the immediately preceding semicolon.
+	// of the immediately following (explicit or implicit) semicolon.
 	//
 	EmptyStmt struct {
-		Semicolon token.Pos // position of preceding ";"
+		Semicolon token.Pos // position of following ";"
+		Implicit  bool      // if set, ";" was omitted in the source
 	}
 
 	// A LabeledStmt node represents a labeled statement.
@@ -688,7 +690,16 @@ type (
 		Body   *BlockStmt // CommClauses only
 	}
 
-	// A ForStmt represents a for statement
+	// A DoSelectStmt node represents a doselect statement.
+	DoSelectStmt struct {
+		DoSelect token.Pos  // position of "doselect" keyword
+		Init Stmt           // initialization statement; or nil
+		Cond Expr           // condition; or nil
+		Post Stmt           // post iteration statement; or nil
+		Body   *BlockStmt   // CommClauses only
+	}
+
+	// A ForStmt represents a for statement.
 	ForStmt struct {
 		For  token.Pos // position of "for" keyword
 		Init Stmt      // initialization statement; or nil
@@ -738,13 +749,16 @@ func (s *SwitchStmt) Pos() token.Pos     { return s.Switch }
 func (s *TypeSwitchStmt) Pos() token.Pos { return s.Switch }
 func (s *CommClause) Pos() token.Pos     { return s.Case }
 func (s *SelectStmt) Pos() token.Pos     { return s.Select }
-func (s *DoSelectStmt) Pos() token.Pos     { return s.DoSelect }
+func (s *DoSelectStmt) Pos() token.Pos   { return s.DoSelect }
 func (s *ForStmt) Pos() token.Pos        { return s.For }
 func (s *RangeStmt) Pos() token.Pos      { return s.For }
 
 func (s *BadStmt) End() token.Pos  { return s.To }
 func (s *DeclStmt) End() token.Pos { return s.Decl.End() }
 func (s *EmptyStmt) End() token.Pos {
+	if s.Implicit {
+		return s.Semicolon
+	}
 	return s.Semicolon + 1 /* len(";") */
 }
 func (s *LabeledStmt) End() token.Pos { return s.Stmt.End() }
@@ -795,7 +809,7 @@ func (s *ForStmt) End() token.Pos    { return s.Body.End() }
 func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
 
 // stmtNode() ensures that only statement nodes can be
-// assigned to a StmtNode.
+// assigned to a Stmt.
 //
 func (*BadStmt) stmtNode()        {}
 func (*DeclStmt) stmtNode()       {}
@@ -817,6 +831,7 @@ func (*TypeSwitchStmt) stmtNode() {}
 func (*CommClause) stmtNode()     {}
 func (*DoSelectStmt) stmtNode()     {}
 func (*SelectStmt) stmtNode()     {}
+func (*DoSelectStmt) stmtNode()   {}
 func (*ForStmt) stmtNode()        {}
 func (*RangeStmt) stmtNode()      {}
 
@@ -960,7 +975,7 @@ func (d *FuncDecl) End() token.Pos {
 }
 
 // declNode() ensures that only declaration nodes can be
-// assigned to a DeclNode.
+// assigned to a Decl.
 //
 func (*BadDecl) declNode()  {}
 func (*GenDecl) declNode()  {}

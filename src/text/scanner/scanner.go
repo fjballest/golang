@@ -43,7 +43,7 @@ type Position struct {
 	Column   int    // column number, starting at 1 (character count per line)
 }
 
-// IsValid returns true if the position is valid.
+// IsValid reports whether the position is valid.
 func (pos *Position) IsValid() bool { return pos.Line > 0 }
 
 func (pos Position) String() string {
@@ -208,7 +208,7 @@ func (s *Scanner) Init(src io.Reader) *Scanner {
 	s.tokPos = -1
 
 	// initialize one character look-ahead
-	s.ch = -1 // no char read yet
+	s.ch = -2 // no char read yet, not EOF
 
 	// initialize public fields
 	s.Error = nil
@@ -314,7 +314,9 @@ func (s *Scanner) Next() rune {
 	s.tokPos = -1 // don't collect token text
 	s.Line = 0    // invalidate token position
 	ch := s.Peek()
-	s.ch = s.next()
+	if ch != EOF {
+		s.ch = s.next()
+	}
 	return ch
 }
 
@@ -322,7 +324,7 @@ func (s *Scanner) Next() rune {
 // the scanner. It returns EOF if the scanner's position is at the last
 // character of the source.
 func (s *Scanner) Peek() rune {
-	if s.ch < 0 {
+	if s.ch == -2 {
 		// this code is only run for the very first character
 		s.ch = s.next()
 		if s.ch == '\uFEFF' {
@@ -597,6 +599,8 @@ redo:
 		}
 	default:
 		switch ch {
+		case EOF:
+			break
 		case '"':
 			if s.Mode&ScanStrings != 0 {
 				s.scanString('"')

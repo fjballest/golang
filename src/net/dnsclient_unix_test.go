@@ -31,7 +31,7 @@ var dnsTransportFallbackTests = []struct {
 
 func TestDNSTransportFallback(t *testing.T) {
 	if testing.Short() || !*testExternal {
-		t.Skip("skipping test to avoid external network")
+		t.Skip("avoid external network")
 	}
 
 	for _, tt := range dnsTransportFallbackTests {
@@ -57,13 +57,13 @@ var specialDomainNameTests = []struct {
 	qtype uint16
 	rcode int
 }{
-	// Name resoltion APIs and libraries should not recongnize the
+	// Name resolution APIs and libraries should not recognize the
 	// followings as special.
 	{"1.0.168.192.in-addr.arpa.", dnsTypePTR, dnsRcodeNameError},
 	{"test.", dnsTypeALL, dnsRcodeNameError},
 	{"example.com.", dnsTypeALL, dnsRcodeSuccess},
 
-	// Name resoltion APIs and libraries should recongnize the
+	// Name resolution APIs and libraries should recognize the
 	// followings as special and should not send any queries.
 	// Though, we test those names here for verifying nagative
 	// answers at DNS query-response interaction level.
@@ -73,7 +73,7 @@ var specialDomainNameTests = []struct {
 
 func TestSpecialDomainName(t *testing.T) {
 	if testing.Short() || !*testExternal {
-		t.Skip("skipping test to avoid external network")
+		t.Skip("avoid external network")
 	}
 
 	server := "8.8.8.8:53"
@@ -94,34 +94,23 @@ func TestSpecialDomainName(t *testing.T) {
 
 type resolvConfTest struct {
 	*testing.T
-	dir     string
-	path    string
-	started bool
-	quitc   chan chan struct{}
+	dir  string
+	path string
 }
 
 func newResolvConfTest(t *testing.T) *resolvConfTest {
-	dir, err := ioutil.TempDir("", "resolvConfTest")
+	dir, err := ioutil.TempDir("", "go-resolvconftest")
 	if err != nil {
-		t.Fatalf("could not create temp dir: %v", err)
+		t.Fatal(err)
 	}
 
-	// Disable the default loadConfig
-	onceLoadConfig.Do(func() {})
-
 	r := &resolvConfTest{
-		T:     t,
-		dir:   dir,
-		path:  path.Join(dir, "resolv.conf"),
-		quitc: make(chan chan struct{}),
+		T:    t,
+		dir:  dir,
+		path: path.Join(dir, "resolv.conf"),
 	}
 
 	return r
-}
-
-func (r *resolvConfTest) Start() {
-	loadConfig(r.path, 100*time.Millisecond, r.quitc)
-	r.started = true
 }
 
 func (r *resolvConfTest) SetConf(s string) {
@@ -138,26 +127,19 @@ func (r *resolvConfTest) SetConf(s string) {
 		r.Fatalf("failed to write temp file: %v", err)
 	}
 	f.Close()
-
-	if r.started {
-		cfg.ch <- struct{}{} // fill buffer
-		cfg.ch <- struct{}{} // wait for reload to begin
-		cfg.ch <- struct{}{} // wait for reload to complete
-	}
+	cfg.lastChecked = time.Time{}
+	loadConfig(r.path)
 }
 
 func (r *resolvConfTest) WantServers(want []string) {
 	cfg.mu.RLock()
 	defer cfg.mu.RUnlock()
 	if got := cfg.dnsConfig.servers; !reflect.DeepEqual(got, want) {
-		r.Fatalf("Unexpected dns server loaded, got %v want %v", got, want)
+		r.Fatalf("unexpected dns server loaded, got %v want %v", got, want)
 	}
 }
 
 func (r *resolvConfTest) Close() {
-	resp := make(chan struct{})
-	r.quitc <- resp
-	<-resp
 	if err := os.RemoveAll(r.dir); err != nil {
 		r.Logf("failed to remove temp dir %s: %v", r.dir, err)
 	}
@@ -165,52 +147,58 @@ func (r *resolvConfTest) Close() {
 
 func TestReloadResolvConfFail(t *testing.T) {
 	if testing.Short() || !*testExternal {
-		t.Skip("skipping test to avoid external network")
+		t.Skip("avoid external network")
 	}
 
 	r := newResolvConfTest(t)
 	defer r.Close()
 
-	// resolv.conf.tmp does not exist yet
-	r.Start()
-	if _, err := goLookupIP("golang.org"); err == nil {
-		t.Fatal("goLookupIP(missing) succeeded")
-	}
-
 	r.SetConf("nameserver 8.8.8.8")
+
 	if _, err := goLookupIP("golang.org"); err != nil {
-		t.Fatalf("goLookupIP(missing; good) failed: %v", err)
+		t.Fatal(err)
 	}
 
-	// Using a bad resolv.conf while we had a good
-	// one before should not update the config
+	// Using an empty resolv.conf should use localhost as servers
 	r.SetConf("")
-	if _, err := goLookupIP("golang.org"); err != nil {
-		t.Fatalf("goLookupIP(missing; good; bad) failed: %v", err)
+
+	if len(cfg.dnsConfig.servers) != len(defaultNS) {
+		t.Fatalf("goLookupIP(missing; good; bad) failed: servers=%v, want: %v", cfg.dnsConfig.servers, defaultNS)
+	}
+
+	for i := range cfg.dnsConfig.servers {
+		if cfg.dnsConfig.servers[i] != defaultNS[i] {
+			t.Fatalf("goLookupIP(missing; good; bad) failed: servers=%v, want: %v", cfg.dnsConfig.servers, defaultNS)
+		}
 	}
 }
 
 func TestReloadResolvConfChange(t *testing.T) {
 	if testing.Short() || !*testExternal {
-		t.Skip("skipping test to avoid external network")
+		t.Skip("avoid external network")
 	}
 
 	r := newResolvConfTest(t)
 	defer r.Close()
 
 	r.SetConf("nameserver 8.8.8.8")
-	r.Start()
 
 	if _, err := goLookupIP("golang.org"); err != nil {
-		t.Fatalf("goLookupIP(good) failed: %v", err)
+		t.Fatal(err)
 	}
 	r.WantServers([]string{"8.8.8.8"})
 
-	// Using a bad resolv.conf when we had a good one
-	// before should not update the config
+	// Using an empty resolv.conf should use localhost as servers
 	r.SetConf("")
-	if _, err := goLookupIP("golang.org"); err != nil {
-		t.Fatalf("goLookupIP(good; bad) failed: %v", err)
+
+	if len(cfg.dnsConfig.servers) != len(defaultNS) {
+		t.Fatalf("goLookupIP(missing; good; bad) failed: servers=%v, want: %v", cfg.dnsConfig.servers, defaultNS)
+	}
+
+	for i := range cfg.dnsConfig.servers {
+		if cfg.dnsConfig.servers[i] != defaultNS[i] {
+			t.Fatalf("goLookupIP(missing; good; bad) failed: servers=%v, want: %v", cfg.dnsConfig.servers, defaultNS)
+		}
 	}
 
 	// A new good config should get picked up
@@ -219,28 +207,32 @@ func TestReloadResolvConfChange(t *testing.T) {
 }
 
 func BenchmarkGoLookupIP(b *testing.B) {
+	testHookUninstaller.Do(uninstallTestHooks)
+
 	for i := 0; i < b.N; i++ {
 		goLookupIP("www.example.com")
 	}
 }
 
 func BenchmarkGoLookupIPNoSuchHost(b *testing.B) {
+	testHookUninstaller.Do(uninstallTestHooks)
+
 	for i := 0; i < b.N; i++ {
 		goLookupIP("some.nonexistent")
 	}
 }
 
 func BenchmarkGoLookupIPWithBrokenNameServer(b *testing.B) {
-	onceLoadConfig.Do(loadDefaultConfig)
-	if cfg.dnserr != nil || cfg.dnsConfig == nil {
-		b.Fatalf("loadConfig failed: %v", cfg.dnserr)
-	}
+	testHookUninstaller.Do(uninstallTestHooks)
+
 	// This looks ugly but it's safe as long as benchmarks are run
 	// sequentially in package testing.
+	<-cfg.ch // keep config from being reloaded upon lookup
 	orig := cfg.dnsConfig
 	cfg.dnsConfig.servers = append([]string{"203.0.113.254"}, cfg.dnsConfig.servers...) // use TEST-NET-3 block, see RFC 5737
 	for i := 0; i < b.N; i++ {
 		goLookupIP("www.example.com")
 	}
 	cfg.dnsConfig = orig
+	cfg.ch <- struct{}{}
 }

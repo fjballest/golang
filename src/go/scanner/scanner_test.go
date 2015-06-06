@@ -168,6 +168,7 @@ var tokens = [...]elt{
 	{token.IMPORT, "import", keyword},
 
 	{token.INTERFACE, "interface", keyword},
+	{token.INTERFACE, "inter", keyword},
 	{token.MAP, "map", keyword},
 	{token.PACKAGE, "package", keyword},
 	{token.RANGE, "range", keyword},
@@ -731,6 +732,41 @@ var errors = []struct {
 func TestScanErrors(t *testing.T) {
 	for _, e := range errors {
 		checkError(t, e.src, e.tok, e.pos, e.lit, e.err)
+	}
+}
+
+// Verify that no comments show up as literal values when skipping comments.
+func TestIssue10213(t *testing.T) {
+	var src = `
+		var (
+			A = 1 // foo
+		)
+
+		var (
+			B = 2
+			// foo
+		)
+
+		var C = 3 // foo
+
+		var D = 4
+		// foo
+
+		func anycode() {
+		// foo
+		}
+	`
+	var s Scanner
+	s.Init(fset.AddFile("", fset.Base(), len(src)), []byte(src), nil, 0)
+	for {
+		pos, tok, lit := s.Scan()
+		class := tokenclass(tok)
+		if lit != "" && class != keyword && class != literal && tok != token.SEMICOLON {
+			t.Errorf("%s: tok = %s, lit = %q", fset.Position(pos), tok, lit)
+		}
+		if tok <= token.EOF {
+			break
+		}
 	}
 }
 

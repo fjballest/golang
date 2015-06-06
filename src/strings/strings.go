@@ -78,6 +78,7 @@ func hashStrRev(sep string) (uint32, uint32) {
 }
 
 // Count counts the number of non-overlapping instances of sep in s.
+// If sep is an empty string, Count returns 1 + the number of Unicode code points in s.
 func Count(s, sep string) int {
 	n := 0
 	// special cases
@@ -125,17 +126,17 @@ func Count(s, sep string) int {
 	return n
 }
 
-// Contains returns true if substr is within s.
+// Contains reports whether substr is within s.
 func Contains(s, substr string) bool {
 	return Index(s, substr) >= 0
 }
 
-// ContainsAny returns true if any Unicode code points in chars are within s.
+// ContainsAny reports whether any Unicode code points in chars are within s.
 func ContainsAny(s, chars string) bool {
 	return IndexAny(s, chars) >= 0
 }
 
-// ContainsRune returns true if the Unicode code point r is within s.
+// ContainsRune reports whether the Unicode code point r is within s.
 func ContainsRune(s string, r rune) bool {
 	return IndexRune(s, r) >= 0
 }
@@ -184,14 +185,7 @@ func LastIndex(s, sep string) int {
 	case n == 0:
 		return len(s)
 	case n == 1:
-		// special case worth making fast
-		c := sep[0]
-		for i := len(s) - 1; i >= 0; i-- {
-			if s[i] == c {
-				return i
-			}
-		}
-		return -1
+		return LastIndexByte(s, sep[0])
 	case n == len(s):
 		if sep == s {
 			return 0
@@ -265,6 +259,16 @@ func LastIndexAny(s, chars string) int {
 					return i
 				}
 			}
+		}
+	}
+	return -1
+}
+
+// LastIndexByte returns the index of the last instance of c in s, or -1 if c is not present in s.
+func LastIndexByte(s string, c byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == c {
+			return i
 		}
 	}
 	return -1
@@ -519,7 +523,7 @@ func isSeparator(r rune) bool {
 // Title returns a copy of the string s with all Unicode letters that begin words
 // mapped to their title case.
 //
-// BUG: The rule Title uses for word boundaries does not handle Unicode punctuation properly.
+// BUG(rsc): The rule Title uses for word boundaries does not handle Unicode punctuation properly.
 func Title(s string) string {
 	// Use a closure here to remember state.
 	// Hackish but effective. Depends on Map scanning in order and calling

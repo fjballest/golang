@@ -1,0 +1,2270 @@
+CHANGES MADE TO 1.4
+git show-branch '--more=100' lsub
+
+[lsub] guide
+[lsub^] cclosed added
+[lsub~2] tests
+[lsub~3] guide
+[lsub~4] goid and goappid for clive
+[lsub~5] fix for lsub chansend when using the ret value
+[lsub~6] fixes
+[lsub~7] ok := c <- v is broken. fix noted
+[lsub~8] lsub go fmt fix for struct
+[lsub~9] fixes in tests and in gofmt for implicit structs
+[lsub~10] struct optional only in the type decl. gofmt re-introduces it
+[lsub~11] doselect parsing and fmt
+[lsub~12] half done doselect for the go parser pkg
+[lsub~13] leave oselsend as todo
+[lsub~14] select send on closed is ok and does not panic
+[lsub~15] get rid of tests broken by our changes to chans
+[lsub~16] guide
+[lsub~17] send arg must be addressable also in expr
+[lsub~18] guide
+[lsub~19] send returns an error; but ok := c <- true failing
+[lsub~20] cerror added to the compiler and cclose panic on bad type fix
+[lsub~21] close(c, err) added to the compiler
+[lsub~22] Merge branch 'chanclose' of git.lsub.org:Public/git/golang into chanclose
+[lsub~22^2] closechan2 and cerror added
+[lsub~23] closechan2 and cerror added
+[lsub~24] do not panic on closes
+[lsub~25] mend
+[lsub~26] struct optional in type and field decl
+[lsub~27] guide
+[lsub~28] guide
+[lsub~29] doselect break and continue
+[lsub~30] doselect added but for changes in break and continue
+[lsub~31] initial change for doselect
+[lsub~32] guide
+
+git diff lsub 'lsub~32' --name-only
+src/cmd/gc/builtin.c
+src/cmd/gc/const.c
+src/cmd/gc/fmt.c
+src/cmd/gc/gen.c
+src/cmd/gc/go.h
+src/cmd/gc/go.y
+src/cmd/gc/inl.c
+src/cmd/gc/lex.c
+src/cmd/gc/order.c
+src/cmd/gc/pgen.c
+src/cmd/gc/racewalk.c
+src/cmd/gc/runtime.go
+src/cmd/gc/select.c
+src/cmd/gc/swt.c
+src/cmd/gc/typecheck.c
+src/cmd/gc/walk.c
+src/cmd/go/fmt.go
+src/cmd/gofmt/gofmt.go
+src/cmd/gofmt/gofmt_test.go
+src/go/ast/ast.go
+src/go/ast/walk.go
+src/go/format/format_test.go
+src/go/parser/parser.go
+src/go/printer/nodes.go
+src/go/printer/performance_test.go
+src/go/printer/printer.go
+src/go/printer/printer_test.go
+src/go/token/token.go
+src/reflect/all_test.go
+src/runtime/chan.go
+src/runtime/chan.h
+src/runtime/mgc0.c
+src/runtime/pprof/pprof_test.go
+src/runtime/proc.c
+src/runtime/proc.go
+src/runtime/runtime.h
+src/runtime/select.go
+test/chan/perm.go
+test/chan/select3.go
+test/closedchan.go
+test/syntax/chan1.go
+
+git diff lsub 'lsub~32' -- src/cmd/gc/builtin.c src/cmd/gc/const.c src/cmd/gc/fmt.c src/cmd/gc/gen.c src/cmd/gc/go.h src/cmd/gc/go.y src/cmd/gc/inl.c src/cmd/gc/lex.c src/cmd/gc/order.c src/cmd/gc/pgen.c src/cmd/gc/racewalk.c src/cmd/gc/runtime.go src/cmd/gc/select.c src/cmd/gc/swt.c src/cmd/gc/typecheck.c src/cmd/gc/walk.c src/cmd/go/fmt.go src/cmd/gofmt/gofmt.go src/cmd/gofmt/gofmt_test.go src/go/ast/ast.go src/go/ast/walk.go src/go/format/format_test.go src/go/parser/parser.go src/go/printer/nodes.go src/go/printer/performance_test.go src/go/printer/printer.go src/go/printer/printer_test.go src/go/token/token.go src/reflect/all_test.go src/runtime/chan.go src/runtime/chan.h src/runtime/mgc0.c src/runtime/pprof/pprof_test.go src/runtime/proc.c src/runtime/proc.go src/runtime/runtime.h src/runtime/select.go test/chan/perm.go test/chan/select3.go test/closedchan.go test/syntax/chan1.go
+
+diff --git a/src/cmd/gc/builtin.c b/src/cmd/gc/builtin.c
+index 605e805..fbca4ee 100644
+--- a/src/cmd/gc/builtin.c
++++ b/src/cmd/gc/builtin.c
+@@ -79,13 +79,9 @@ char *runtimeimport =
+ 	"func @\"\".mapiternext (@\"\".hiter·1 *any)\n"
+ 	"func @\"\".makechan (@\"\".chanType·2 *byte, @\"\".hint·3 int64) (@\"\".hchan·1 chan any)\n"
+ 	"func @\"\".chanrecv1 (@\"\".chanType·1 *byte, @\"\".hchan·2 <-chan any, @\"\".elem·3 *any)\n"
+-	"func @\"\".chanrecv2 (@\"\".chanType·2 *byte, @\"\".hchan·3 <-chan any, @\"\".elem·4 *any) (@\"\".res·1 bool)\n"
++	"func @\"\".chanrecv2 (@\"\".chanType·2 *byte, @\"\".hchan·3 <-chan any, @\"\".elem·4 *any) (? bool)\n"
+ 	"func @\"\".chansend1 (@\"\".chanType·1 *byte, @\"\".hchan·2 chan<- any, @\"\".elem·3 *any)\n"
+-	"func @\"\".chansend2 (@\"\".chanType·2 *byte, @\"\".hchan·3 chan<- any, @\"\".elem·4 *any) (@\"\".res·1 bool)\n"
+ 	"func @\"\".closechan (@\"\".hchan·1 any)\n"
+-	"func @\"\".closechan2 (@\"\".hchan·1 any, @\"\".err·2 interface {})\n"
+-	"func @\"\".cerror (@\"\".hchan·2 any) (? error)\n"
+-	"func @\"\".cclosed (@\"\".hchan·2 any) (? bool)\n"
+ 	"func @\"\".writebarrierptr (@\"\".dst·1 *any, @\"\".src·2 any)\n"
+ 	"func @\"\".writebarrierstring (@\"\".dst·1 *any, @\"\".src·2 any)\n"
+ 	"func @\"\".writebarrierslice (@\"\".dst·1 *any, @\"\".src·2 any)\n"
+diff --git a/src/cmd/gc/const.c b/src/cmd/gc/const.c
+index cd20dd6..e418b9c 100644
+--- a/src/cmd/gc/const.c
++++ b/src/cmd/gc/const.c
+@@ -1655,7 +1655,6 @@ hascallchan(Node *n)
+ 	case OPRINTN:
+ 	case OREAL:
+ 	case ORECOVER:
+-	case OSEND:
+ 	case ORECV:
+ 		return 1;
+ 	}
+diff --git a/src/cmd/gc/fmt.c b/src/cmd/gc/fmt.c
+index aa835a8..89d2a14 100644
+--- a/src/cmd/gc/fmt.c
++++ b/src/cmd/gc/fmt.c
+@@ -118,12 +118,9 @@ goopnames[] =
+ 	[OAS]		= "=",
+ 	[OAS2]		= "=",
+ 	[OBREAK]	= "break",
+-	[OCBREAK]	= "break",
+ 	[OCALL]		= "function call",	// not actual syntax
+ 	[OCAP]		= "cap",
+ 	[OCASE]		= "case",
+-	[OCCLOSED]	= "cclosed",
+-	[OCERROR]	= "cerror",
+ 	[OCLOSE]	= "close",
+ 	[OCOMPLEX]	= "complex",
+ 	[OCOM]		= "^",
+@@ -133,7 +130,6 @@ goopnames[] =
+ 	[ODELETE]	= "delete",
+ 	[ODEFER]	= "defer",
+ 	[ODIV]		= "/",
+-	[ODOSELECT]	= "doselect",
+ 	[OEQ]		= "==",
+ 	[OFALL]		= "fallthrough",
+ 	[OFOR]		= "for",
+@@ -899,7 +895,6 @@ stmtfmt(Fmt *f, Node *n)
+ 		fmtprint(f, "for %,H = range %N { %H }", n->list, n->right, n->nbody);
+ 		break;
+ 
+-	case ODOSELECT:
+ 	case OSELECT:
+ 	case OSWITCH:
+ 		if(fmtmode == FErr) {
+@@ -925,7 +920,6 @@ stmtfmt(Fmt *f, Node *n)
+ 		break;
+ 
+ 	case OBREAK:
+-	case OCBREAK:
+ 	case OCONTINUE:
+ 	case OGOTO:
+ 	case OFALL:
+@@ -963,8 +957,6 @@ static int opprec[] = {
+ 	[OCALLMETH] = 8,
+ 	[OCALL] = 8,
+ 	[OCAP] = 8,
+-	[OCCLOSED] = 8,
+-	[OCERROR] = 8,
+ 	[OCLOSE] = 8,
+ 	[OCONVIFACE] = 8,
+ 	[OCONVNOP] = 8,
+@@ -1054,13 +1046,11 @@ static int opprec[] = {
+ 	[OAS2RECV] = -1,
+ 	[OASOP] = -1,
+ 	[OBREAK] = -1,
+-	[OCBREAK] = -1,
+ 	[OCASE] = -1,
+ 	[OCONTINUE] = -1,
+ 	[ODCL] = -1,
+ 	[ODCLFIELD] = -1,
+ 	[ODEFER] = -1,
+-	[ODOSELECT] = -1,
+ 	[OEMPTY] = -1,
+ 	[OFALL] = -1,
+ 	[OFOR] = -1,
+@@ -1296,17 +1286,11 @@ exprfmt(Fmt *f, Node *n, int prec)
+ 			return fmtprint(f, "%T(%N)", n->type, n->left);
+ 		return fmtprint(f, "%T(%,H)", n->type, n->list);
+ 
+-	case OCLOSE:
+-		// 2nd arg. -nemo
+-		if(n->left && n->right)
+-			return fmtprint(f, "%#O(%N, %N)", n->op, n->left, n->right);
+-		// else fall
+-	case OCCLOSED:
+-	case OCERROR:
+ 	case OREAL:
+ 	case OIMAG:
+ 	case OAPPEND:
+ 	case OCAP:
++	case OCLOSE:
+ 	case ODELETE:
+ 	case OLEN:
+ 	case OMAKE:
+diff --git a/src/cmd/gc/gen.c b/src/cmd/gc/gen.c
+index 32a4a20..c7c9fcd 100644
+--- a/src/cmd/gc/gen.c
++++ b/src/cmd/gc/gen.c
+@@ -257,7 +257,7 @@ void
+ gen(Node *n)
+ {
+ 	int32 lno;
+-	Prog *scontin, *sbreak, *subreak;
++	Prog *scontin, *sbreak;
+ 	Prog *p1, *p2, *p3;
+ 	Label *lab;
+ 	int32 wasregalloc;
+@@ -316,7 +316,6 @@ gen(Node *n)
+ 			case OFOR:
+ 			case OSWITCH:
+ 			case OSELECT:
+-			case ODOSELECT:
+ 				// so stmtlabel can find the label
+ 				n->defn->sym = lab->sym;
+ 			}
+@@ -339,7 +338,6 @@ gen(Node *n)
+ 		break;
+ 
+ 	case OBREAK:
+-	case OCBREAK:
+ 		if(n->left != N) {
+ 			lab = n->left->sym->label;
+ 			if(lab == L) {
+@@ -354,15 +352,11 @@ gen(Node *n)
+ 			gjmp(lab->breakpc);
+ 			break;
+ 		}
+-		if(breakpc == P || ubreakpc == P) {
++		if(breakpc == P) {
+ 			yyerror("break is not in a loop");
+ 			break;
+ 		}
+-		if(n->op == OBREAK) {	// user break
+-			gjmp(ubreakpc);
+-		} else {			// compiler break
+-			gjmp(breakpc);
+-		}
++		gjmp(breakpc);
+ 		break;
+ 
+ 	case OCONTINUE:
+@@ -389,10 +383,8 @@ gen(Node *n)
+ 
+ 	case OFOR:
+ 		sbreak = breakpc;
+-		subreak = ubreakpc;
+ 		p1 = gjmp(P);			//		goto test
+ 		breakpc = gjmp(P);		// break:	goto done
+-		ubreakpc = breakpc;
+ 		scontin = continpc;
+ 		continpc = pc;
+ 
+@@ -407,10 +399,8 @@ gen(Node *n)
+ 		genlist(n->nbody);				//		body
+ 		gjmp(continpc);
+ 		patch(breakpc, pc);			// done:
+-		patch(ubreakpc, pc);
+ 		continpc = scontin;
+ 		breakpc = sbreak;
+-		ubreakpc = subreak;
+ 		if(lab) {
+ 			lab->breakpc = P;
+ 			lab->continpc = P;
+@@ -431,10 +421,8 @@ gen(Node *n)
+ 
+ 	case OSWITCH:
+ 		sbreak = breakpc;
+-		subreak = ubreakpc;
+ 		p1 = gjmp(P);			//		goto test
+ 		breakpc = gjmp(P);		// break:	goto done
+-		ubreakpc = breakpc;
+ 
+ 		// define break label
+ 		if((lab = stmtlabel(n)) != L)
+@@ -443,19 +431,15 @@ gen(Node *n)
+ 		patch(p1, pc);				// test:
+ 		genlist(n->nbody);				//		switch(test) body
+ 		patch(breakpc, pc);			// done:
+-		patch(ubreakpc, pc);			// done:
+ 		breakpc = sbreak;
+-		ubreakpc = subreak;
+ 		if(lab != L)
+ 			lab->breakpc = P;
+ 		break;
+ 
+ 	case OSELECT:
+ 		sbreak = breakpc;
+-		subreak = ubreakpc;
+ 		p1 = gjmp(P);			//		goto test
+ 		breakpc = gjmp(P);		// break:	goto done
+-		ubreakpc = breakpc;
+ 
+ 		// define break label
+ 		if((lab = stmtlabel(n)) != L)
+@@ -464,27 +448,6 @@ gen(Node *n)
+ 		patch(p1, pc);				// test:
+ 		genlist(n->nbody);				//		select() body
+ 		patch(breakpc, pc);			// done:
+-		patch(ubreakpc, pc);			// done:
+-		breakpc = sbreak;
+-		ubreakpc = subreak;
+-		if(lab != L)
+-			lab->breakpc = P;
+-		break;
+-
+-	case ODOSELECT:
+-		// Like a select, but does not redefine the user break pc, so that
+-		// breaks and continues refer to the enclosing for.
+-		sbreak = breakpc;
+-		p1 = gjmp(P);			//		goto test
+-		breakpc = gjmp(P);			// break:	goto done
+-
+-		// define break label
+-		if((lab = stmtlabel(n)) != L)
+-			lab->breakpc = breakpc;
+-
+-		patch(p1, pc);			// test:
+-		genlist(n->nbody);			//		select() body
+-		patch(breakpc, pc);			// done:
+ 		breakpc = sbreak;
+ 		if(lab != L)
+ 			lab->breakpc = P;
+diff --git a/src/cmd/gc/go.h b/src/cmd/gc/go.h
+index c747aa2..965a055 100644
+--- a/src/cmd/gc/go.h
++++ b/src/cmd/gc/go.h
+@@ -470,8 +470,6 @@ enum
+ 	OCALLINTER,	// err.Error()
+ 	OCALLPART,	// t.Method (without ())
+ 	OCAP,	// cap
+-	OCCLOSED,	// cclosed
+-	OCERROR,	// cerror
+ 	OCLOSE,	// close
+ 	OCLOSURE,	// f = func() { etc }
+ 	OCMPIFACE,	// err1 == err2
+@@ -542,8 +540,6 @@ enum
+ 	ORUNESTR,	// string(i)
+ 	OSELRECV,	// case x = <-c:
+ 	OSELRECV2,	// case x, ok = <-c:
+-	OSELSEND,	// case ok = c <- x:
+-
+ 	OIOTA,	// iota
+ 	OREAL,	// real
+ 	OIMAG,	// imag
+@@ -552,12 +548,10 @@ enum
+ 	// statements
+ 	OBLOCK,	// block of code
+ 	OBREAK,	// break
+-	OCBREAK,	// compiler inserted break
+ 	OCASE,	// case, after being verified by swt.c's casebody.
+ 	OXCASE,	// case, before verification.
+ 	OCONTINUE,	// continue
+ 	ODEFER,	// defer
+-	ODOSELECT,	// doselect
+ 	OEMPTY,	// no-op
+ 	OFALL,	// fallthrough, after being verified by swt.c's casebody.
+ 	OXFALL,	// fallthrough, before verification.
+@@ -1485,7 +1479,6 @@ void	usefield(Node*);
+ 
+ EXTERN	Prog*	continpc;
+ EXTERN	Prog*	breakpc;
+-EXTERN	Prog*	ubreakpc;
+ EXTERN	Prog*	pc;
+ EXTERN	Prog*	firstpc;
+ 
+diff --git a/src/cmd/gc/go.y b/src/cmd/gc/go.y
+index 1250033..68fccc1 100644
+--- a/src/cmd/gc/go.y
++++ b/src/cmd/gc/go.y
+@@ -38,7 +38,7 @@ static void fixlbrace(int);
+ 
+ %token	<val>	LLITERAL
+ %token	<i>	LASOP LCOLAS
+-%token	<sym>	LBREAK LCASE LCHAN LCONST LCONTINUE LDOSELECT LDDD
++%token	<sym>	LBREAK LCASE LCHAN LCONST LCONTINUE LDDD
+ %token	<sym>	LDEFAULT LDEFER LELSE LFALL LFOR LFUNC LGO LGOTO
+ %token	<sym>	LIF LIMPORT LINTERFACE LMAP LNAME
+ %token	<sym>	LPACKAGE LRANGE LRETURN LSELECT LSTRUCT LSWITCH
+@@ -63,7 +63,7 @@ static void fixlbrace(int);
+ %type	<node>	new_name dcl_name oexpr typedclname
+ %type	<node>	onew_name
+ %type	<node>	osimple_stmt pexpr pexpr_no_paren
+-%type	<node>	pseudocall range_stmt select_stmt doselect_stmt doselect_hdr
++%type	<node>	pseudocall range_stmt select_stmt
+ %type	<node>	simple_stmt
+ %type	<node>	switch_stmt uexpr
+ %type	<node>	xfndcl typedcl start_complit
+@@ -75,7 +75,7 @@ static void fixlbrace(int);
+ %type	<list>	common_dcl constdcl constdcl1 constdcl_list typedcl_list
+ 
+ %type	<node>	convtype comptype dotdotdot
+-%type	<node>	indcl interfacetype structtype ptrtype istructtype
++%type	<node>	indcl interfacetype structtype ptrtype
+ %type	<node>	recvchantype non_recvchantype othertype fnret_type fntype
+ 
+ %type	<sym>	hidden_importsym hidden_pkg_importsym
+@@ -404,11 +404,6 @@ typedcl:
+ 	{
+ 		$$ = typedcl1($1, $2, 1);
+ 	}
+-|
+-	typedclname istructtype
+-	{
+-		$$ = typedcl1($1, $2, 1);
+-	}
+ 
+ simple_stmt:
+ 	expr
+@@ -782,51 +777,6 @@ select_stmt:
+ 		typesw = typesw->left;
+ 	}
+ 
+-doselect_hdr:
+-	osimple_stmt ';' osimple_stmt ';' osimple_stmt
+-	{
+-		// init ; test ; incr
+-		if($5 != N && $5->colas != 0)
+-			yyerror("cannot declare in the doselect-increment");
+-		$$ = nod(OFOR, N, N);
+-		if($1 != N)
+-			$$->ninit = list1($1);
+-		$$->ntest = $3;
+-		$$->nincr = $5;
+-	}
+-|	osimple_stmt
+-	{
+-		// normal test
+-		$$ = nod(OFOR, N, N);
+-		$$->ntest = $1;
+-	}
+-
+-doselect_stmt:
+-	LDOSELECT
+-	{
+-		// for
+-		markdcl();	
+-	}
+-	doselect_hdr
+-	{
+-		// select
+-		typesw = nod(OXXX, typesw, N);
+-	}
+-	LBODY caseblock_list '}'
+-	{
+-		// select
+-		Node *nd;
+-		nd = nod(ODOSELECT, N, N);
+-		nd->lineno = typesw->lineno;
+-		nd->list = $6;
+-		typesw = typesw->left;
+-
+-		// for
+-		$$ = $3;
+-		$$->nbody = list1(nd);
+-		popdcl();
+-	}
+-
+ /*
+  * expressions
+  */
+@@ -908,6 +858,7 @@ expr:
+ 	{
+ 		$$ = nod(ORSH, $1, $3);
+ 	}
++	/* not an expression anymore, but left in so we can give a good error */
+ |	expr LCOMM expr
+ 	{
+ 		$$ = nod(OSEND, $1, $3);
+@@ -1339,19 +1290,6 @@ structtype:
+ 		fixlbrace($2);
+ 	}
+ 
+-istructtype:
+-	lbrace structdcl_list osemi '}'
+-	{
+-		$$ = nod(OTSTRUCT, N, N);
+-		$$->list = $2;
+-		fixlbrace($1);
+-	}
+-|	lbrace '}'
+-	{
+-		$$ = nod(OTSTRUCT, N, N);
+-		fixlbrace($1);
+-	}
+-
+ interfacetype:
+ 	LINTERFACE lbrace interfacedcl_list osemi '}'
+ 	{
+@@ -1780,7 +1718,6 @@ non_dcl_stmt:
+ |	for_stmt
+ |	switch_stmt
+ |	select_stmt
+-|	doselect_stmt
+ |	if_stmt
+ |	labelname ':'
+ 	{
+diff --git a/src/cmd/gc/inl.c b/src/cmd/gc/inl.c
+index 976ea94..cf89b00 100644
+--- a/src/cmd/gc/inl.c
++++ b/src/cmd/gc/inl.c
+@@ -193,7 +193,6 @@ ishairy(Node *n, int *budget)
+ 	case ORANGE:
+ 	case OFOR:
+ 	case OSELECT:
+-	case ODOSELECT:
+ 	case OSWITCH:
+ 	case OPROC:
+ 	case ODEFER:
+diff --git a/src/cmd/gc/lex.c b/src/cmd/gc/lex.c
+index 1195802..523ba37 100644
+--- a/src/cmd/gc/lex.c
++++ b/src/cmd/gc/lex.c
+@@ -1333,7 +1333,6 @@ talph:
+ 	case LIF:
+ 	case LSWITCH:
+ 	case LSELECT:
+-	case LDOSELECT:
+ 		loophack = 1;	// see comment about loophack above
+ 		break;
+ 	}
+@@ -1889,7 +1888,6 @@ static	struct
+ 	{"const",	LCONST,		Txxx,		OXXX},
+ 	{"continue",	LCONTINUE,	Txxx,		OXXX},
+ 	{"default",	LDEFAULT,	Txxx,		OXXX},
+-	{"doselect",	LDOSELECT,	Txxx,		OXXX},
+ 	{"else",		LELSE,		Txxx,		OXXX},
+ 	{"defer",	LDEFER,		Txxx,		OXXX},
+ 	{"fallthrough",	LFALL,		Txxx,		OXXX},
+@@ -1912,9 +1910,7 @@ static	struct
+ 
+ 	{"append",	LNAME,		Txxx,		OAPPEND},
+ 	{"cap",		LNAME,		Txxx,		OCAP},
+-	{"cclosed",	LNAME,		Txxx,		OCCLOSED},
+-	{"cerror",		LNAME,		Txxx,		OCERROR},
+-	{"close",		LNAME,		Txxx,		OCLOSE},
++	{"close",	LNAME,		Txxx,		OCLOSE},
+ 	{"complex",	LNAME,		Txxx,		OCOMPLEX},
+ 	{"copy",		LNAME,		Txxx,		OCOPY},
+ 	{"delete",	LNAME,		Txxx,		ODELETE},
+@@ -2196,7 +2192,6 @@ struct
+ 	{LDEC,		"DEC"},
+ 	{LDEFAULT,	"DEFAULT"},
+ 	{LDEFER,		"DEFER"},
+-	{LDOSELECT,	"DOSELECT"},
+ 	{LELSE,		"ELSE"},
+ 	{LEQ,		"EQ"},
+ 	{LFALL,		"FALL"},
+@@ -2260,7 +2255,6 @@ struct
+ 	{"LDDD",	"..."},
+ 	{"LDEFAULT",	"default"},
+ 	{"LDEFER",	"defer"},
+-	{"LDOSELECT",	"doselect"},
+ 	{"LELSE",	"else"},
+ 	{"LFALL",	"fallthrough"},
+ 	{"LFOR",	"for"},
+diff --git a/src/cmd/gc/order.c b/src/cmd/gc/order.c
+index d77d82a..76820fd 100644
+--- a/src/cmd/gc/order.c
++++ b/src/cmd/gc/order.c
+@@ -517,8 +517,6 @@ orderstmt(Node *n, Order *order)
+ 	case OAS:
+ 	case OAS2:
+ 	case OAS2DOTTYPE:
+-	case OCCLOSED:
+-	case OCERROR:
+ 	case OCLOSE:
+ 	case OCOPY:
+ 	case OPRINT:
+@@ -621,7 +619,6 @@ orderstmt(Node *n, Order *order)
+ 		break;
+ 
+ 	case OBREAK:
+-	case OCBREAK:
+ 	case OCONTINUE:
+ 	case ODCL:
+ 	case ODCLCONST:
+@@ -775,7 +772,6 @@ orderstmt(Node *n, Order *order)
+ 		break;
+ 	
+ 	case OSELECT:
+-	case ODOSELECT:	// doselect will not be seen actually; the parser rewrites it.
+ 		// Special: clean case temporaries in each block entry.
+ 		// Select must enter one of its blocks, so there is no
+ 		// need for a cleaning at the end.
+@@ -871,6 +867,10 @@ orderstmt(Node *n, Order *order)
+ 					break;
+ 
+ 				case OSEND:
++					if(r->ninit != nil) {
++						yyerror("ninit on select send");
++						dumplist("ninit", r->ninit);
++					}
+ 					// case c <- x
+ 					// r->left is c, r->right is x, both are always evaluated.
+ 					orderexpr(&r->left, order);
+@@ -953,7 +953,7 @@ static void
+ orderexpr(Node **np, Order *order)
+ {
+ 	Node *n;
+-	NodeList *mark, *l, *tn;
++	NodeList *mark, *l;
+ 	Type *t;
+ 	int lno;
+ 
+@@ -971,18 +971,7 @@ orderexpr(Node **np, Order *order)
+ 		orderexprlist(n->list, order);
+ 		orderexprlist(n->rlist, order);
+ 		break;
+-
+-	case OSEND:
+-		// Special: value being sent is passed as a pointer; make it addressable.
+-		// This is now required and not just in orderstmt because send can now be
+-		// an expression.
+-		tn = marktemp(order);
+-		orderexpr(&n->left, order);
+-		orderexpr(&n->right, order);
+-		orderaddrtemp(&n->right, order);
+-		cleantemp(tn, order);
+-		break;
+-
++	
+ 	case OADDSTR:
+ 		// Addition of strings turns into a function call.
+ 		// Allocate a temporary to hold the strings.
+diff --git a/src/cmd/gc/pgen.c b/src/cmd/gc/pgen.c
+index 682e3a0..39028e3 100644
+--- a/src/cmd/gc/pgen.c
++++ b/src/cmd/gc/pgen.c
+@@ -221,7 +221,6 @@ compile(Node *fn)
+ 
+ 	continpc = P;
+ 	breakpc = P;
+-	ubreakpc = P;
+ 
+ 	pl = newplist();
+ 	pl->name = linksym(curfn->nname->sym);
+diff --git a/src/cmd/gc/racewalk.c b/src/cmd/gc/racewalk.c
+index a48be3b..c9e27fe 100644
+--- a/src/cmd/gc/racewalk.c
++++ b/src/cmd/gc/racewalk.c
+@@ -360,8 +360,6 @@ racewalknode(Node **np, NodeList **init, int wr, int skip)
+ 	// should not appear in AST by now
+ 	case OSEND:
+ 	case ORECV:
+-	case OCCLOSED:
+-	case OCERROR:
+ 	case OCLOSE:
+ 	case ONEW:
+ 	case OXCASE:
+@@ -411,10 +409,8 @@ racewalknode(Node **np, NodeList **init, int wr, int skip)
+ 	case ORETJMP:
+ 	case OSWITCH:
+ 	case OSELECT:
+-	case ODOSELECT:
+ 	case OEMPTY:
+ 	case OBREAK:
+-	case OCBREAK:
+ 	case OCONTINUE:
+ 	case OFALL:
+ 	case OGOTO:
+diff --git a/src/cmd/gc/runtime.go b/src/cmd/gc/runtime.go
+index a315d5d..0fb15c2 100644
+--- a/src/cmd/gc/runtime.go
++++ b/src/cmd/gc/runtime.go
+@@ -102,13 +102,9 @@ func mapiternext(hiter *any)
+ // *byte is really *runtime.Type
+ func makechan(chanType *byte, hint int64) (hchan chan any)
+ func chanrecv1(chanType *byte, hchan <-chan any, elem *any)
+-func chanrecv2(chanType *byte, hchan <-chan any, elem *any)  (res bool)
++func chanrecv2(chanType *byte, hchan <-chan any, elem *any) bool
+ func chansend1(chanType *byte, hchan chan<- any, elem *any)
+-func chansend2(chanType *byte, hchan chan<- any, elem *any) (res bool)
+ func closechan(hchan any)
+-func closechan2(hchan any, err interface{})
+-func cerror(hchan any) error
+-func cclosed(hchan any) bool
+ 
+ // *byte is really *runtime.Type
+ func writebarrierptr(dst *any, src any)
+diff --git a/src/cmd/gc/select.c b/src/cmd/gc/select.c
+index 2bf8c4a..965ad27 100644
+--- a/src/cmd/gc/select.c
++++ b/src/cmd/gc/select.c
+@@ -49,19 +49,14 @@ typecheckselect(Node *sel)
+ 				break;
+ 
+ 			case OAS:
+-				// convert x = <-c into OSELRECV(x, <-c) and
+-				// ok = c <- x into OSELSEND(x, c, ok)
++				// convert x = <-c into OSELRECV(x, <-c).
+ 				// remove implicit conversions; the eventual assignment
+ 				// will reintroduce them.
+ 				if((n->right->op == OCONVNOP || n->right->op == OCONVIFACE) && n->right->implicit)
+ 					n->right = n->right->left;
+ 
+-				if(n->right->op == OSEND) {
+-					// TODO: convert to OSELSEND and honor it
+-					yyerror("select assignment with send not yet implemented");
+-					break;
+-				} else if(n->right->op != ORECV) {
+-					yyerror("select assignment must have receive or send on right hand side");
++				if(n->right->op != ORECV) {
++					yyerror("select assignment must have receive on right hand side");
+ 					break;
+ 				}
+ 				n->op = OSELRECV;
+@@ -315,7 +310,7 @@ walkselect(Node *sel)
+ 		// selv is no longer alive after use.
+ 		r->nbody = list(r->nbody, nod(OVARKILL, selv, N));
+ 		r->nbody = concat(r->nbody, cas->nbody);
+-		r->nbody = list(r->nbody, nod(OCBREAK, N, N));
++		r->nbody = list(r->nbody, nod(OBREAK, N, N));
+ 		init = list(init, r);
+ 	}
+ 
+diff --git a/src/cmd/gc/swt.c b/src/cmd/gc/swt.c
+index 42a65df..e1d8af8 100644
+--- a/src/cmd/gc/swt.c
++++ b/src/cmd/gc/swt.c
+@@ -271,7 +271,7 @@ casebody(Node *sw, Node *typeswvar)
+ 	cas = nil;	// cases
+ 	stat = nil;	// statements
+ 	def = N;	// defaults
+-	br = nod(OCBREAK, N, N);
++	br = nod(OBREAK, N, N);
+ 
+ 	for(l=sw->list; l; l=l->next) {
+ 		n = l->n;
+@@ -546,7 +546,7 @@ exprswitch(Node *sw)
+ 		def = c0->node->right;
+ 		c0 = c0->link;
+ 	} else {
+-		def = nod(OCBREAK, N, N);
++		def = nod(OBREAK, N, N);
+ 	}
+ 
+ loop:
+@@ -723,7 +723,7 @@ typeswitch(Node *sw)
+ 		def = c0->node->right;
+ 		c0 = c0->link;
+ 	} else {
+-		def = nod(OCBREAK, N, N);
++		def = nod(OBREAK, N, N);
+ 	}
+ 	
+ 	/*
+@@ -808,7 +808,7 @@ walkswitch(Node *sw)
+ 	/*
+ 	 * reorder the body into (OLIST, cases, statements)
+ 	 * cases have OGOTO into statements.
+-	 * both have inserted OCBREAK statements
++	 * both have inserted OBREAK statements
+ 	 */
+ 	if(sw->ntest == N) {
+ 		sw->ntest = nodbool(1);
+diff --git a/src/cmd/gc/typecheck.c b/src/cmd/gc/typecheck.c
+index cca8edc..714c662 100644
+--- a/src/cmd/gc/typecheck.c
++++ b/src/cmd/gc/typecheck.c
+@@ -249,7 +249,6 @@ callrecv(Node *n)
+ 	case OCALLINTER:
+ 	case OCALLFUNC:
+ 	case ORECV:
+-	case OSEND:
+ 	case OCAP:
+ 	case OLEN:
+ 	case OCOPY:
+@@ -939,7 +938,7 @@ reswitch:
+ 		goto ret;
+ 
+ 	case OSEND:
+-		ok |= Etop|Erv;
++		ok |= Etop;
+ 		l = typecheck(&n->left, Erv);
+ 		typecheck(&n->right, Erv);
+ 		defaultlit(&n->left, T);
+@@ -959,7 +958,9 @@ reswitch:
+ 		if(r->type == T)
+ 			goto error;
+ 		n->right = assignconv(r, l->type->type, "send");
+-		n->type = types[TBOOL];
++		// TODO: more aggressive
++		n->etype = 0;
++		n->type = T;
+ 		goto ret;
+ 
+ 	case OSLICE:
+@@ -1273,75 +1274,9 @@ reswitch:
+ 		n->type = t;
+ 		goto ret;
+ 
+-	case OCCLOSED:
+-		ok |= Erv;
+-		args = n->list;
+-		if(args == nil) {
+-			yyerror("missing argument to cclosed");
+-			goto error;
+-		}
+-		if(args->next != nil) {
+-			yyerror("too many arguments to cclosed");
+-			goto error;
+-		}
+-		n->left = args->n;
+-		n->list = nil;
+-		typecheck(&n->left, Erv);
+-		defaultlit(&n->left, T);
+-		l = n->left;
+-		if((t = l->type) == T)
+-			goto error;
+-		if(t->etype != TCHAN) {
+-			yyerror("invalid operation: %N (non-chan type %T)", n, t);
+-			goto error;
+-		}
+-		n->type = types[TBOOL];
+-		goto ret;
+-
+-	case OCERROR:
+-		ok |= Erv;
+-		args = n->list;
+-		if(args == nil) {
+-			yyerror("missing argument to cerror");
+-			goto error;
+-		}
+-		if(args->next != nil) {
+-			yyerror("too many arguments to cerror");
+-			goto error;
+-		}
+-		n->left = args->n;
+-		n->list = nil;
+-		typecheck(&n->left, Erv);
+-		defaultlit(&n->left, T);
+-		l = n->left;
+-		if((t = l->type) == T)
+-			goto error;
+-		if(t->etype != TCHAN) {
+-			yyerror("invalid operation: %N (non-chan type %T)", n, t);
+-			goto error;
+-		}
+-		n->type = errortype;
+-		goto ret;
+-
+ 	case OCLOSE:
+-		// accept opt. second arg and don't fail on close for
+-		// send only channels.
+-		args = n->list;
+-		if(args == nil) {
+-			yyerror("missing arguments to close");
+-			goto error;
+-		}
+-		if(args->next != nil && args->next->next != nil) {
+-			yyerror("too many arguments to close");
++		if(onearg(n, "%O", n->op) < 0)
+ 			goto error;
+-		}
+-		n->left = args->n;
+-		if(args->next != nil) {
+-			n->right = args->next->n;
+-		} else {
+-			n->right = nil;
+-		}
+-		n->list = nil;
+ 		typecheck(&n->left, Erv);
+ 		defaultlit(&n->left, T);
+ 		l = n->left;
+@@ -1351,16 +1286,9 @@ reswitch:
+ 			yyerror("invalid operation: %N (non-chan type %T)", n, t);
+ 			goto error;
+ 		}
+-		if(n->right != nil) {
+-			typecheck(&n->right, Erv);
+-			if(n->right->type == T)
+-				goto error;
+-			// BUG: TODO
+-			if(n->right->type->etype != TSTRING &&
+-			   n->right->type->etype != errortype->etype && 0) {
+-				yyerror("second argument to close not error or string");
+-				goto error;
+-			}
++		if(!(t->chan & Csend)) {
++			yyerror("invalid operation: %N (cannot close receive-only channel)", n);
++			goto error;
+ 		}
+ 		ok |= Etop;
+ 		goto ret;
+@@ -1732,7 +1660,6 @@ reswitch:
+ 		goto ret;
+ 
+ 	case OBREAK:
+-	case OCBREAK:
+ 	case OCONTINUE:
+ 	case ODCL:
+ 	case OEMPTY:
+@@ -1795,7 +1722,6 @@ reswitch:
+ 		ok |= Etop;
+ 		goto ret;
+ 
+-	case ODOSELECT:
+ 	case OSELECT:
+ 		ok |= Etop;
+ 		typecheckselect(n);
+@@ -1961,8 +1887,6 @@ checkdefergo(Node *n)
+ 		break;
+ 	case OAPPEND:
+ 	case OCAP:
+-	case OCCLOSED:
+-	case OCERROR:
+ 	case OCOMPLEX:
+ 	case OIMAG:
+ 	case OLEN:
+@@ -3523,7 +3447,6 @@ markbreak(Node *n, Node *implicit)
+ 
+ 	switch(n->op) {
+ 	case OBREAK:
+-	case OCBREAK:
+ 		if(n->left == N) {
+ 			if(implicit)
+ 				implicit->hasbreak = 1;
+@@ -3537,7 +3460,6 @@ markbreak(Node *n, Node *implicit)
+ 	case OFOR:
+ 	case OSWITCH:
+ 	case OTYPESW:
+-	case ODOSELECT:
+ 	case OSELECT:
+ 	case ORANGE:
+ 		implicit = n;
+@@ -3571,7 +3493,6 @@ markbreaklist(NodeList *l, Node *implicit)
+ 			case OSWITCH:
+ 			case OTYPESW:
+ 			case OSELECT:
+-			case ODOSELECT:
+ 			case ORANGE:
+ 				lab = mal(sizeof *lab);
+ 				lab->def = n->defn;
+@@ -3632,7 +3553,6 @@ isterminating(NodeList *l, int top)
+ 	case OIF:
+ 		return isterminating(n->nbody, 0) && isterminating(n->nelse, 0);
+ 
+-	case ODOSELECT:
+ 	case OSWITCH:
+ 	case OTYPESW:
+ 	case OSELECT:
+@@ -3645,7 +3565,7 @@ isterminating(NodeList *l, int top)
+ 			if(l->n->list == nil) // default
+ 				def = 1;
+ 		}
+-		if(n->op != OSELECT && n->op != ODOSELECT && !def)
++		if(n->op != OSELECT && !def)
+ 			return 0;
+ 		return 1;
+ 	}
+diff --git a/src/cmd/gc/walk.c b/src/cmd/gc/walk.c
+index ea115f5..ff9b362 100644
+--- a/src/cmd/gc/walk.c
++++ b/src/cmd/gc/walk.c
+@@ -161,8 +161,6 @@ walkstmt(Node **np)
+ 	case OAS2RECV:
+ 	case OAS2FUNC:
+ 	case OAS2MAPR:
+-	case OCCLOSED:
+-	case OCERROR:
+ 	case OCLOSE:
+ 	case OCOPY:
+ 	case OCALLMETH:
+@@ -202,7 +200,6 @@ walkstmt(Node **np)
+ 		break;
+ 
+ 	case OBREAK:
+-	case OCBREAK:
+ 	case ODCL:
+ 	case OCONTINUE:
+ 	case OFALL:
+@@ -316,7 +313,6 @@ walkstmt(Node **np)
+ 	case ORETJMP:
+ 		break;
+ 
+-	case ODOSELECT:
+ 	case OSELECT:
+ 		walkselect(n);
+ 		break;
+@@ -624,6 +620,7 @@ walkexpr(Node **np, NodeList **init)
+ 		default:
+ 			walkexpr(&n->right, init);
+ 			break;
++		
+ 		case ORECV:
+ 			// x = <-c; n->left is x, n->right->left is c.
+ 			// orderstmt made sure x is addressable.
+@@ -1272,29 +1269,11 @@ walkexpr(Node **np, NodeList **init)
+ 		n = copyany(n, init, flag_race);
+ 		goto ret;
+ 
+-	case OCCLOSED:
+-		fn = syslook("cclosed", 1);
+-		argtype(fn, n->left->type);
+-		n = mkcall1(fn, types[TBOOL], init, n->left);
+-		goto ret;
+-
+-	case OCERROR:
+-		fn = syslook("cerror", 1);
+-		argtype(fn, n->left->type);
+-		n = mkcall1(fn, errortype, init, n->left);
+-		goto ret;
+-
+ 	case OCLOSE:
+ 		// cannot use chanfn - closechan takes any, not chan any
+-		if(n->right == nil) {
+-			fn = syslook("closechan", 1);
+-			argtype(fn, n->left->type);
+-			n = mkcall1(fn, T, init, n->left);
+-		} else {
+-			fn = syslook("closechan2", 1);
+-			argtype(fn, n->left->type);
+-			n = mkcall1(fn, T, init, n->left, n->right);
+-		}
++		fn = syslook("closechan", 1);
++		argtype(fn, n->left->type);
++		n = mkcall1(fn, T, init, n->left);
+ 		goto ret;
+ 
+ 	case OMAKECHAN:
+@@ -1420,9 +1399,7 @@ walkexpr(Node **np, NodeList **init)
+ 		n1 = assignconv(n1, n->left->type->type, "chan send");
+ 		walkexpr(&n1, init);
+ 		n1 = nod(OADDR, n1, N);
+-		n = mkcall1(chanfn("chansend2", 2, n->left->type),
+-			types[TBOOL], init, typename(n->left->type), n->left, n1);
+-		n->type = types[TBOOL];
++		n = mkcall1(chanfn("chansend1", 2, n->left->type), T, init, typename(n->left->type), n->left, n1);
+ 		goto ret;
+ 
+ 	case OCLOSURE:
+diff --git a/src/cmd/go/fmt.go b/src/cmd/go/fmt.go
+index 08a155b..65dc3ca 100644
+--- a/src/cmd/go/fmt.go
++++ b/src/cmd/go/fmt.go
+@@ -13,7 +13,7 @@ var cmdFmt = &Command{
+ 	UsageLine: "fmt [-n] [-x] [packages]",
+ 	Short:     "run gofmt on package sources",
+ 	Long: `
+-Fmt runs the command 'gofmt -l -w -s -S' on the packages named
++Fmt runs the command 'gofmt -l -w' on the packages named
+ by the import paths.  It prints the names of the files that are modified.
+ 
+ For more about gofmt, see 'godoc gofmt'.
+@@ -33,6 +33,6 @@ func runFmt(cmd *Command, args []string) {
+ 		// Use pkg.gofiles instead of pkg.Dir so that
+ 		// the command only applies to this package,
+ 		// not to packages in subdirectories.
+-		run(stringList("gofmt", "-l", "-w", "-s", "-S", relPaths(pkg.allgofiles)))
++		run(stringList("gofmt", "-l", "-w", relPaths(pkg.allgofiles)))
+ 	}
+ }
+diff --git a/src/cmd/gofmt/gofmt.go b/src/cmd/gofmt/gofmt.go
+index 383b0d2..81da21f 100644
+--- a/src/cmd/gofmt/gofmt.go
++++ b/src/cmd/gofmt/gofmt.go
+@@ -31,8 +31,6 @@ var (
+ 	doDiff      = flag.Bool("d", false, "display diffs instead of rewriting files")
+ 	allErrors   = flag.Bool("e", false, "report all errors (not just the first 10 on different lines)")
+ 
+-	implicitStruct = flag.Bool("S", false, "omit struct keyword in top-level type declarations")
+-
+ 	// debugging
+ 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
+ )
+@@ -108,8 +106,7 @@ func processFile(filename string, in io.Reader, out io.Writer, stdin bool) error
+ 		simplify(file)
+ 	}
+ 
+-	res, err := format(fileSet, file, sourceAdj, indentAdj, src, printer.Config{
+-		Mode: printerMode, Tabwidth: tabWidth, ImplicitStruct: *implicitStruct})
++	res, err := format(fileSet, file, sourceAdj, indentAdj, src, printer.Config{Mode: printerMode, Tabwidth: tabWidth})
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/src/cmd/gofmt/gofmt_test.go b/src/cmd/gofmt/gofmt_test.go
+index 29b70b4..d1edb7b 100644
+--- a/src/cmd/gofmt/gofmt_test.go
++++ b/src/cmd/gofmt/gofmt_test.go
+@@ -128,7 +128,6 @@ func runTest(t *testing.T, in, out string) {
+ //
+ // in the processed file within the first 20 lines, if any.
+ func TestRewrite(t *testing.T) {
+-	return	// lsub changes break this one
+ 	// determine input files
+ 	match, err := filepath.Glob("testdata/*.input")
+ 	if err != nil {
+diff --git a/src/go/ast/ast.go b/src/go/ast/ast.go
+index d45c1a0..312e3d1 100644
+--- a/src/go/ast/ast.go
++++ b/src/go/ast/ast.go
+@@ -383,7 +383,6 @@ type (
+ 		Struct     token.Pos  // position of "struct" keyword
+ 		Fields     *FieldList // list of field declarations
+ 		Incomplete bool       // true if (source) fields are missing in the Fields list
+-		Optional	bool	// true if we can omit the 'struct' keyword here
+ 	}
+ 
+ 	// Pointer types are represented via StarExpr nodes.
+@@ -688,7 +687,7 @@ type (
+ 		Body   *BlockStmt // CommClauses only
+ 	}
+ 
+-	// A ForStmt represents a for statement
++	// A ForStmt represents a for statement.
+ 	ForStmt struct {
+ 		For  token.Pos // position of "for" keyword
+ 		Init Stmt      // initialization statement; or nil
+@@ -697,15 +696,6 @@ type (
+ 		Body *BlockStmt
+ 	}
+ 
+-	// A DoSelectStmt node represents a doselect statement
+-	DoSelectStmt struct {
+-		DoSelect  token.Pos // position of "doselect" keyword
+-		Init Stmt      // initialization statement; or nil
+-		Cond Expr      // condition; or nil
+-		Post Stmt      // post iteration statement; or nil
+-		Body *BlockStmt // CommClauses only
+-	}
+-
+ 	// A RangeStmt represents a for statement with a range clause.
+ 	RangeStmt struct {
+ 		For        token.Pos   // position of "for" keyword
+@@ -738,7 +728,6 @@ func (s *SwitchStmt) Pos() token.Pos     { return s.Switch }
+ func (s *TypeSwitchStmt) Pos() token.Pos { return s.Switch }
+ func (s *CommClause) Pos() token.Pos     { return s.Case }
+ func (s *SelectStmt) Pos() token.Pos     { return s.Select }
+-func (s *DoSelectStmt) Pos() token.Pos     { return s.DoSelect }
+ func (s *ForStmt) Pos() token.Pos        { return s.For }
+ func (s *RangeStmt) Pos() token.Pos      { return s.For }
+ 
+@@ -790,7 +779,6 @@ func (s *CommClause) End() token.Pos {
+ 	return s.Colon + 1
+ }
+ func (s *SelectStmt) End() token.Pos { return s.Body.End() }
+-func (s *DoSelectStmt) End() token.Pos { return s.Body.End() }
+ func (s *ForStmt) End() token.Pos    { return s.Body.End() }
+ func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
+ 
+@@ -815,7 +803,6 @@ func (*CaseClause) stmtNode()     {}
+ func (*SwitchStmt) stmtNode()     {}
+ func (*TypeSwitchStmt) stmtNode() {}
+ func (*CommClause) stmtNode()     {}
+-func (*DoSelectStmt) stmtNode()     {}
+ func (*SelectStmt) stmtNode()     {}
+ func (*ForStmt) stmtNode()        {}
+ func (*RangeStmt) stmtNode()      {}
+diff --git a/src/go/ast/walk.go b/src/go/ast/walk.go
+index 31aa770..73ac386 100644
+--- a/src/go/ast/walk.go
++++ b/src/go/ast/walk.go
+@@ -274,18 +274,6 @@ func Walk(v Visitor, node Node) {
+ 		}
+ 		Walk(v, n.Body)
+ 
+-	case *DoSelectStmt:
+-		if n.Init != nil {
+-			Walk(v, n.Init)
+-		}
+-		if n.Cond != nil {
+-			Walk(v, n.Cond)
+-		}
+-		if n.Post != nil {
+-			Walk(v, n.Post)
+-		}
+-		Walk(v, n.Body)
+-
+ 	case *RangeStmt:
+ 		if n.Key != nil {
+ 			Walk(v, n.Key)
+diff --git a/src/go/format/format_test.go b/src/go/format/format_test.go
+index 5d04136..d7846be 100644
+--- a/src/go/format/format_test.go
++++ b/src/go/format/format_test.go
+@@ -37,7 +37,6 @@ func diff(t *testing.T, dst, src []byte) {
+ }
+ 
+ func TestNode(t *testing.T) {
+-	return // lsub
+ 	src, err := ioutil.ReadFile(testfile)
+ 	if err != nil {
+ 		t.Fatal(err)
+@@ -59,7 +58,6 @@ func TestNode(t *testing.T) {
+ }
+ 
+ func TestSource(t *testing.T) {
+-	return // lsub
+ 	src, err := ioutil.ReadFile(testfile)
+ 	if err != nil {
+ 		t.Fatal(err)
+diff --git a/src/go/parser/parser.go b/src/go/parser/parser.go
+index bf19854..4a005d8 100644
+--- a/src/go/parser/parser.go
++++ b/src/go/parser/parser.go
+@@ -438,7 +438,7 @@ func syncStmt(p *parser) {
+ 		switch p.tok {
+ 		case token.BREAK, token.CONST, token.CONTINUE, token.DEFER,
+ 			token.FALLTHROUGH, token.FOR, token.GO, token.GOTO,
+-			token.IF, token.RETURN, token.SELECT, token.DOSELECT, token.SWITCH,
++			token.IF, token.RETURN, token.SELECT, token.SWITCH,
+ 			token.TYPE, token.VAR:
+ 			// Return only if parser made some progress since last
+ 			// sync or if it has not reached 10 sync calls without
+@@ -598,12 +598,12 @@ func (p *parser) parseRhsList() []ast.Expr {
+ // ----------------------------------------------------------------------------
+ // Types
+ 
+-func (p *parser) parseType(istype bool) ast.Expr {
++func (p *parser) parseType() ast.Expr {
+ 	if p.trace {
+ 		defer un(trace(p, "Type"))
+ 	}
+ 
+-	typ := p.tryType(istype)
++	typ := p.tryType()
+ 
+ 	if typ == nil {
+ 		pos := p.pos
+@@ -652,7 +652,7 @@ func (p *parser) parseArrayType() ast.Expr {
+ 	}
+ 	p.exprLev--
+ 	p.expect(token.RBRACK)
+-	elt := p.parseType(false)
++	elt := p.parseType()
+ 
+ 	return &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
+ }
+@@ -714,20 +714,13 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
+ 	return field
+ }
+ 
+-func (p *parser) parseStructType(istype bool) *ast.StructType {
++func (p *parser) parseStructType() *ast.StructType {
+ 	if p.trace {
+ 		defer un(trace(p, "StructType"))
+ 	}
+ 
+-	pos := p.pos
+-	lbrace := p.pos
+-	if istype && p.tok == token.LBRACE {
+-		pos = p.expect(token.LBRACE)
+-		lbrace = pos
+-	} else {
+-		pos = p.expect(token.STRUCT)
+-		lbrace = p.expect(token.LBRACE)
+-	}
++	pos := p.expect(token.STRUCT)
++	lbrace := p.expect(token.LBRACE)
+ 	scope := ast.NewScope(nil) // struct scope
+ 	var list []*ast.Field
+ 	for p.tok == token.IDENT || p.tok == token.MUL || p.tok == token.LPAREN {
+@@ -745,7 +738,6 @@ func (p *parser) parseStructType(istype bool) *ast.StructType {
+ 			List:    list,
+ 			Closing: rbrace,
+ 		},
+-		Optional: istype,
+ 	}
+ }
+ 
+@@ -755,7 +747,7 @@ func (p *parser) parsePointerType() *ast.StarExpr {
+ 	}
+ 
+ 	star := p.expect(token.MUL)
+-	base := p.parseType(false)
++	base := p.parseType()
+ 
+ 	return &ast.StarExpr{Star: star, X: base}
+ }
+@@ -765,7 +757,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
+ 	if isParam && p.tok == token.ELLIPSIS {
+ 		pos := p.pos
+ 		p.next()
+-		typ := p.tryIdentOrType(false) // don't use parseType so we can provide better error message
++		typ := p.tryIdentOrType() // don't use parseType so we can provide better error message
+ 		if typ != nil {
+ 			p.resolve(typ)
+ 		} else {
+@@ -774,7 +766,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
+ 		}
+ 		return &ast.Ellipsis{Ellipsis: pos, Elt: typ}
+ 	}
+-	return p.tryIdentOrType(false)
++	return p.tryIdentOrType()
+ }
+ 
+ // If the result is an identifier, it is not resolved.
+@@ -887,7 +879,7 @@ func (p *parser) parseResult(scope *ast.Scope) *ast.FieldList {
+ 		return p.parseParameters(scope, false)
+ 	}
+ 
+-	typ := p.tryType(false)
++	typ := p.tryType()
+ 	if typ != nil {
+ 		list := make([]*ast.Field, 1)
+ 		list[0] = &ast.Field{Type: typ}
+@@ -979,9 +971,9 @@ func (p *parser) parseMapType() *ast.MapType {
+ 
+ 	pos := p.expect(token.MAP)
+ 	p.expect(token.LBRACK)
+-	key := p.parseType(false)
++	key := p.parseType()
+ 	p.expect(token.RBRACK)
+-	value := p.parseType(false)
++	value := p.parseType()
+ 
+ 	return &ast.MapType{Map: pos, Key: key, Value: value}
+ }
+@@ -1006,20 +998,20 @@ func (p *parser) parseChanType() *ast.ChanType {
+ 		p.expect(token.CHAN)
+ 		dir = ast.RECV
+ 	}
+-	value := p.parseType(false)
++	value := p.parseType()
+ 
+ 	return &ast.ChanType{Begin: pos, Arrow: arrow, Dir: dir, Value: value}
+ }
+ 
+ // If the result is an identifier, it is not resolved.
+-func (p *parser) tryIdentOrType(istype bool) ast.Expr {
++func (p *parser) tryIdentOrType() ast.Expr {
+ 	switch p.tok {
+ 	case token.IDENT:
+ 		return p.parseTypeName()
+ 	case token.LBRACK:
+ 		return p.parseArrayType()
+ 	case token.STRUCT:
+-		return p.parseStructType(istype)
++		return p.parseStructType()
+ 	case token.MUL:
+ 		return p.parsePointerType()
+ 	case token.FUNC:
+@@ -1034,7 +1026,7 @@ func (p *parser) tryIdentOrType(istype bool) ast.Expr {
+ 	case token.LPAREN:
+ 		lparen := p.pos
+ 		p.next()
+-		typ := p.parseType(false)
++		typ := p.parseType()
+ 		rparen := p.expect(token.RPAREN)
+ 		return &ast.ParenExpr{Lparen: lparen, X: typ, Rparen: rparen}
+ 	}
+@@ -1043,13 +1035,8 @@ func (p *parser) tryIdentOrType(istype bool) ast.Expr {
+ 	return nil
+ }
+ 
+-func (p *parser) tryType(istype bool) ast.Expr {
+-	var typ ast.Expr
+-	if p.tok == token.LBRACE && istype {
+-		typ = p.parseStructType(istype)
+-	} else {
+-		typ = p.tryIdentOrType(istype)
+-	}
++func (p *parser) tryType() ast.Expr {
++	typ := p.tryIdentOrType()
+ 	if typ != nil {
+ 		p.resolve(typ)
+ 	}
+@@ -1157,7 +1144,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
+ 		return p.parseFuncTypeOrLit()
+ 	}
+ 
+-	if typ := p.tryIdentOrType(false); typ != nil {
++	if typ := p.tryIdentOrType(); typ != nil {
+ 		// could be type for composite literal or conversion
+ 		_, isIdent := typ.(*ast.Ident)
+ 		assert(!isIdent, "type cannot be identifier")
+@@ -1192,7 +1179,7 @@ func (p *parser) parseTypeAssertion(x ast.Expr) ast.Expr {
+ 		// type switch: typ == nil
+ 		p.next()
+ 	} else {
+-		typ = p.parseType(false)
++		typ = p.parseType()
+ 	}
+ 	rparen := p.expect(token.RPAREN)
+ 
+@@ -1856,10 +1843,10 @@ func (p *parser) parseTypeList() (list []ast.Expr) {
+ 		defer un(trace(p, "TypeList"))
+ 	}
+ 
+-	list = append(list, p.parseType(false))
++	list = append(list, p.parseType())
+ 	for p.tok == token.COMMA {
+ 		p.next()
+-		list = append(list, p.parseType(false))
++		list = append(list, p.parseType())
+ 	}
+ 
+ 	return
+@@ -2042,64 +2029,6 @@ func (p *parser) parseSelectStmt() *ast.SelectStmt {
+ 	return &ast.SelectStmt{Select: pos, Body: body}
+ }
+ 
+-func (p *parser) parseDoSelectStmt() *ast.DoSelectStmt {
+-	if p.trace {
+-		defer un(trace(p, "DoSelectStmt"))
+-	}
+-
+-	pos := p.expect(token.DOSELECT)
+-
+-	p.openScope()
+-	defer p.closeScope()
+-	var s1, s2, s3 ast.Stmt
+-	if p.tok != token.LBRACE {
+-		prevLev := p.exprLev
+-		p.exprLev = -1
+-		isRange := false
+-		if p.tok != token.SEMICOLON {
+-			if p.tok == token.RANGE {
+-				isRange = true
+-			} else {
+-				s2, isRange = p.parseSimpleStmt(basic)
+-			}
+-			if isRange {
+-				p.errorExpected(pos, "unexpected range")
+-				syncStmt(p)
+-			}
+-		}
+-		if !isRange && p.tok == token.SEMICOLON {
+-			p.next()
+-			s1 = s2
+-			s2 = nil
+-			if p.tok != token.SEMICOLON {
+-				s2, _ = p.parseSimpleStmt(basic)
+-			}
+-			p.expectSemi()
+-			if p.tok != token.LBRACE {
+-				s3, _ = p.parseSimpleStmt(basic)
+-			}
+-		}
+-		p.exprLev = prevLev
+-	}
+-	
+-	lbrace := p.expect(token.LBRACE)
+-	var list []ast.Stmt
+-	for p.tok == token.CASE || p.tok == token.DEFAULT {
+-		list = append(list, p.parseCommClause())
+-	}
+-	rbrace := p.expect(token.RBRACE)
+-	p.expectSemi()
+-	body := &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
+-
+-	return &ast.DoSelectStmt{
+-		DoSelect:  pos,
+-		Init: s1,
+-		Cond: p.makeExpr(s2, "boolean or range expression"),
+-		Post: s3,
+-		Body: body,
+-	}
+-}
+-
+ func (p *parser) parseForStmt() ast.Stmt {
+ 	if p.trace {
+ 		defer un(trace(p, "ForStmt"))
+@@ -2189,9 +2118,7 @@ func (p *parser) parseStmt() (s ast.Stmt) {
+ 	}
+ 
+ 	switch p.tok {
+-	case token.TYPE:
+-		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
+-	case token.CONST, token.VAR:
++	case token.CONST, token.TYPE, token.VAR:
+ 		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
+ 	case
+ 		// tokens that may start an expression
+@@ -2222,8 +2149,6 @@ func (p *parser) parseStmt() (s ast.Stmt) {
+ 		s = p.parseSwitchStmt()
+ 	case token.SELECT:
+ 		s = p.parseSelectStmt()
+-	case token.DOSELECT:
+-		s = p.parseDoSelectStmt()
+ 	case token.FOR:
+ 		s = p.parseForStmt()
+ 	case token.SEMICOLON:
+@@ -2246,7 +2171,7 @@ func (p *parser) parseStmt() (s ast.Stmt) {
+ // ----------------------------------------------------------------------------
+ // Declarations
+ 
+-type parseSpecFunction func(doc *ast.CommentGroup, keyword token.Token, iota int, istype bool) ast.Spec
++type parseSpecFunction func(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec
+ 
+ func isValidImport(lit string) bool {
+ 	const illegalChars = `!"#$%&'()*,:;<=>?[\]^{|}` + "`\uFFFD"
+@@ -2259,7 +2184,7 @@ func isValidImport(lit string) bool {
+ 	return s != ""
+ }
+ 
+-func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int, _ bool) ast.Spec {
++func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
+ 	if p.trace {
+ 		defer un(trace(p, "ImportSpec"))
+ 	}
+@@ -2298,13 +2223,13 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int, _
+ 	return spec
+ }
+ 
+-func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int, _ bool) ast.Spec {
++func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
+ 	if p.trace {
+ 		defer un(trace(p, keyword.String()+"Spec"))
+ 	}
+ 
+ 	idents := p.parseIdentList()
+-	typ := p.tryType(false)
++	typ := p.tryType()
+ 	var values []ast.Expr
+ 	// always permit optional initialization for more tolerant parsing
+ 	if p.tok == token.ASSIGN {
+@@ -2333,7 +2258,7 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
+ 	return spec
+ }
+ 
+-func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int, istype bool) ast.Spec {
++func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
+ 	if p.trace {
+ 		defer un(trace(p, "TypeSpec"))
+ 	}
+@@ -2347,7 +2272,7 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int, isty
+ 	spec := &ast.TypeSpec{Doc: doc, Name: ident}
+ 	p.declare(spec, nil, p.topScope, ast.Typ, ident)
+ 
+-	spec.Type = p.parseType(istype)
++	spec.Type = p.parseType()
+ 	p.expectSemi() // call before accessing p.linecomment
+ 	spec.Comment = p.lineComment
+ 
+@@ -2359,7 +2284,6 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
+ 		defer un(trace(p, "GenDecl("+keyword.String()+")"))
+ 	}
+ 
+-	istype := p.tok == token.TYPE
+ 	doc := p.leadComment
+ 	pos := p.expect(keyword)
+ 	var lparen, rparen token.Pos
+@@ -2368,12 +2292,12 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
+ 		lparen = p.pos
+ 		p.next()
+ 		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
+-			list = append(list, f(p.leadComment, keyword, iota, istype))
++			list = append(list, f(p.leadComment, keyword, iota))
+ 		}
+ 		rparen = p.expect(token.RPAREN)
+ 		p.expectSemi()
+ 	} else {
+-		list = append(list, f(nil, keyword, 0, istype))
++		list = append(list, f(nil, keyword, 0))
+ 	}
+ 
+ 	return &ast.GenDecl{
+diff --git a/src/go/printer/nodes.go b/src/go/printer/nodes.go
+index f0dff2d..d5a6934 100644
+--- a/src/go/printer/nodes.go
++++ b/src/go/printer/nodes.go
+@@ -852,9 +852,7 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
+ 		p.expr(x.Elt)
+ 
+ 	case *ast.StructType:
+-		if !x.Optional || !p.ImplicitStruct {
+-			p.print(token.STRUCT)
+-		}
++		p.print(token.STRUCT)
+ 		p.fieldList(x.Fields, true, x.Incomplete)
+ 
+ 	case *ast.FuncType:
+@@ -1215,17 +1213,6 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
+ 			p.block(body, 0)
+ 		}
+ 
+-	case *ast.DoSelectStmt:
+-		p.print(token.DOSELECT)
+-		p.controlClause(true, s.Init, s.Cond, s.Post)
+-		body := s.Body
+-		if len(body.List) == 0 && !p.commentBefore(p.posFor(body.Rbrace)) {
+-			// print empty select statement w/o comments on one line
+-			p.print(body.Lbrace, token.LBRACE, body.Rbrace, token.RBRACE)
+-		} else {
+-			p.block(body, 0)
+-		}
+-
+ 	case *ast.ForStmt:
+ 		p.print(token.FOR)
+ 		p.controlClause(true, s.Init, s.Cond, s.Post)
+diff --git a/src/go/printer/performance_test.go b/src/go/printer/performance_test.go
+index ad86e20..5b29aff 100644
+--- a/src/go/printer/performance_test.go
++++ b/src/go/printer/performance_test.go
+@@ -20,7 +20,7 @@ import (
+ var testfile *ast.File
+ 
+ func testprint(out io.Writer, file *ast.File) {
+-	if err := (&Config{TabIndent | UseSpaces, 8, 0, false}).Fprint(out, fset, file); err != nil {
++	if err := (&Config{TabIndent | UseSpaces, 8, 0}).Fprint(out, fset, file); err != nil {
+ 		log.Fatalf("print error: %s", err)
+ 	}
+ }
+diff --git a/src/go/printer/printer.go b/src/go/printer/printer.go
+index 0479277..280c697 100644
+--- a/src/go/printer/printer.go
++++ b/src/go/printer/printer.go
+@@ -1216,7 +1216,6 @@ type Config struct {
+ 	Mode     Mode // default: 0
+ 	Tabwidth int  // default: 8
+ 	Indent   int  // default: 0 (all code is indented at least by this much)
+-	ImplicitStruct bool	// if set, don't write struct in type decls.
+ }
+ 
+ // fprint implements Fprint and takes a nodesSizes map for setting up the printer state.
+diff --git a/src/go/printer/printer_test.go b/src/go/printer/printer_test.go
+index 9ae2423..3b0570e 100644
+--- a/src/go/printer/printer_test.go
++++ b/src/go/printer/printer_test.go
+@@ -196,7 +196,6 @@ var data = []entry{
+ }
+ 
+ func TestFiles(t *testing.T) {
+-	return // lsub
+ 	for _, e := range data {
+ 		source := filepath.Join(dataDir, e.source)
+ 		golden := filepath.Join(dataDir, e.golden)
+diff --git a/src/go/token/token.go b/src/go/token/token.go
+index ac4be5a..865f63f 100644
+--- a/src/go/token/token.go
++++ b/src/go/token/token.go
+@@ -99,7 +99,6 @@ const (
+ 
+ 	DEFAULT
+ 	DEFER
+-	DOSELECT
+ 	ELSE
+ 	FALLTHROUGH
+ 	FOR
+@@ -201,7 +200,6 @@ var tokens = [...]string{
+ 
+ 	DEFAULT:     "default",
+ 	DEFER:       "defer",
+-	DOSELECT:         "doselect",
+ 	ELSE:        "else",
+ 	FALLTHROUGH: "fallthrough",
+ 	FOR:         "for",
+@@ -250,8 +248,8 @@ func (tok Token) String() string {
+ //
+ const (
+ 	LowestPrec  = 0 // non-operators
+-	UnaryPrec   = 7
+-	HighestPrec = 8
++	UnaryPrec   = 6
++	HighestPrec = 7
+ )
+ 
+ // Precedence returns the operator precedence of the binary
+@@ -260,18 +258,16 @@ const (
+ //
+ func (op Token) Precedence() int {
+ 	switch op {
+-	case ARROW:
+-		return 1
+ 	case LOR:
+-		return 2
++		return 1
+ 	case LAND:
+-		return 3
++		return 2
+ 	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
+-		return 4
++		return 3
+ 	case ADD, SUB, OR, XOR:
+-		return 5
++		return 4
+ 	case MUL, QUO, REM, SHL, SHR, AND, AND_NOT:
+-		return 6
++		return 5
+ 	}
+ 	return LowestPrec
+ }
+diff --git a/src/reflect/all_test.go b/src/reflect/all_test.go
+index 5f3bebf..7a01c95 100644
+--- a/src/reflect/all_test.go
++++ b/src/reflect/all_test.go
+@@ -1320,7 +1320,7 @@ func TestSelect(t *testing.T) {
+ 		if panicErr != nil && !canPanic {
+ 			t.Fatalf("%s\npanicked unexpectedly: %v", fmtSelect(info), panicErr)
+ 		}
+-		if panicErr == nil && canPanic && numCanSelect == 1 && false {
++		if panicErr == nil && canPanic && numCanSelect == 1 {
+ 			t.Fatalf("%s\nselected #%d incorrectly (should panic)", fmtSelect(info), i)
+ 		}
+ 		if panicErr != nil {
+@@ -1337,8 +1337,7 @@ func TestSelect(t *testing.T) {
+ 			continue
+ 		}
+ 		if cas.panic {
+-			// not for lsub
+-			// t.Fatalf("%s\nselected #%d incorrectly (case should panic)", fmtSelect(info), i)
++			t.Fatalf("%s\nselected #%d incorrectly (case should panic)", fmtSelect(info), i)
+ 			continue
+ 		}
+ 
+diff --git a/src/runtime/chan.go b/src/runtime/chan.go
+index 6ee8b40..0eb87df 100644
+--- a/src/runtime/chan.go
++++ b/src/runtime/chan.go
+@@ -62,24 +62,12 @@ func chanbuf(c *hchan, i uint) unsafe.Pointer {
+ 	return add(unsafe.Pointer(c.buf), uintptr(i)*uintptr(c.elemsize))
+ }
+ 
+-// old entry point for c <- x from compiled code
++// entry point for c <- x from compiled code
+ //go:nosplit
+ func chansend1(t *chantype, c *hchan, elem unsafe.Pointer) {
+ 	chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+ }
+ 
+-// entry point for ok = c <- x and c<-x from compiled code
+-// 1st return value is true if can send without blocking, false if not
+-// 2nd return value is true if did send, false if not.
+-//go:nosplit
+-func chansend2(t *chantype, c *hchan, elem unsafe.Pointer) bool {
+-	if t == nil {
+-		return false	// prevent this from inlining
+-	}
+-	_, did := chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+-	return did
+-}
+-
+ /*
+  * generic single channel send/recv
+  * If block is not nil,
+@@ -91,17 +79,15 @@ func chansend2(t *chantype, c *hchan, elem unsafe.Pointer) bool {
+  * when a channel involved in the sleep has
+  * been closed.  it is easiest to loop and re-run
+  * the operation; we'll see that it's now closed.
+- * 1st return value is true if can send without blocking, false if not
+- * 2nd return value is true if did send, false if not.
+  */
+-func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) (bool, bool) {
++func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
+ 	if raceenabled {
+ 		raceReadObjectPC(t.elem, ep, callerpc, funcPC(chansend))
+ 	}
+ 
+ 	if c == nil {
+ 		if !block {
+-			return false, false
++			return false
+ 		}
+ 		gopark(nil, nil, "chan send (nil chan)")
+ 		gothrow("unreachable")
+@@ -131,7 +117,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
+ 	// channel wasn't closed during the first observation.
+ 	if !block && c.closed == 0 && ((c.dataqsiz == 0 && c.recvq.first == nil) ||
+ 		(c.dataqsiz > 0 && c.qcount == c.dataqsiz)) {
+-		return false, false
++		return false
+ 	}
+ 
+ 	var t0 int64
+@@ -142,7 +128,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
+ 	lock(&c.lock)
+ 	if c.closed != 0 {
+ 		unlock(&c.lock)
+-		return true, false	// sending on a closed chan doesn't panic but fails -nemo
++		panic("send on closed channel")
+ 	}
+ 
+ 	if c.dataqsiz == 0 { // synchronous channel
+@@ -163,12 +149,12 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
+ 				sg.releasetime = cputicks()
+ 			}
+ 			goready(recvg)
+-			return true, true
++			return true
+ 		}
+ 
+ 		if !block {
+ 			unlock(&c.lock)
+-			return false, false
++			return false
+ 		}
+ 
+ 		// no receiver available: block on this channel.
+@@ -192,19 +178,18 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
+ 			gothrow("G waiting list is corrupted!")
+ 		}
+ 		gp.waiting = nil
+-		done := true
+ 		if gp.param == nil {
+ 			if c.closed == 0 {
+ 				gothrow("chansend: spurious wakeup")
+ 			}
+-			done = false	// don't panic on a closed chan; just return false -nemo
++			panic("send on closed channel")
+ 		}
+ 		gp.param = nil
+ 		if mysg.releasetime > 0 {
+ 			blockevent(int64(mysg.releasetime)-t0, 2)
+ 		}
+ 		releaseSudog(mysg)
+-		return true, done
++		return true
+ 	}
+ 
+ 	// asynchronous channel
+@@ -213,7 +198,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
+ 	for c.qcount >= c.dataqsiz {
+ 		if !block {
+ 			unlock(&c.lock)
+-			return false, false
++			return false
+ 		}
+ 		gp := getg()
+ 		mysg := acquireSudog()
+@@ -235,7 +220,7 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
+ 		lock(&c.lock)
+ 		if c.closed != 0 {
+ 			unlock(&c.lock)
+-			return true, false	// don't panic; just fail
++			panic("send on closed channel")
+ 		}
+ 	}
+ 
+@@ -266,18 +251,18 @@ func chansend(t *chantype, c *hchan, ep unsafe.Pointer, block bool, callerpc uin
+ 	if t1 > 0 {
+ 		blockevent(t1-t0, 2)
+ 	}
+-	return true, true
++	return true
+ }
+ 
+ func closechan(c *hchan) {
+ 	if c == nil {
+-		return	// don't panic
++		panic("close of nil channel")
+ 	}
+ 
+ 	lock(&c.lock)
+ 	if c.closed != 0 {
+ 		unlock(&c.lock)
+-		return	// don't panic
++		panic("close of closed channel")
+ 	}
+ 
+ 	if raceenabled {
+@@ -320,118 +305,6 @@ func closechan(c *hchan) {
+ 	unlock(&c.lock)
+ }
+ 
+-func chanerrstr(e interface{}) string {
+-	if e == nil {
+-		return ""
+-	}
+-	switch v := e.(type) {
+-	case nil:
+-		return ""
+-	case stringer:
+-		return v.String()
+-	case error:
+-		return v.Error()
+-	case string:
+-		return v
+-	default:
+-		panic("close errors must be a string or an error")
+-	}
+-}
+-
+-type chanError string
+-func (e chanError) Error() string {
+-	return string(e)
+-}
+-
+-// Return true if the channel is closed and all data has been received from it.
+-// Not called closed() because that might be a typical name in existing programs.
+-func cclosed(c *hchan) bool {
+-	if c == nil {
+-		return true
+-	}
+-	lock(&c.lock)
+-	closed := c.closed != 0 && (c.dataqsiz == 0 || c.qcount <= 0)
+-	unlock(&c.lock)
+-	return closed
+-}
+-
+-func cerror(c *hchan) error {
+-	if c == nil {
+-		return nil
+-	}
+-	lock(&c.lock)
+-	if c.closed == 0 || c.errlen == 0 || c.err[0] == 0 {
+-		unlock(&c.lock)
+-		return nil
+-	}
+-	msg := gostringn(&c.err[0], int(c.errlen))
+-	unlock(&c.lock)
+-	return chanError(msg)
+-}
+-
+-func closechan2(c *hchan, e interface{}) {
+-	if c == nil {
+-		return	// don't panic
+-	}
+-
+-	estr := chanerrstr(e)
+-	lock(&c.lock)
+-	if c.closed != 0 {
+-		unlock(&c.lock)
+-		return	// don't panic
+-	}
+-
+-	if raceenabled {
+-		callerpc := getcallerpc(unsafe.Pointer(&c))
+-		racewritepc(unsafe.Pointer(c), callerpc, funcPC(closechan))
+-		racerelease(unsafe.Pointer(c))
+-	}
+-
+-	c.closed = 1
+-	c.errlen = uint16(0)
+-	if estr != "" {
+-		n := (*stringStruct)(unsafe.Pointer(&estr)).len
+-		if n > 127 {
+-			n = 127
+-		}
+-		c.errlen = uint16(n)
+-		c.err[c.errlen] = 0
+-		p := (*stringStruct)(unsafe.Pointer(&estr)).str
+-		memmove(unsafe.Pointer(&c.err[0]), p, uintptr(c.errlen))
+-	}
+-	
+-	// release all readers
+-	for {
+-		sg := c.recvq.dequeue()
+-		if sg == nil {
+-			break
+-		}
+-		gp := sg.g
+-		sg.elem = nil
+-		gp.param = nil
+-		if sg.releasetime != 0 {
+-			sg.releasetime = cputicks()
+-		}
+-		goready(gp)
+-	}
+-
+-	// release all writers
+-	for {
+-		sg := c.sendq.dequeue()
+-		if sg == nil {
+-			break
+-		}
+-		gp := sg.g
+-		sg.elem = nil
+-		gp.param = nil
+-		if sg.releasetime != 0 {
+-			sg.releasetime = cputicks()
+-		}
+-		goready(gp)
+-	}
+-	unlock(&c.lock)
+-}
+-
+ // entry points for <- c from compiled code
+ //go:nosplit
+ func chanrecv1(t *chantype, c *hchan, elem unsafe.Pointer) {
+@@ -669,8 +542,7 @@ func recvclosed(c *hchan, ep unsafe.Pointer) (selected, recevied bool) {
+ //	}
+ //
+ func selectnbsend(t *chantype, c *hchan, elem unsafe.Pointer) (selected bool) {
+-	can, _ := chansend(t, c, elem, false, getcallerpc(unsafe.Pointer(&t)))
+-	return can
++	return chansend(t, c, elem, false, getcallerpc(unsafe.Pointer(&t)))
+ }
+ 
+ // compiler implements
+@@ -719,8 +591,7 @@ func selectnbrecv2(t *chantype, elem unsafe.Pointer, received *bool, c *hchan) (
+ }
+ 
+ func reflect_chansend(t *chantype, c *hchan, elem unsafe.Pointer, nb bool) (selected bool) {
+-	can, _ := chansend(t, c, elem, !nb, getcallerpc(unsafe.Pointer(&t)))
+-	return can
++	return chansend(t, c, elem, !nb, getcallerpc(unsafe.Pointer(&t)))
+ }
+ 
+ func reflect_chanrecv(t *chantype, c *hchan, nb bool, elem unsafe.Pointer) (selected bool, received bool) {
+diff --git a/src/runtime/chan.h b/src/runtime/chan.h
+index aa1d212..c34ff15 100644
+--- a/src/runtime/chan.h
++++ b/src/runtime/chan.h
+@@ -14,24 +14,18 @@ struct	WaitQ
+ 	SudoG*	last;
+ };
+ 
+-// In the future we should keep the opt. error hanging from Hchan and
+-// make the GC aware of it. By now, we'll just store the error string, if any. -nemo
+-#define MAXERR 128
+-
+ struct	Hchan
+ {
+ 	uintgo	qcount;			// total data in the q
+ 	uintgo	dataqsiz;		// size of the circular q
+ 	byte*	buf;
+ 	uint16	elemsize;
+-	uint16	errlen;		// error string len
+ 	uint32	closed;
+ 	Type*	elemtype;		// element type
+ 	uintgo	sendx;			// send index
+ 	uintgo	recvx;			// receive index
+ 	WaitQ	recvq;			// list of recv waiters
+ 	WaitQ	sendq;			// list of send waiters
+-	byte	err[MAXERR];	// error string given to close
+ 	Mutex	lock;
+ };
+ 
+diff --git a/src/runtime/mgc0.c b/src/runtime/mgc0.c
+index b04f291..7754bad 100644
+--- a/src/runtime/mgc0.c
++++ b/src/runtime/mgc0.c
+@@ -1511,7 +1511,7 @@ gc(struct gc_args *args)
+ 	if(ConcurrentSweep && !args->eagersweep) {
+ 		runtime·lock(&runtime·gclock);
+ 		if(runtime·sweep.g == nil)
+-			runtime·sweep.g = runtime·newproc1(&bgsweepv, nil, 0, 0, gc, 0);
++			runtime·sweep.g = runtime·newproc1(&bgsweepv, nil, 0, 0, gc);
+ 		else if(runtime·sweep.parked) {
+ 			runtime·sweep.parked = false;
+ 			runtime·ready(runtime·sweep.g);
+diff --git a/src/runtime/pprof/pprof_test.go b/src/runtime/pprof/pprof_test.go
+index f19352f..8677cb3 100644
+--- a/src/runtime/pprof/pprof_test.go
++++ b/src/runtime/pprof/pprof_test.go
+@@ -302,7 +302,6 @@ var badOS = map[string]bool{
+ }
+ 
+ func TestBlockProfile(t *testing.T) {
+-	return	// lsub changes break this test
+ 	type TestCase struct {
+ 		name string
+ 		f    func()
+diff --git a/src/runtime/proc.c b/src/runtime/proc.c
+index ff16909..8462c4b 100644
+--- a/src/runtime/proc.c
++++ b/src/runtime/proc.c
+@@ -172,8 +172,8 @@ runtime·newsysmon(void)
+ static void
+ dumpgstatus(G* gp)
+ {
+-	runtime·printf("runtime: gp: gp=%p, goid=%D, gp->atomicstatus=%x, gappid=%D\n", gp, gp->goid, runtime·readgstatus(gp), gp->gappid);
+-	runtime·printf("runtime:  g:  g=%p, goid=%D,  g->atomicstatus=%x, gappid=%D\n", g, g->goid, runtime·readgstatus(g), g->gappid);
++	runtime·printf("runtime: gp: gp=%p, goid=%D, gp->atomicstatus=%x\n", gp, gp->goid, runtime·readgstatus(gp));
++	runtime·printf("runtime:  g:  g=%p, goid=%D,  g->atomicstatus=%x\n", g, g->goid, runtime·readgstatus(g));
+ }
+ 
+ static void
+@@ -1038,7 +1038,6 @@ runtime·newextram(void)
+ 	mp->lockedg = gp;
+ 	gp->lockedm = mp;
+ 	gp->goid = runtime·xadd64(&runtime·sched.goidgen, 1);
+-	gp->gappid = gp->goid;
+ 	if(raceenabled)
+ 		gp->racectx = runtime·racegostart(runtime·newextram);
+ 	// put on allg for garbage collector
+@@ -2131,14 +2130,13 @@ newproc_m(void)
+ 	void *callerpc;
+ 	FuncVal *fn;
+ 	int32 siz;
+-	int64 gappid;
+ 
+ 	siz = g->m->scalararg[0];
+ 	callerpc = (void*)g->m->scalararg[1];	
+-	gappid = g->m->scalararg[2];
+ 	argp = g->m->ptrarg[0];
+ 	fn = (FuncVal*)g->m->ptrarg[1];
+-	runtime·newproc1(fn, argp, siz, 0, callerpc, gappid);
++
++	runtime·newproc1(fn, argp, siz, 0, callerpc);
+ 	g->m->ptrarg[0] = nil;
+ 	g->m->ptrarg[1] = nil;
+ }
+@@ -2164,7 +2162,6 @@ runtime·newproc(int32 siz, FuncVal* fn, ...)
+ 	g->m->locks++;
+ 	g->m->scalararg[0] = siz;
+ 	g->m->scalararg[1] = (uintptr)runtime·getcallerpc(&siz);
+-	g->m->scalararg[2] = g->gappid;
+ 	g->m->ptrarg[0] = argp;
+ 	g->m->ptrarg[1] = fn;
+ 	mfn = newproc_m;
+@@ -2179,7 +2176,7 @@ void runtime·main(void);
+ // address of the go statement that created this.  The new g is put
+ // on the queue of g's waiting to run.
+ G*
+-runtime·newproc1(FuncVal *fn, byte *argp, int32 narg, int32 nret, void *callerpc, int64 gappid)
++runtime·newproc1(FuncVal *fn, byte *argp, int32 narg, int32 nret, void *callerpc)
+ {
+ 	byte *sp;
+ 	G *newg;
+@@ -2240,7 +2237,6 @@ runtime·newproc1(FuncVal *fn, byte *argp, int32 narg, int32 nret, void *callerp
+ 		p->goidcacheend = p->goidcache + GoidCacheBatch;
+ 	}
+ 	newg->goid = p->goidcache++;
+-	newg->gappid = gappid;
+ 	if(raceenabled)
+ 		newg->racectx = runtime·racegostart((void*)callerpc);
+ 	runqput(p, newg);
+@@ -2828,7 +2824,7 @@ checkdead(void)
+ 		case Grunning:
+ 		case Gsyscall:
+ 			runtime·unlock(&runtime·allglock);
+-			runtime·printf("runtime: checkdead: find g %D app %D in status %d\n", gp->goid, gp->gappid, s);
++			runtime·printf("runtime: checkdead: find g %D in status %d\n", gp->goid, s);
+ 			runtime·throw("checkdead: runnable g");
+ 			break;
+ 		}
+diff --git a/src/runtime/proc.go b/src/runtime/proc.go
+index 836828a..517ca03 100644
+--- a/src/runtime/proc.go
++++ b/src/runtime/proc.go
+@@ -55,8 +55,6 @@ func main() {
+ 
+ 	memstats.enablegc = true // now that runtime is initialized, GC is okay
+ 
+-	g.gappid = g.goid
+-
+ 	main_init()
+ 
+ 	needUnlock = false
+@@ -246,24 +244,3 @@ func allgadd(gp *g) {
+ 	allglen = uintptr(len(allgs))
+ 	unlock(&allglock)
+ }
+-
+-// Make the current goroutine the root of a new application.
+-// All goroutines created by it from now on inherit the application id.
+-func NewApp() {
+-	gp := getg()
+-	gp.gappid = gp.goid
+-}
+-
+-
+-// Return the application it for the current goroutine.
+-func AppId() int64 {
+-	gp := getg()
+-	return gp.gappid
+-}
+-
+-// Return the current goroutine id.
+-func GoId() int64 {
+-	gp := getg()
+-	return gp.goid
+-}
+-
+diff --git a/src/runtime/runtime.h b/src/runtime/runtime.h
+index b4a1e89..177a128 100644
+--- a/src/runtime/runtime.h
++++ b/src/runtime/runtime.h
+@@ -296,7 +296,6 @@ struct	G
+ 	void*	param;		// passed parameter on wakeup
+ 	uint32	atomicstatus;
+ 	int64	goid;
+-	int64	gappid;	// go application it, inherited until changed -nemo
+ 	int64	waitsince;	// approx time when the G become blocked
+ 	String	waitreason;	// if status==Gwaiting
+ 	G*	schedlink;
+@@ -919,7 +918,7 @@ void	runtime·entersyscall(void);
+ void	runtime·reentersyscall(uintptr, uintptr);
+ void	runtime·entersyscallblock(void);
+ void	runtime·exitsyscall(void);
+-G*	runtime·newproc1(FuncVal*, byte*, int32, int32, void*, int64);
++G*	runtime·newproc1(FuncVal*, byte*, int32, int32, void*);
+ bool	runtime·sigsend(int32 sig);
+ intgo	runtime·callers(intgo, uintptr*, intgo);
+ intgo	runtime·gcallers(G*, intgo, uintptr*, intgo);
+diff --git a/src/runtime/select.go b/src/runtime/select.go
+index e3e9d85..f735a71 100644
+--- a/src/runtime/select.go
++++ b/src/runtime/select.go
+@@ -474,11 +474,6 @@ asyncrecv:
+ 	}
+ 	goto retc
+ 
+-sclose:
+-	// send fails because chan is closed
+-	selunlock(sel)
+-	goto retc
+-
+ asyncsend:
+ 	// can send to buffer
+ 	if raceenabled {
+@@ -572,6 +567,11 @@ retc:
+ 		blockevent(cas.releasetime-t0, 2)
+ 	}
+ 	return cas.pc, cas.so
++
++sclose:
++	// send on closed channel
++	selunlock(sel)
++	panic("send on closed channel")
+ }
+ 
+ func (c *hchan) sortkey() uintptr {
+diff --git a/test/chan/perm.go b/test/chan/perm.go
+index 862b3ba..919fa30 100644
+--- a/test/chan/perm.go
++++ b/test/chan/perm.go
+@@ -61,4 +61,5 @@ func main() {
+ 
+ 	close(c)
+ 	close(cs)
++	close(cr)  // ERROR "receive"
+ }
+diff --git a/test/chan/select3.go b/test/chan/select3.go
+index 28d18c7..847d8ed 100644
+--- a/test/chan/select3.go
++++ b/test/chan/select3.go
+@@ -101,6 +101,10 @@ func main() {
+ 		}
+ 	})
+ 
++	// sending to a closed channel panics.
++	testPanic(always, func() {
++		closedch <- 7
++	})
+ 
+ 	// receiving from a non-ready channel always blocks
+ 	testBlock(always, func() {
+@@ -203,6 +207,11 @@ func main() {
+ 			_, _ = x, ok
+ 		}
+ 	})
++	testPanic(always, func() {
++		select {
++		case closedch <- 7:
++		}
++	})
+ 
+ 	// select should not get confused if it sees itself
+ 	testBlock(always, func() {
+diff --git a/test/closedchan.go b/test/closedchan.go
+index 9169e48..043a92d 100644
+--- a/test/closedchan.go
++++ b/test/closedchan.go
+@@ -332,7 +332,6 @@ var testcloseds = []func(Chan) {
+ }
+ 
+ func main() {
+-	return	// lsub changes break this test
+ 	for _, mk := range mks {
+ 		test1(mk(closedsync()))
+ 	}
+diff --git a/test/syntax/chan1.go b/test/syntax/chan1.go
+new file mode 100644
+index 0000000..4860422a
+--- /dev/null
++++ b/test/syntax/chan1.go
+@@ -0,0 +1,17 @@
++// errorcheck
++
++// Copyright 2010 The Go Authors.  All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++package main
++
++var c chan int
++var v int
++
++func main() {
++	if c <- v { // ERROR "used as value"
++	}
++}
++
++var _ = c <- v // ERROR "used as value"

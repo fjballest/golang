@@ -196,7 +196,7 @@ var data = []entry{
 }
 
 func TestFiles(t *testing.T) {
-	return // lsub
+	t.Skip("lsub")
 	for _, e := range data {
 		source := filepath.Join(dataDir, e.source)
 		golden := filepath.Join(dataDir, e.golden)

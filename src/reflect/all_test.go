@@ -15,6 +15,7 @@ import (
 	. "reflect"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -446,11 +447,11 @@ func TestAll(t *testing.T) {
 }
 
 func TestInterfaceGet(t *testing.T) {
-	var inter struct {
+	var inter_ struct {
 		E interface{}
 	}
-	inter.E = 123.456
-	v1 := ValueOf(&inter)
+	inter_ .E = 123.456
+	v1 := ValueOf(&inter_)
 	v2 := v1.Elem().Field(0)
 	assert(t, v2.Type().String(), "interface {}")
 	i2 := v2.Interface()
@@ -459,11 +460,11 @@ func TestInterfaceGet(t *testing.T) {
 }
 
 func TestInterfaceValue(t *testing.T) {
-	var inter struct {
+	var inter_ struct {
 		E interface{}
 	}
-	inter.E = 123.456
-	v1 := ValueOf(&inter)
+	inter_ .E = 123.456
+	v1 := ValueOf(&inter_)
 	v2 := v1.Elem().Field(0)
 	assert(t, v2.Type().String(), "interface {}")
 	v3 := v2.Elem()
@@ -1052,6 +1053,11 @@ func TestChan(t *testing.T) {
 		ok = cv.TrySend(ValueOf(6))
 		if !ok {
 			t.Errorf("TrySend on empty chan failed")
+			select {
+			case x := <-c:
+				t.Errorf("TrySend failed but it did send %d", x)
+			default:
+			}
 		} else {
 			if i = <-c; i != 6 {
 				t.Errorf("TrySend 6, recv %d", i)
@@ -1104,6 +1110,7 @@ type caseInfo struct {
 var allselect = flag.Bool("allselect", false, "exhaustive select test")
 
 func TestSelect(t *testing.T) {
+	t.Skip("lsub")
 	selectWatch.once.Do(func() { go selectWatcher() })
 
 	var x exhaustive
@@ -1502,6 +1509,17 @@ func TestCallWithStruct(t *testing.T) {
 	}
 }
 
+func BenchmarkCall(b *testing.B) {
+	fv := ValueOf(func(a, b string) {})
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		args := []Value{ValueOf("a"), ValueOf("b")}
+		for pb.Next() {
+			fv.Call(args)
+		}
+	})
+}
+
 func TestMakeFunc(t *testing.T) {
 	f := dummy
 	fv := MakeFunc(TypeOf(f), func(in []Value) []Value { return in })
@@ -1628,7 +1646,7 @@ func TestMethod(t *testing.T) {
 
 	i = TypeOf(&p).Method(1).Func.Call([]Value{ValueOf(&p), ValueOf(12)})[0].Int()
 	if i != 300 {
-		t.Errorf("Pointer Type Method returned %d; want 300", i)
+		t.Errorf("Pointer_ Type Method returned %d; want 300", i)
 	}
 
 	m, ok = TypeOf(&p).MethodByName("Dist")
@@ -1637,7 +1655,7 @@ func TestMethod(t *testing.T) {
 	}
 	i = m.Func.Call([]Value{ValueOf(&p), ValueOf(13)})[0].Int()
 	if i != 325 {
-		t.Errorf("Pointer Type MethodByName returned %d; want 325", i)
+		t.Errorf("Pointer_ Type MethodByName returned %d; want 325", i)
 	}
 
 	// Curried method of value.
@@ -1659,22 +1677,22 @@ func TestMethod(t *testing.T) {
 		t.Errorf("Value MethodByName returned %d; want 375", i)
 	}
 
-	// Curried method of pointer.
+	// Curried method of pointer .
 	v = ValueOf(&p).Method(1)
 	if tt := v.Type(); tt != tfunc {
-		t.Errorf("Pointer Value Method Type is %s; want %s", tt, tfunc)
+		t.Errorf("Pointer_ Value Method Type is %s; want %s", tt, tfunc)
 	}
 	i = v.Call([]Value{ValueOf(16)})[0].Int()
 	if i != 400 {
-		t.Errorf("Pointer Value Method returned %d; want 400", i)
+		t.Errorf("Pointer_ Value Method returned %d; want 400", i)
 	}
 	v = ValueOf(&p).MethodByName("Dist")
 	if tt := v.Type(); tt != tfunc {
-		t.Errorf("Pointer Value MethodByName Type is %s; want %s", tt, tfunc)
+		t.Errorf("Pointer_ Value MethodByName Type is %s; want %s", tt, tfunc)
 	}
 	i = v.Call([]Value{ValueOf(17)})[0].Int()
 	if i != 425 {
-		t.Errorf("Pointer Value MethodByName returned %d; want 425", i)
+		t.Errorf("Pointer_ Value MethodByName returned %d; want 425", i)
 	}
 
 	// Curried method of interface value.
@@ -1726,41 +1744,41 @@ func TestMethodValue(t *testing.T) {
 		t.Errorf("Value MethodByName returned %d; want 275", i)
 	}
 
-	// Curried method of pointer.
+	// Curried method of pointer .
 	v = ValueOf(&p).Method(1)
 	if tt := v.Type(); tt != tfunc {
-		t.Errorf("Pointer Value Method Type is %s; want %s", tt, tfunc)
+		t.Errorf("Pointer_ Value Method Type is %s; want %s", tt, tfunc)
 	}
 	i = ValueOf(v.Interface()).Call([]Value{ValueOf(12)})[0].Int()
 	if i != 300 {
-		t.Errorf("Pointer Value Method returned %d; want 300", i)
+		t.Errorf("Pointer_ Value Method returned %d; want 300", i)
 	}
 	v = ValueOf(&p).MethodByName("Dist")
 	if tt := v.Type(); tt != tfunc {
-		t.Errorf("Pointer Value MethodByName Type is %s; want %s", tt, tfunc)
+		t.Errorf("Pointer_ Value MethodByName Type is %s; want %s", tt, tfunc)
 	}
 	i = ValueOf(v.Interface()).Call([]Value{ValueOf(13)})[0].Int()
 	if i != 325 {
-		t.Errorf("Pointer Value MethodByName returned %d; want 325", i)
+		t.Errorf("Pointer_ Value MethodByName returned %d; want 325", i)
 	}
 
-	// Curried method of pointer to pointer.
+	// Curried method of pointer to pointer .
 	pp := &p
 	v = ValueOf(&pp).Elem().Method(1)
 	if tt := v.Type(); tt != tfunc {
-		t.Errorf("Pointer Pointer Value Method Type is %s; want %s", tt, tfunc)
+		t.Errorf("Pointer_ Pointer_ Value Method Type is %s; want %s", tt, tfunc)
 	}
 	i = ValueOf(v.Interface()).Call([]Value{ValueOf(14)})[0].Int()
 	if i != 350 {
-		t.Errorf("Pointer Pointer Value Method returned %d; want 350", i)
+		t.Errorf("Pointer_ Pointer_ Value Method returned %d; want 350", i)
 	}
 	v = ValueOf(&pp).Elem().MethodByName("Dist")
 	if tt := v.Type(); tt != tfunc {
-		t.Errorf("Pointer Pointer Value MethodByName Type is %s; want %s", tt, tfunc)
+		t.Errorf("Pointer_ Pointer_ Value MethodByName Type is %s; want %s", tt, tfunc)
 	}
 	i = ValueOf(v.Interface()).Call([]Value{ValueOf(15)})[0].Int()
 	if i != 375 {
-		t.Errorf("Pointer Pointer Value MethodByName returned %d; want 375", i)
+		t.Errorf("Pointer_ Pointer_ Value MethodByName returned %d; want 375", i)
 	}
 
 	// Curried method of interface value.
@@ -1886,7 +1904,7 @@ type tinter interface {
 	m(int, byte) (byte, int)
 }
 
-// Embedding via pointer.
+// Embedding via pointer .
 
 type Tm1 struct {
 	Tm2
@@ -2720,6 +2738,8 @@ var tagGetTests = []struct {
 	{`protobuf:"PB(1,2)"`, `rotobuf`, ``},
 	{`protobuf:"PB(1,2)" json:"name"`, `json`, `name`},
 	{`protobuf:"PB(1,2)" json:"name"`, `protobuf`, `PB(1,2)`},
+	{`k0:"values contain spaces" k1:"and\ttabs"`, "k0", "values contain spaces"},
+	{`k0:"values contain spaces" k1:"and\ttabs"`, "k1", "and\ttabs"},
 }
 
 func TestTagGet(t *testing.T) {
@@ -3371,24 +3391,240 @@ func checkSameType(t *testing.T, x, y interface{}) {
 }
 
 func TestArrayOf(t *testing.T) {
-	// TODO(rsc): Finish ArrayOf and enable-test.
-	t.Skip("ArrayOf is not finished (and not exported)")
-
 	// check construction and use of type not in binary
-	type T int
-	at := ArrayOf(10, TypeOf(T(1)))
-	v := New(at).Elem()
-	for i := 0; i < v.Len(); i++ {
-		v.Index(i).Set(ValueOf(T(i)))
-	}
-	s := fmt.Sprint(v.Interface())
-	want := "[0 1 2 3 4 5 6 7 8 9]"
-	if s != want {
-		t.Errorf("constructed array = %s, want %s", s, want)
+	for _, table := range []struct {
+		n          int
+		value      func(i int) interface{}
+		comparable bool
+		want       string
+	}{
+		{
+			n:          0,
+			value:      func(i int) interface{} { type Tint int; return Tint(i) },
+			comparable: true,
+			want:       "[]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tint int; return Tint(i) },
+			comparable: true,
+			want:       "[0 1 2 3 4 5 6 7 8 9]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tfloat float64; return Tfloat(i) },
+			comparable: true,
+			want:       "[0 1 2 3 4 5 6 7 8 9]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tstring string; return Tstring(strconv.Itoa(i)) },
+			comparable: true,
+			want:       "[0 1 2 3 4 5 6 7 8 9]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tstruct struct{ V int }; return Tstruct{i} },
+			comparable: true,
+			want:       "[{0} {1} {2} {3} {4} {5} {6} {7} {8} {9}]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tint int; return []Tint{Tint(i)} },
+			comparable: false,
+			want:       "[[0] [1] [2] [3] [4] [5] [6] [7] [8] [9]]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tint int; return [1]Tint{Tint(i)} },
+			comparable: true,
+			want:       "[[0] [1] [2] [3] [4] [5] [6] [7] [8] [9]]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tstruct struct{ V [1]int }; return Tstruct{[1]int{i}} },
+			comparable: true,
+			want:       "[{[0]} {[1]} {[2]} {[3]} {[4]} {[5]} {[6]} {[7]} {[8]} {[9]}]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type Tstruct struct{ V []int }; return Tstruct{[]int{i}} },
+			comparable: false,
+			want:       "[{[0]} {[1]} {[2]} {[3]} {[4]} {[5]} {[6]} {[7]} {[8]} {[9]}]",
+		},
+		{
+			n:          10,
+			value:      func(i int) interface{} { type TstructUV struct{ U, V int }; return TstructUV{i, i} },
+			comparable: true,
+			want:       "[{0 0} {1 1} {2 2} {3 3} {4 4} {5 5} {6 6} {7 7} {8 8} {9 9}]",
+		},
+		{
+			n: 10,
+			value: func(i int) interface{} {
+				type TstructUV struct {
+					U int
+					V float64
+				}
+				return TstructUV{i, float64(i)}
+			},
+			comparable: true,
+			want:       "[{0 0} {1 1} {2 2} {3 3} {4 4} {5 5} {6 6} {7 7} {8 8} {9 9}]",
+		},
+	} {
+		at := ArrayOf(table.n, TypeOf(table.value(0)))
+		v := New(at).Elem()
+		vok := New(at).Elem()
+		vnot := New(at).Elem()
+		for i := 0; i < v.Len(); i++ {
+			v.Index(i).Set(ValueOf(table.value(i)))
+			vok.Index(i).Set(ValueOf(table.value(i)))
+			j := i
+			if i+1 == v.Len() {
+				j = i + 1
+			}
+			vnot.Index(i).Set(ValueOf(table.value(j))) // make it differ only by last element
+		}
+		s := fmt.Sprint(v.Interface())
+		if s != table.want {
+			t.Errorf("constructed array = %s, want %s", s, table.want)
+		}
+
+		if table.comparable != at.Comparable() {
+			t.Errorf("constructed array (%#v) is comparable=%v, want=%v", v.Interface(), at.Comparable(), table.comparable)
+		}
+		if table.comparable {
+			if table.n > 0 {
+				if DeepEqual(vnot.Interface(), v.Interface()) {
+					t.Errorf(
+						"arrays (%#v) compare ok (but should not)",
+						v.Interface(),
+					)
+				}
+			}
+			if !DeepEqual(vok.Interface(), v.Interface()) {
+				t.Errorf(
+					"arrays (%#v) compare NOT-ok (but should)",
+					v.Interface(),
+				)
+			}
+		}
 	}
 
 	// check that type already in binary is found
+	type T int
 	checkSameType(t, Zero(ArrayOf(5, TypeOf(T(1)))).Interface(), [5]T{})
+}
+
+func TestArrayOfGC(t *testing.T) {
+	type T *uintptr
+	tt := TypeOf(T(nil))
+	const n = 100
+	var x []interface{}
+	for i := 0; i < n; i++ {
+		v := New(ArrayOf(n, tt)).Elem()
+		for j := 0; j < v.Len(); j++ {
+			p := new(uintptr)
+			*p = uintptr(i*n + j)
+			v.Index(j).Set(ValueOf(p).Convert(tt))
+		}
+		x = append(x, v.Interface())
+	}
+	runtime.GC()
+
+	for i, xi := range x {
+		v := ValueOf(xi)
+		for j := 0; j < v.Len(); j++ {
+			k := v.Index(j).Elem().Interface()
+			if k != uintptr(i*n+j) {
+				t.Errorf("lost x[%d][%d] = %d, want %d", i, j, k, i*n+j)
+			}
+		}
+	}
+}
+
+func TestArrayOfAlg(t *testing.T) {
+	at := ArrayOf(6, TypeOf(byte(0)))
+	v1 := New(at).Elem()
+	v2 := New(at).Elem()
+	if v1.Interface() != v1.Interface() {
+		t.Errorf("constructed array %v not equal to itself", v1.Interface())
+	}
+	v1.Index(5).Set(ValueOf(byte(1)))
+	if i1, i2 := v1.Interface(), v2.Interface(); i1 == i2 {
+		t.Errorf("constructed arrays %v and %v should not be equal", i1, i2)
+	}
+
+	at = ArrayOf(6, TypeOf([]int(nil)))
+	v1 = New(at).Elem()
+	shouldPanic(func() { _ = v1.Interface() == v1.Interface() })
+}
+
+func TestArrayOfGenericAlg(t *testing.T) {
+	at1 := ArrayOf(5, TypeOf(string("")))
+	at := ArrayOf(6, at1)
+	v1 := New(at).Elem()
+	v2 := New(at).Elem()
+	if v1.Interface() != v1.Interface() {
+		t.Errorf("constructed array %v not equal to itself", v1.Interface())
+	}
+
+	v1.Index(0).Index(0).Set(ValueOf("abc"))
+	v2.Index(0).Index(0).Set(ValueOf("efg"))
+	if i1, i2 := v1.Interface(), v2.Interface(); i1 == i2 {
+		t.Errorf("constructed arrays %v and %v should not be equal", i1, i2)
+	}
+
+	v1.Index(0).Index(0).Set(ValueOf("abc"))
+	v2.Index(0).Index(0).Set(ValueOf((v1.Index(0).Index(0).String() + " ")[:3]))
+	if i1, i2 := v1.Interface(), v2.Interface(); i1 != i2 {
+		t.Errorf("constructed arrays %v and %v should be equal", i1, i2)
+	}
+
+	// Test hash
+	m := MakeMap(MapOf(at, TypeOf(int(0))))
+	m.SetMapIndex(v1, ValueOf(1))
+	if i1, i2 := v1.Interface(), v2.Interface(); !m.MapIndex(v2).IsValid() {
+		t.Errorf("constructed arrays %v and %v have different hashes", i1, i2)
+	}
+}
+
+func TestArrayOfDirectIface(t *testing.T) {
+	{
+		type T [1]*byte
+		i1 := Zero(TypeOf(T{})).Interface()
+		v1 := ValueOf(&i1).Elem()
+		p1 := v1.InterfaceData()[1]
+
+		i2 := Zero(ArrayOf(1, PtrTo(TypeOf(int8(0))))).Interface()
+		v2 := ValueOf(&i2).Elem()
+		p2 := v2.InterfaceData()[1]
+
+		if p1 != 0 {
+			t.Errorf("got p1=%v. want=%v", p1, nil)
+		}
+
+		if p2 != 0 {
+			t.Errorf("got p2=%v. want=%v", p2, nil)
+		}
+	}
+	{
+		type T [0]*byte
+		i1 := Zero(TypeOf(T{})).Interface()
+		v1 := ValueOf(&i1).Elem()
+		p1 := v1.InterfaceData()[1]
+
+		i2 := Zero(ArrayOf(0, PtrTo(TypeOf(int8(0))))).Interface()
+		v2 := ValueOf(&i2).Elem()
+		p2 := v2.InterfaceData()[1]
+
+		if p1 == 0 {
+			t.Errorf("got p1=%v. want=not-%v", p1, nil)
+		}
+
+		if p2 == 0 {
+			t.Errorf("got p2=%v. want=not-%v", p2, nil)
+		}
+	}
 }
 
 func TestSliceOf(t *testing.T) {
@@ -3481,6 +3717,26 @@ func TestChanOf(t *testing.T) {
 	// check that type already in binary is found
 	type T1 int
 	checkSameType(t, Zero(ChanOf(BothDir, TypeOf(T1(1)))).Interface(), (chan T1)(nil))
+}
+
+func TestChanOfDir(t *testing.T) {
+	// check construction and use of type not in binary
+	type T string
+	crt := ChanOf(RecvDir, TypeOf(T("")))
+	cst := ChanOf(SendDir, TypeOf(T("")))
+
+	// check that type already in binary is found
+	type T1 int
+	checkSameType(t, Zero(ChanOf(RecvDir, TypeOf(T1(1)))).Interface(), (<-chan T1)(nil))
+	checkSameType(t, Zero(ChanOf(SendDir, TypeOf(T1(1)))).Interface(), (chan<- T1)(nil))
+
+	// check String form of ChanDir
+	if crt.ChanDir().String() != "<-chan" {
+		t.Errorf("chan dir: have %q, want %q", crt.ChanDir().String(), "<-chan")
+	}
+	if cst.ChanDir().String() != "chan<-" {
+		t.Errorf("chan dir: have %q, want %q", cst.ChanDir().String(), "chan<-")
+	}
 }
 
 func TestChanOfGC(t *testing.T) {
@@ -3624,6 +3880,67 @@ func TestMapOfGCValues(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestTypelinksSorted(t *testing.T) {
+	var last string
+	for i, n := range TypeLinks() {
+		if n < last {
+			t.Errorf("typelinks not sorted: %q [%d] > %q [%d]", last, i-1, n, i)
+		}
+		last = n
+	}
+}
+
+func TestFuncOf(t *testing.T) {
+	// check construction and use of type not in binary
+	type K string
+	type V float64
+
+	fn := func(args []Value) []Value {
+		if len(args) != 1 {
+			t.Errorf("args == %v, want exactly one arg", args)
+		} else if args[0].Type() != TypeOf(K("")) {
+			t.Errorf("args[0] is type %v, want %v", args[0].Type, TypeOf(K("")))
+		} else if args[0].String() != "gopher" {
+			t.Errorf("args[0] = %q, want %q", args[0].String(), "gopher")
+		}
+		return []Value{ValueOf(V(3.14))}
+	}
+	v := MakeFunc(FuncOf([]Type{TypeOf(K(""))}, []Type{TypeOf(V(0))}, false), fn)
+
+	outs := v.Call([]Value{ValueOf(K("gopher"))})
+	if len(outs) != 1 {
+		t.Fatalf("v.Call returned %v, want exactly one result", outs)
+	} else if outs[0].Type() != TypeOf(V(0)) {
+		t.Fatalf("c.Call[0] is type %v, want %v", outs[0].Type, TypeOf(V(0)))
+	}
+	f := outs[0].Float()
+	if f != 3.14 {
+		t.Errorf("constructed func returned %f, want %f", f, 3.14)
+	}
+
+	// check that types already in binary are found
+	type T1 int
+	testCases := []struct {
+		in, out  []Type
+		variadic bool
+		want     interface{}
+	}{
+		{in: []Type{TypeOf(T1(0))}, want: (func(T1))(nil)},
+		{in: []Type{TypeOf(int(0))}, want: (func(int))(nil)},
+		{in: []Type{SliceOf(TypeOf(int(0)))}, variadic: true, want: (func(...int))(nil)},
+		{in: []Type{TypeOf(int(0))}, out: []Type{TypeOf(false)}, want: (func(int) bool)(nil)},
+		{in: []Type{TypeOf(int(0))}, out: []Type{TypeOf(false), TypeOf("")}, want: (func(int) (bool, string))(nil)},
+	}
+	for _, tt := range testCases {
+		checkSameType(t, Zero(FuncOf(tt.in, tt.out, tt.variadic)).Interface(), tt.want)
+	}
+
+	// check that variadic requires last element be a slice.
+	FuncOf([]Type{TypeOf(1), TypeOf(""), SliceOf(TypeOf(false))}, nil, true)
+	shouldPanic(func() { FuncOf([]Type{TypeOf(0), TypeOf(""), TypeOf(false)}, nil, true) })
+	shouldPanic(func() { FuncOf(nil, nil, true) })
 }
 
 type B1 struct {
@@ -4071,15 +4388,16 @@ func TestCallGC(t *testing.T) {
 }
 
 type funcLayoutTest struct {
-	rcvr, t            Type
-	argsize, retOffset uintptr
-	stack              []byte
+	rcvr, t                  Type
+	size, argsize, retOffset uintptr
+	stack                    []byte // pointer bitmap: 1 is pointer, 0 is scalar (or uninitialized)
+	gc                       []byte
 }
 
 var funcLayoutTests []funcLayoutTest
 
 func init() {
-	var argAlign = PtrSize
+	var argAlign uintptr = PtrSize
 	if runtime.GOARCH == "amd64p32" {
 		argAlign = 2 * PtrSize
 	}
@@ -4091,23 +4409,27 @@ func init() {
 		funcLayoutTest{
 			nil,
 			ValueOf(func(a, b string) string { return "" }).Type(),
+			6 * PtrSize,
 			4 * PtrSize,
 			4 * PtrSize,
-			[]byte{BitsPointer, BitsScalar, BitsPointer},
+			[]byte{1, 0, 1},
+			[]byte{1, 0, 1, 0, 1},
 		})
 
 	var r []byte
 	if PtrSize == 4 {
-		r = []byte{BitsScalar, BitsScalar, BitsScalar, BitsPointer}
+		r = []byte{0, 0, 0, 1}
 	} else {
-		r = []byte{BitsScalar, BitsScalar, BitsPointer}
+		r = []byte{0, 0, 1}
 	}
 	funcLayoutTests = append(funcLayoutTests,
 		funcLayoutTest{
 			nil,
 			ValueOf(func(a, b, c uint32, p *byte, d uint16) {}).Type(),
+			roundup(roundup(3*4, PtrSize)+PtrSize+2, argAlign),
 			roundup(3*4, PtrSize) + PtrSize + 2,
 			roundup(roundup(3*4, PtrSize)+PtrSize+2, argAlign),
+			r,
 			r,
 		})
 
@@ -4117,7 +4439,9 @@ func init() {
 			ValueOf(func(a map[int]int, b uintptr, c interface{}) {}).Type(),
 			4 * PtrSize,
 			4 * PtrSize,
-			[]byte{BitsPointer, BitsScalar, BitsPointer, BitsPointer},
+			4 * PtrSize,
+			[]byte{1, 0, 1, 1},
+			[]byte{1, 0, 1, 1},
 		})
 
 	type S struct {
@@ -4130,22 +4454,65 @@ func init() {
 			ValueOf(func(a S) {}).Type(),
 			4 * PtrSize,
 			4 * PtrSize,
-			[]byte{BitsScalar, BitsScalar, BitsPointer, BitsPointer},
+			4 * PtrSize,
+			[]byte{0, 0, 1, 1},
+			[]byte{0, 0, 1, 1},
 		})
 
 	funcLayoutTests = append(funcLayoutTests,
 		funcLayoutTest{
 			ValueOf((*byte)(nil)).Type(),
 			ValueOf(func(a uintptr, b *int) {}).Type(),
+			roundup(3*PtrSize, argAlign),
 			3 * PtrSize,
 			roundup(3*PtrSize, argAlign),
-			[]byte{BitsPointer, BitsScalar, BitsPointer},
+			[]byte{1, 0, 1},
+			[]byte{1, 0, 1},
+		})
+
+	funcLayoutTests = append(funcLayoutTests,
+		funcLayoutTest{
+			nil,
+			ValueOf(func(a uintptr) {}).Type(),
+			roundup(PtrSize, argAlign),
+			PtrSize,
+			roundup(PtrSize, argAlign),
+			[]byte{},
+			[]byte{},
+		})
+
+	funcLayoutTests = append(funcLayoutTests,
+		funcLayoutTest{
+			nil,
+			ValueOf(func() uintptr { return 0 }).Type(),
+			PtrSize,
+			0,
+			0,
+			[]byte{},
+			[]byte{},
+		})
+
+	funcLayoutTests = append(funcLayoutTests,
+		funcLayoutTest{
+			ValueOf(uintptr(0)).Type(),
+			ValueOf(func(a uintptr) {}).Type(),
+			2 * PtrSize,
+			2 * PtrSize,
+			2 * PtrSize,
+			[]byte{1},
+			[]byte{1},
+			// Note: this one is tricky, as the receiver is not a pointer .  But we
+			// pass the receiver by reference to the autogenerated pointer-receiver
+			// version of the function.
 		})
 }
 
 func TestFuncLayout(t *testing.T) {
 	for _, lt := range funcLayoutTests {
-		_, argsize, retOffset, stack := FuncLayout(lt.t, lt.rcvr)
+		typ, argsize, retOffset, stack, gc, ptrs := FuncLayout(lt.t, lt.rcvr)
+		if typ.Size() != lt.size {
+			t.Errorf("funcLayout(%v, %v).size=%d, want %d", lt.t, lt.rcvr, typ.Size(), lt.size)
+		}
 		if argsize != lt.argsize {
 			t.Errorf("funcLayout(%v, %v).argsize=%d, want %d", lt.t, lt.rcvr, argsize, lt.argsize)
 		}
@@ -4155,5 +4522,147 @@ func TestFuncLayout(t *testing.T) {
 		if !bytes.Equal(stack, lt.stack) {
 			t.Errorf("funcLayout(%v, %v).stack=%v, want %v", lt.t, lt.rcvr, stack, lt.stack)
 		}
+		if !bytes.Equal(gc, lt.gc) {
+			t.Errorf("funcLayout(%v, %v).gc=%v, want %v", lt.t, lt.rcvr, gc, lt.gc)
+		}
+		if ptrs && len(stack) == 0 || !ptrs && len(stack) > 0 {
+			t.Errorf("funcLayout(%v, %v) pointers flag=%v, want %v", lt.t, lt.rcvr, ptrs, !ptrs)
+		}
 	}
+}
+
+func verifyGCBits(t *testing.T, typ Type, bits []byte) {
+	heapBits := GCBits(New(typ).Interface())
+	if !bytes.Equal(heapBits, bits) {
+		t.Errorf("heapBits incorrect for %v\nhave %v\nwant %v", typ, heapBits, bits)
+	}
+}
+
+func TestGCBits(t *testing.T) {
+	verifyGCBits(t, TypeOf((*byte)(nil)), []byte{1})
+
+	// Building blocks for types seen by the compiler (like [2]Xscalar).
+	// The compiler will create the type structures for the derived types,
+	// including their GC metadata.
+	type Xscalar struct{ x uintptr }
+	type Xptr struct{ x *byte }
+	type Xptrscalar struct {
+		*byte
+		uintptr
+	}
+	type Xscalarptr struct {
+		uintptr
+		*byte
+	}
+
+	var Tscalar, Tptr, Tscalarptr, Tptrscalar Type
+	{
+		// Building blocks for types constructed by reflect.
+		// This code is in a separate block so that code below
+		// cannot accidentally refer to these.
+		// The compiler must NOT see types derived from these
+		// (for example, [2]Scalar must NOT appear in the program),
+		// or else reflect will use it instead of having to construct one.
+		// The goal is to test the construction.
+		type Scalar struct{ x uintptr }
+		type Ptr struct{ x *byte }
+		type Ptrscalar struct {
+			*byte
+			uintptr
+		}
+		type Scalarptr struct {
+			uintptr
+			*byte
+		}
+		Tscalar = TypeOf(Scalar{})
+		Tptr = TypeOf(Ptr{})
+		Tscalarptr = TypeOf(Scalarptr{})
+		Tptrscalar = TypeOf(Ptrscalar{})
+	}
+
+	empty := []byte{}
+
+	verifyGCBits(t, TypeOf(Xscalar{}), empty)
+	verifyGCBits(t, Tscalar, empty)
+	verifyGCBits(t, TypeOf(Xptr{}), lit(1))
+	verifyGCBits(t, Tptr, lit(1))
+	verifyGCBits(t, TypeOf(Xscalarptr{}), lit(0, 1))
+	verifyGCBits(t, Tscalarptr, lit(0, 1))
+	verifyGCBits(t, TypeOf(Xptrscalar{}), lit(1))
+	verifyGCBits(t, Tptrscalar, lit(1))
+
+	verifyGCBits(t, TypeOf([0]Xptr{}), empty)
+	verifyGCBits(t, ArrayOf(0, Tptr), empty)
+	verifyGCBits(t, TypeOf([1]Xptrscalar{}), lit(1))
+	verifyGCBits(t, ArrayOf(1, Tptrscalar), lit(1))
+	verifyGCBits(t, TypeOf([2]Xscalar{}), empty)
+	verifyGCBits(t, ArrayOf(2, Tscalar), empty)
+	verifyGCBits(t, TypeOf([100]Xscalar{}), empty)
+	verifyGCBits(t, ArrayOf(100, Tscalar), empty)
+	verifyGCBits(t, TypeOf([2]Xptr{}), lit(1, 1))
+	verifyGCBits(t, ArrayOf(2, Tptr), lit(1, 1))
+	verifyGCBits(t, TypeOf([100]Xptr{}), rep(100, lit(1)))
+	verifyGCBits(t, ArrayOf(100, Tptr), rep(100, lit(1)))
+	verifyGCBits(t, TypeOf([2]Xscalarptr{}), lit(0, 1, 0, 1))
+	verifyGCBits(t, ArrayOf(2, Tscalarptr), lit(0, 1, 0, 1))
+	verifyGCBits(t, TypeOf([100]Xscalarptr{}), rep(100, lit(0, 1)))
+	verifyGCBits(t, ArrayOf(100, Tscalarptr), rep(100, lit(0, 1)))
+	verifyGCBits(t, TypeOf([2]Xptrscalar{}), lit(1, 0, 1))
+	verifyGCBits(t, ArrayOf(2, Tptrscalar), lit(1, 0, 1))
+	verifyGCBits(t, TypeOf([100]Xptrscalar{}), rep(100, lit(1, 0)))
+	verifyGCBits(t, ArrayOf(100, Tptrscalar), rep(100, lit(1, 0)))
+	verifyGCBits(t, TypeOf([1][100]Xptrscalar{}), rep(100, lit(1, 0)))
+	verifyGCBits(t, ArrayOf(1, ArrayOf(100, Tptrscalar)), rep(100, lit(1, 0)))
+	verifyGCBits(t, TypeOf([2][100]Xptrscalar{}), rep(200, lit(1, 0)))
+	verifyGCBits(t, ArrayOf(2, ArrayOf(100, Tptrscalar)), rep(200, lit(1, 0)))
+
+	verifyGCBits(t, TypeOf((chan [100]Xscalar)(nil)), lit(1))
+	verifyGCBits(t, ChanOf(BothDir, ArrayOf(100, Tscalar)), lit(1))
+
+	verifyGCBits(t, TypeOf((func([100]Xscalarptr))(nil)), lit(1))
+	verifyGCBits(t, FuncOf([]Type{ArrayOf(100, Tscalarptr)}, nil, false), lit(1))
+
+	verifyGCBits(t, TypeOf((map[[100]Xscalarptr]Xscalar)(nil)), lit(1))
+	verifyGCBits(t, MapOf(ArrayOf(100, Tscalarptr), Tscalar), lit(1))
+
+	verifyGCBits(t, TypeOf((*[100]Xscalar)(nil)), lit(1))
+	verifyGCBits(t, PtrTo(ArrayOf(100, Tscalar)), lit(1))
+
+	verifyGCBits(t, TypeOf(([][100]Xscalar)(nil)), lit(1))
+	verifyGCBits(t, SliceOf(ArrayOf(100, Tscalar)), lit(1))
+
+	hdr := make([]byte, 8/PtrSize)
+	verifyGCBits(t, MapBucketOf(Tscalar, Tptr), join(hdr, rep(8, lit(0)), rep(8, lit(1)), lit(1)))
+	verifyGCBits(t, MapBucketOf(Tscalarptr, Tptr), join(hdr, rep(8, lit(0, 1)), rep(8, lit(1)), lit(1)))
+	verifyGCBits(t, MapBucketOf(Tscalar, Tscalar), empty)
+	verifyGCBits(t, MapBucketOf(ArrayOf(2, Tscalarptr), ArrayOf(3, Tptrscalar)), join(hdr, rep(8*2, lit(0, 1)), rep(8*3, lit(1, 0)), lit(1)))
+	verifyGCBits(t, MapBucketOf(ArrayOf(64/PtrSize, Tscalarptr), ArrayOf(64/PtrSize, Tptrscalar)), join(hdr, rep(8*64/PtrSize, lit(0, 1)), rep(8*64/PtrSize, lit(1, 0)), lit(1)))
+	verifyGCBits(t, MapBucketOf(ArrayOf(64/PtrSize+1, Tscalarptr), ArrayOf(64/PtrSize, Tptrscalar)), join(hdr, rep(8, lit(1)), rep(8*64/PtrSize, lit(1, 0)), lit(1)))
+	verifyGCBits(t, MapBucketOf(ArrayOf(64/PtrSize, Tscalarptr), ArrayOf(64/PtrSize+1, Tptrscalar)), join(hdr, rep(8*64/PtrSize, lit(0, 1)), rep(8, lit(1)), lit(1)))
+	verifyGCBits(t, MapBucketOf(ArrayOf(64/PtrSize+1, Tscalarptr), ArrayOf(64/PtrSize+1, Tptrscalar)), join(hdr, rep(8, lit(1)), rep(8, lit(1)), lit(1)))
+}
+
+func rep(n int, b []byte) []byte { return bytes.Repeat(b, n) }
+func join(b ...[]byte) []byte    { return bytes.Join(b, nil) }
+func lit(x ...byte) []byte       { return x }
+
+func TestTypeOfTypeOf(t *testing.T) {
+	// Check that all the type constructors return concrete *rtype implementations.
+	// It's difficult to test directly because the reflect package is only at arm's length.
+	// The easiest thing to do is just call a function that crashes if it doesn't get an *rtype.
+	check := func(name string, typ Type) {
+		if underlying := TypeOf(typ).String(); underlying != "*reflect.rtype" {
+			t.Errorf("%v returned %v, not *reflect.rtype", name, underlying)
+		}
+	}
+
+	type T struct{ int }
+	check("TypeOf", TypeOf(T{}))
+
+	check("ArrayOf", ArrayOf(10, TypeOf(T{})))
+	check("ChanOf", ChanOf(BothDir, TypeOf(T{})))
+	check("FuncOf", FuncOf([]Type{TypeOf(T{})}, nil, false))
+	check("MapOf", MapOf(TypeOf(T{}), TypeOf(T{})))
+	check("PtrTo", PtrTo(TypeOf(T{})))
+	check("SliceOf", SliceOf(TypeOf(T{})))
 }

@@ -43,6 +43,7 @@ type transferWriter struct {
 	Close            bool
 	TransferEncoding []string
 	Trailer          Header
+	IsResponse       bool
 }
 
 func newTransferWriter(r interface{}) (t *transferWriter, err error) {
@@ -89,6 +90,7 @@ func newTransferWriter(r interface{}) (t *transferWriter, err error) {
 			}
 		}
 	case *Response:
+		t.IsResponse = true
 		if rr.Request != nil {
 			t.Method = rr.Request.Method
 		}
@@ -137,6 +139,9 @@ func (t *transferWriter) shouldSendContentLength() bool {
 	}
 	if t.ContentLength > 0 {
 		return true
+	}
+	if t.ContentLength < 0 {
+		return false
 	}
 	// Many servers expect a Content-Length for these methods
 	if t.Method == "POST" || t.Method == "PUT" {
@@ -203,6 +208,9 @@ func (t *transferWriter) WriteBody(w io.Writer) error {
 	// Write body
 	if t.Body != nil {
 		if chunked(t.TransferEncoding) {
+			if bw, ok := w.(*bufio.Writer); ok && !t.IsResponse {
+				w = &internal.FlushAfterChunkWriter{bw}
+			}
 			cw := internal.NewChunkedWriter(w)
 			_, err = io.Copy(cw, t.Body)
 			if err == nil {
@@ -232,7 +240,6 @@ func (t *transferWriter) WriteBody(w io.Writer) error {
 			t.ContentLength, ncopy)
 	}
 
-	// TODO(petar): Place trailer writer code here.
 	if chunked(t.TransferEncoding) {
 		// Write Trailer header
 		if t.Trailer != nil {
@@ -506,14 +513,13 @@ func shouldClose(major, minor int, header Header, removeCloseHeader bool) bool {
 	if major < 1 {
 		return true
 	} else if major == 1 && minor == 0 {
-		if !strings.Contains(strings.ToLower(header.get("Connection")), "keep-alive") {
+		vv := header["Connection"]
+		if headerValuesContainsToken(vv, "close") || !headerValuesContainsToken(vv, "keep-alive") {
 			return true
 		}
 		return false
 	} else {
-		// TODO: Should split on commas, toss surrounding white space,
-		// and check each field.
-		if strings.ToLower(header.get("Connection")) == "close" {
+		if headerValuesContainsToken(header["Connection"], "close") {
 			if removeCloseHeader {
 				header.Del("Connection")
 			}
@@ -639,8 +645,7 @@ func (b *body) readTrailer() error {
 	// The common case, since nobody uses trailers.
 	buf, err := b.r.Peek(2)
 	if bytes.Equal(buf, singleCRLF) {
-		b.r.ReadByte()
-		b.r.ReadByte()
+		b.r.Discard(2)
 		return nil
 	}
 	if len(buf) < 2 {

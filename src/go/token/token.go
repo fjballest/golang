@@ -201,7 +201,7 @@ var tokens = [...]string{
 
 	DEFAULT:     "default",
 	DEFER:       "defer",
-	DOSELECT:         "doselect",
+	DOSELECT:    "doselect",
 	ELSE:        "else",
 	FALLTHROUGH: "fallthrough",
 	FOR:         "for",
@@ -260,7 +260,7 @@ const (
 //
 func (op Token) Precedence() int {
 	switch op {
-	case ARROW:
+	case ARROW, LOR:
 		return 1
 	case LOR:
 		return 2
@@ -290,6 +290,9 @@ func init() {
 func Lookup(ident string) Token {
 	if tok, is_keyword := keywords[ident]; is_keyword {
 		return tok
+	}
+	if ident == "inter" {
+		return INTERFACE
 	}
 	return IDENT
 }
