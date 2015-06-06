@@ -36,6 +36,7 @@ var (
 )
 
 func TestStdlib(t *testing.T) {
+	t.Skip("lsub")
 	skipSpecialPlatforms(t)
 
 	start = time.Now()
@@ -139,6 +140,7 @@ func TestStdTest(t *testing.T) {
 }
 
 func TestStdFixed(t *testing.T) {
+	t.Skip("lsub")
 	skipSpecialPlatforms(t)
 
 	testTestDir(t, filepath.Join(runtime.GOROOT(), "test", "fixedbugs"),
@@ -151,6 +153,7 @@ func TestStdFixed(t *testing.T) {
 }
 
 func TestStdKen(t *testing.T) {
+	t.Skip("lsub")
 	skipSpecialPlatforms(t)
 
 	testTestDir(t, filepath.Join(runtime.GOROOT(), "test", "ken"))

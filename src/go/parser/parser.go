@@ -725,8 +725,8 @@ func (p *parser) parseStructType() *ast.StructType {
 	}
 
 	var pos, lbrace token.Pos
-	implicit := p.implStructOk && p.tok == token.LBRACE
-	if implicit {
+	implicit := p.implStructOk
+	if implicit  && p.tok == token.LBRACE {
 		pos = p.expect(token.LBRACE)
 		lbrace = pos
 	} else {
@@ -963,8 +963,8 @@ func (p *parser) parseInterfaceType() *ast.InterfaceType {
 	}
 
 	var pos, lbrace token.Pos
-	implicit := p.implInterOk && p.tok == token.LBRACE
-	if implicit {
+	implicit := p.implInterOk
+	if implicit  && p.tok == token.LBRACE {
 		pos = p.expect(token.LBRACE)
 		lbrace = pos
 	} else {
@@ -2421,7 +2421,9 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 	if p.tok == token.LPAREN {
 		lparen = p.pos
 		p.next()
+		old := p.implStructOk
 		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
+			p.implStructOk = old
 			list = append(list, f(p.leadComment, keyword, iota))
 		}
 		rparen = p.expect(token.RPAREN)
@@ -2494,7 +2496,6 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	if p.trace {
 		defer un(trace(p, "Declaration"))
 	}
-	p.implStructOk = false
 	defer func() {p.implStructOk = false}()
 	var f parseSpecFunction
 	switch p.tok {

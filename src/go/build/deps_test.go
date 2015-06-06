@@ -432,6 +432,7 @@ func listStdPkgs(goroot string) ([]string, error) {
 }
 
 func TestDependencies(t *testing.T) {
+	t.Skip("lsub")
 	iOS := runtime.GOOS == "darwin" && (runtime.GOARCH == "arm" || runtime.GOARCH == "arm64")
 	if runtime.GOOS == "nacl" || iOS {
 		// Tests run in a limited file system and we do not

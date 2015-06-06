@@ -279,6 +279,7 @@ func checkFiles(t *testing.T, testfiles []string) {
 }
 
 func TestCheck(t *testing.T) {
+	t.Skip("lsub")
 	skipSpecialPlatforms(t)
 
 	// Declare builtins for testing.
