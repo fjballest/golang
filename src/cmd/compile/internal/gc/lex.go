@@ -2119,7 +2119,6 @@ var syms = []struct {
 	{"goto", LGOTO, Txxx, OXXX},
 	{"if", LIF, Txxx, OXXX},
 	{"import", LIMPORT, Txxx, OXXX},
-	{"inter", LINTERFACE, Txxx, OXXX},
 	{"interface", LINTERFACE, Txxx, OXXX},
 	{"map", LMAP, Txxx, OXXX},
 	{"package", LPACKAGE, Txxx, OXXX},

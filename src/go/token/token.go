@@ -289,9 +289,6 @@ func Lookup(ident string) Token {
 	if tok, is_keyword := keywords[ident]; is_keyword {
 		return tok
 	}
-	if ident == "inter" {
-		return INTERFACE
-	}
 	return IDENT
 }
 
