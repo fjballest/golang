@@ -104,13 +104,9 @@ func mapiternext(hiter *any)
 // *byte is really *runtime.Type
 func makechan(chanType *byte, hint int64) (hchan chan any)
 func chanrecv1(chanType *byte, hchan <-chan any, elem *any)
-func chanrecv2(chanType *byte, hchan <-chan any, elem *any)  (res bool)
+func chanrecv2(chanType *byte, hchan <-chan any, elem *any) bool
 func chansend1(chanType *byte, hchan chan<- any, elem *any)
-func chansend2(chanType *byte, hchan chan<- any, elem *any) (res bool)
 func closechan(hchan any)
-func closechan2(hchan any, err interface{})
-func cerror(hchan any) error
-func cclosed(hchan any) bool
 
 var writeBarrierEnabled bool
 

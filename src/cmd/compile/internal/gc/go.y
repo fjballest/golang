@@ -38,7 +38,7 @@ import (
 
 %token	<val>	LLITERAL
 %token	<i>	LASOP LCOLAS
-%token	<sym>	LBREAK LCASE LCHAN LCONST LCONTINUE LDOSELECT LDDD
+%token	<sym>	LBREAK LCASE LCHAN LCONST LCONTINUE LDDD
 %token	<sym>	LDEFAULT LDEFER LELSE LFALL LFOR LFUNC LGO LGOTO
 %token	<sym>	LIF LIMPORT LINTERFACE LMAP LNAME
 %token	<sym>	LPACKAGE LRANGE LRETURN LSELECT LSTRUCT LSWITCH
@@ -474,11 +474,6 @@ typedcl:
 	{
 		$$ = typedcl1($1, $2, true);
 	}
-|
-	typedclname istructtype
-	{
-		$$ = typedcl1($1, $2, 1);
-	}
 
 simple_stmt:
 	expr
@@ -905,51 +900,6 @@ doselect_stmt:
 		// for
 		$$ = $3;
 		$$.Nbody = list1(nd)
-		popdcl();
-	}
-
-doselect_hdr:
-	osimple_stmt ';' osimple_stmt ';' osimple_stmt
-	{
-		// init ; test ; incr
-		if($5 != N && $5->colas != 0)
-			yyerror("cannot declare in the doselect-increment");
-		$$ = nod(OFOR, N, N);
-		if($1 != N)
-			$$->ninit = list1($1);
-		$$->ntest = $3;
-		$$->nincr = $5;
-	}
-|	osimple_stmt
-	{
-		// normal test
-		$$ = nod(OFOR, N, N);
-		$$->ntest = $1;
-	}
-
-doselect_stmt:
-	LDOSELECT
-	{
-		// for
-		markdcl();	
-	}
-	doselect_hdr
-	{
-		// select
-		typesw = nod(OXXX, typesw, N);
-	}
-	LBODY caseblock_list '}'
-	{
-		// select
-		Node *nd;
-		nd = nod(ODOSELECT, N, N);
-		nd->lineno = typesw->lineno;
-		nd->list = $6;
-		typesw = typesw->left;
-
-		// for
-		$$ = $3;
-		$$->nbody = list1(nd);
 		popdcl();
 	}
 

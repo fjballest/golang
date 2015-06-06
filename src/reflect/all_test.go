@@ -1327,7 +1327,7 @@ func TestSelect(t *testing.T) {
 		if panicErr != nil && !canPanic {
 			t.Fatalf("%s\npanicked unexpectedly: %v", fmtSelect(info), panicErr)
 		}
-		if panicErr == nil && canPanic && numCanSelect == 1 && false {
+		if panicErr == nil && canPanic && numCanSelect == 1 {
 			t.Fatalf("%s\nselected #%d incorrectly (should panic)", fmtSelect(info), i)
 		}
 		if panicErr != nil {
@@ -1344,8 +1344,7 @@ func TestSelect(t *testing.T) {
 			continue
 		}
 		if cas.panic {
-			// not for lsub
-			// t.Fatalf("%s\nselected #%d incorrectly (case should panic)", fmtSelect(info), i)
+			t.Fatalf("%s\nselected #%d incorrectly (case should panic)", fmtSelect(info), i)
 			continue
 		}
 

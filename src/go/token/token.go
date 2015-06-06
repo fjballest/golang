@@ -250,8 +250,8 @@ func (tok Token) String() string {
 //
 const (
 	LowestPrec  = 0 // non-operators
-	UnaryPrec   = 7
-	HighestPrec = 8
+	UnaryPrec   = 6
+	HighestPrec = 7
 )
 
 // Precedence returns the operator precedence of the binary
@@ -262,16 +262,14 @@ func (op Token) Precedence() int {
 	switch op {
 	case ARROW, LOR:
 		return 1
-	case LOR:
-		return 2
 	case LAND:
-		return 3
+		return 2
 	case EQL, NEQ, LSS, LEQ, GTR, GEQ:
-		return 4
+		return 3
 	case ADD, SUB, OR, XOR:
-		return 5
+		return 4
 	case MUL, QUO, REM, SHL, SHR, AND, AND_NOT:
-		return 6
+		return 5
 	}
 	return LowestPrec
 }
@@ -290,9 +288,6 @@ func init() {
 func Lookup(ident string) Token {
 	if tok, is_keyword := keywords[ident]; is_keyword {
 		return tok
-	}
-	if ident == "inter" {
-		return INTERFACE
 	}
 	return IDENT
 }

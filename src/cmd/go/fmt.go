@@ -16,7 +16,7 @@ var cmdFmt = &Command{
 	UsageLine: "fmt [-n] [-x] [-S] [packages]",
 	Short:     "run gofmt on package sources",
 	Long: `
-Fmt runs the command 'gofmt -l -w -s -S' on the packages named
+Fmt runs the command 'gofmt -l -w' on the packages named
 by the import paths.  It prints the names of the files that are modified.
 
 For more about gofmt, see 'godoc gofmt'.

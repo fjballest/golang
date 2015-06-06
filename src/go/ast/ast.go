@@ -708,15 +708,6 @@ type (
 		Body *BlockStmt
 	}
 
-	// A DoSelectStmt node represents a doselect statement
-	DoSelectStmt struct {
-		DoSelect  token.Pos // position of "doselect" keyword
-		Init Stmt      // initialization statement; or nil
-		Cond Expr      // condition; or nil
-		Post Stmt      // post iteration statement; or nil
-		Body *BlockStmt // CommClauses only
-	}
-
 	// A RangeStmt represents a for statement with a range clause.
 	RangeStmt struct {
 		For        token.Pos   // position of "for" keyword
@@ -829,7 +820,6 @@ func (*CaseClause) stmtNode()     {}
 func (*SwitchStmt) stmtNode()     {}
 func (*TypeSwitchStmt) stmtNode() {}
 func (*CommClause) stmtNode()     {}
-func (*DoSelectStmt) stmtNode()     {}
 func (*SelectStmt) stmtNode()     {}
 func (*DoSelectStmt) stmtNode()   {}
 func (*ForStmt) stmtNode()        {}

@@ -98,8 +98,6 @@ func main() {
 		cgocall(_cgo_notify_runtime_init_done, nil)
 	}
 
-	g.gappid = g.goid
-
 	main_init()
 	close(main_init_done)
 
