@@ -1752,11 +1752,6 @@ func bucketOf(ktyp, etyp *rtype) *rtype {
 	if runtime.GOARCH == "amd64p32" {
 		size += ptrSize
 	}
-	// overflow
-	gc.append(bitsPointer)
-	if runtime.GOARCH == "amd64p32" {
-		gc.append(bitsScalar)
-	}
 
 	b := new(rtype)
 	b.size = size
