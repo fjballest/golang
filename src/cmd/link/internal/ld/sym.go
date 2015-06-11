@@ -60,6 +60,7 @@ var headers = []struct {
 	{"solaris", obj.Hsolaris},
 	{"windows", obj.Hwindows},
 	{"windowsgui", obj.Hwindows},
+	{"clive", obj.Hlinux},
 }
 
 func linknew(arch *LinkArch) *Link {
