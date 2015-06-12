@@ -1,4 +1,6 @@
+// +build clive
 package runtime
+
 
 // Stuff needed to make the clive port.
 

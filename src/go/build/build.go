@@ -360,6 +360,8 @@ type Package struct {
 	AllTags       []string // tags that can influence file selection in this directory
 	ConflictDir   string   // this directory shadows Dir in $GOPATH
 
+	NotToBuild bool	// the skip.go file indicates not to build this in this context
+
 	// Source files
 	GoFiles        []string // .go source files (excluding CgoFiles, TestGoFiles, XTestGoFiles)
 	CgoFiles       []string // .go source files that import "C"
@@ -630,6 +632,9 @@ Found:
 			return p, err
 		}
 		if !match {
+			if name == "skip.go" {
+				p.NotToBuild = true
+			}
 			if ext == ".go" {
 				p.IgnoredGoFiles = append(p.IgnoredGoFiles, name)
 			}
@@ -777,7 +782,9 @@ Found:
 	if len(p.GoFiles)+len(p.CgoFiles)+len(p.TestGoFiles)+len(p.XTestGoFiles) == 0 {
 		return p, &NoGoError{p.Dir}
 	}
-
+	if p.NotToBuild {
+		return p, &NoGoError{p.Dir}
+	}
 	for tag := range allTags {
 		p.AllTags = append(p.AllTags, tag)
 	}
