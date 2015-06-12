@@ -17,6 +17,7 @@ type Timespec struct {
 
 type SysProcAttr struct {}
 
+
 const (
 	O_RDONLY                          = 0x0
 	O_WRONLY                          = 0x1
@@ -28,6 +29,9 @@ const (
 	O_EXCL                            = 0x800
 
 	ImplementsGetwd = false
+
+	SIGTERM = Note("term")
+	SIGUSR1 = Note("usr1")
 )
 
 // A Note is a string describing a process note.
@@ -75,3 +79,4 @@ func Getpagesize() int { return 0x1000 }
 func exit(code int)
 
 func Exit(code int) { exit(code) }
+func Mkfifo(path string, mode uint32) (err error) { return errBug }

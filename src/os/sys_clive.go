@@ -69,6 +69,9 @@ func sameFile(fs1, fs2 *fileStat) bool { return false }
 func Readlink(name string) (string, error) { return "", errBug }
 func TempDir() string { return "" }
 func Pipe() (r *File, w *File, err error) { return nil, nil, errBug }
+func Chtimes(name string, atime time.Time, mtime time.Time) error { return errBug }
+func Truncate(name string, size int64) error { return errBug }
+func (f *File) Truncate(size int64) error { return errBug }
 
 func isExist(err error) bool {
 	switch pe := err.(type) {

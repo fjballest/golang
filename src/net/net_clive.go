@@ -43,8 +43,14 @@ func dial(net string, ra Addr, dialer func(time.Time) (Conn, error), deadline ti
 }
 func setKeepAlive(fd *netFD, keepalive bool) error { return errBug }
 func setKeepAlivePeriod(fd *netFD, d time.Duration) error { return errBug }
+func DialTCP(net string, laddr, raddr *TCPAddr) (*TCPConn, error) {
+	return dialTCP(net, laddr, raddr, noDeadline)
+}
 func dialTCP(net string, laddr, raddr *TCPAddr, deadline time.Time) (*TCPConn, error) {
 	return nil, errBug
+}
+func DialUDP(net string, laddr, raddr *UDPAddr) (*UDPConn, error) {
+	return dialUDP(net, laddr, raddr, noDeadline)
 }
 func dialUDP(net string, laddr, raddr *UDPAddr, deadline time.Time) (*UDPConn, error) {
 	return nil, errBug
