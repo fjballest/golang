@@ -1,4 +1,5 @@
 // +build !clive
 
-package cgo
+package main
+
 

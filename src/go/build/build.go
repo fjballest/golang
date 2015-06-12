@@ -612,6 +612,20 @@ Found:
 		return p, err
 	}
 
+	for i, d := range dirs {
+		name := d.Name()
+		if name != "skip.go" {
+			continue
+		}
+		dirs[i] = dirs[len(dirs)-1]
+		dirs = dirs[:len(dirs)-1]
+		match, _, _, _ := ctxt.matchFile(p.Dir, name, true, make(map[string]bool))
+		if !match {
+			fmt.Fprintf(os.Stderr, "skip: %s\n", p.Dir)
+			p.NotToBuild = true
+		}
+		break
+	}
 	var Sfiles []string // files with ".S" (capital S)
 	var firstFile, firstCommentFile string
 	imported := make(map[string][]token.Position)
@@ -632,9 +646,6 @@ Found:
 			return p, err
 		}
 		if !match {
-			if name == "skip.go" {
-				p.NotToBuild = true
-			}
 			if ext == ".go" {
 				p.IgnoredGoFiles = append(p.IgnoredGoFiles, name)
 			}
@@ -675,6 +686,10 @@ Found:
 			continue
 		}
 
+		if p.NotToBuild {
+			p.IgnoredGoFiles = append(p.IgnoredGoFiles, name)
+			continue
+		}
 		pf, err := parser.ParseFile(fset, filename, data, parser.ImportsOnly|parser.ParseComments)
 		if err != nil {
 			return p, err
@@ -1253,6 +1268,7 @@ func splitQuoted(s string) (r []string, err error) {
 //	a comma-separated list of any of these
 //
 func (ctxt *Context) match(name string, allTags map[string]bool) bool {
+
 	if name == "" {
 		if allTags != nil {
 			allTags[name] = true

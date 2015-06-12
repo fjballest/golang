@@ -95,6 +95,8 @@ type Package struct {
 	coverMode    string               // preprocess Go source files with the coverage tool in this mode
 	coverVars    map[string]*CoverVar // variables created by coverage analysis
 	omitDWARF    bool                 // tell linker not to write DWARF information
+
+	NotToBuild bool `json:",omitempty"` // package is a skip
 }
 
 // CoverVar holds the name of the generated coverage variables targeting the named file.
@@ -137,6 +139,7 @@ func (p *Package) copyBuild(pp *build.Package) {
 	p.TestImports = pp.TestImports
 	p.XTestGoFiles = pp.XTestGoFiles
 	p.XTestImports = pp.XTestImports
+	p.NotToBuild = pp.NotToBuild 
 }
 
 // A PackageError describes an error loading information about a package.
@@ -468,7 +471,9 @@ func (p *Package) load(stk *importStack, bp *build.Package, err error) *Package 
 	// The localPrefix is the path we interpret ./ imports relative to.
 	// Synthesized main packages sometimes override this.
 	p.localPrefix = dirToImportPath(p.Dir)
-
+	if p.NotToBuild && err == nil {
+		err = errors.New("package skip")
+	}
 	if err != nil {
 		p.Incomplete = true
 		err = expandScanner(err)
@@ -945,7 +950,11 @@ func packagesAndErrors(args []string) []*Package {
 
 	for _, arg := range args {
 		if !set[arg] {
-			pkgs = append(pkgs, loadPackage(arg, &stk))
+			p := loadPackage(arg, &stk)
+			if p.NotToBuild {
+				continue
+			}
+			pkgs = append(pkgs, p)
 			set[arg] = true
 		}
 	}

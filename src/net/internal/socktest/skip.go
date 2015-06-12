@@ -1,3 +1,3 @@
-// +build !clive
-package socktest
+// +build !clive 
 
+package socktest
