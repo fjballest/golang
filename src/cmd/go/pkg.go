@@ -947,12 +947,18 @@ func packagesAndErrors(args []string) []*Package {
 	var pkgs []*Package
 	var stk importStack
 	var set = make(map[string]bool)
-
-	for _, arg := range args {
+	var skips []string
+Loop:	for _, arg := range args {
 		if !set[arg] {
 			p := loadPackage(arg, &stk)
 			if p.NotToBuild {
+				skips = append(skips, p.Dir+"/")
 				continue
+			}
+			for _, s := range skips {
+				if strings.HasPrefix(p.Dir, s) {
+					continue Loop
+				}
 			}
 			pkgs = append(pkgs, p)
 			set[arg] = true
