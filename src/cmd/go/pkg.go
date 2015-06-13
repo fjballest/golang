@@ -934,6 +934,8 @@ func packages(args []string) []*Package {
 	return pkgs
 }
 
+var skips []string
+
 // packagesAndErrors is like 'packages' but returns a
 // *Package for every argument, even the ones that
 // cannot be loaded at all.
@@ -947,7 +949,6 @@ func packagesAndErrors(args []string) []*Package {
 	var pkgs []*Package
 	var stk importStack
 	var set = make(map[string]bool)
-	var skips []string
 Loop:	for _, arg := range args {
 		if !set[arg] {
 			p := loadPackage(arg, &stk)

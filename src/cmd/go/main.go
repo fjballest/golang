@@ -516,7 +516,7 @@ func matchPackages(pattern string) []string {
 		have["runtime/cgo"] = true // ignore during walk
 	}
 	var pkgs []string
-
+	var skip []string
 	for _, src := range buildContext.SrcDirs() {
 		if (pattern == "std" || pattern == "cmd") && src != gorootSrc {
 			continue
@@ -554,9 +554,20 @@ func matchPackages(pattern string) []string {
 			if !match(name) {
 				return nil
 			}
-			_, err = buildContext.ImportDir(path, 0)
+			var p *build.Package
+			p, err = buildContext.ImportDir(path, 0)
 			if err != nil {
+				if p != nil && p.NotToBuild {
+					skip = append(skip, path+"/")
+					return nil
+				}
 				if _, noGo := err.(*build.NoGoError); noGo {
+					return nil
+				}
+			}
+			for _, s := range skip {
+				if strings.HasPrefix(path, s) {
+					// fmt.Fprintf(os.Stderr, "skip child %s\n", path)
 					return nil
 				}
 			}
@@ -597,6 +608,7 @@ func matchPackagesInFS(pattern string) []string {
 	match := matchPattern(pattern)
 
 	var pkgs []string
+	var skip []string
 	filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
 		if err != nil || !fi.IsDir() {
 			return nil
@@ -624,11 +636,22 @@ func matchPackagesInFS(pattern string) []string {
 		if !match(name) {
 			return nil
 		}
-		if _, err = build.ImportDir(path, 0); err != nil {
+		var p *build.Package
+		if p, err = build.ImportDir(path, 0); err != nil {
+			if p != nil && p.NotToBuild {
+				skip = append(skip, path+"/")
+				return nil
+			}
 			if _, noGo := err.(*build.NoGoError); !noGo {
 				log.Print(err)
 			}
 			return nil
+		}
+		for _, s := range skip {
+			if strings.HasPrefix(path, s) {
+				// fmt.Fprintf(os.Stderr, "skip child %s\n", path)
+				return nil
+			}
 		}
 		pkgs = append(pkgs, name)
 		return nil
