@@ -1,5 +1,6 @@
-package net
+// +build clive
 
+package net
 
 import (
 	"errors"

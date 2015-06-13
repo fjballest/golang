@@ -1,3 +1,5 @@
+// +build clive
+
 package syscall
 
 var errBug = ErrorString("bug")

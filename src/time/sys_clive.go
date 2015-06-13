@@ -1,3 +1,5 @@
+// +build clive
+
 package time
 
 import (
