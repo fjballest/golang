@@ -63,3 +63,16 @@ func gogetenv(key string) string { return "" }
 
 var _cgo_setenv unsafe.Pointer   // pointer to C function; used to update the C env
 var _cgo_unsetenv unsafe.Pointer // pointer to C function
+
+func exit(sts int) {}
+
+func nanotime() int64 {
+	return 0
+}
+func write(fd uintptr, buf unsafe.Pointer, n int32) int64 {
+	return -1
+}
+func usleep(usec uint32) {}
+
+func osinit() {}
+

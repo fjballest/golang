@@ -6,6 +6,7 @@
 // +build !solaris
 // +build !windows
 // +build !nacl
+// +build !clive
 
 package runtime
 
