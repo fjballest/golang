@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -320,6 +321,20 @@ func TestPalettedDecodeConfig(t *testing.T) {
 	}
 }
 
+func TestInterlaced(t *testing.T) {
+	a, err := readPNG("testdata/gray-gradient.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := readPNG("testdata/gray-gradient.interlaced.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(a, b) {
+		t.Fatalf("decodings differ:\nnon-interlaced:\n%#v\ninterlaced:\n%#v", a, b)
+	}
+}
+
 func TestIncompleteIDATOnRowBoundary(t *testing.T) {
 	// The following is an invalid 1x2 grayscale PNG image. The header is OK,
 	// but the zlib-compressed IDAT payload contains two bytes "\x02\x00",
@@ -390,6 +405,18 @@ func TestMultipletRNSChunks(t *testing.T) {
 		if got := m.At(0, 0); got != want {
 			t.Errorf("%d tRNS chunks: got %T %v, want %T %v", i, got, got, want, want)
 		}
+	}
+}
+
+func TestUnknownChunkLengthUnderflow(t *testing.T) {
+	data := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x06, 0xf4, 0x7c, 0x55, 0x04, 0x1a,
+		0xd3, 0x11, 0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e, 0x00, 0x00,
+		0x01, 0x00, 0xff, 0xff, 0xff, 0xff, 0x07, 0xf4, 0x7c, 0x55, 0x04, 0x1a,
+		0xd3}
+	_, err := Decode(bytes.NewReader(data))
+	if err == nil {
+		t.Errorf("Didn't fail reading an unknown chunk with length 0xffffffff")
 	}
 }
 

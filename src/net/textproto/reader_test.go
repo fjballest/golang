@@ -24,11 +24,14 @@ var canonicalHeaderKeyTests = []canonicalHeaderKeyTest{
 	{"uSER-aGENT", "User-Agent"},
 	{"user-agent", "User-Agent"},
 	{"USER-AGENT", "User-Agent"},
-	{"üser-agenT", "üser-Agent"}, // non-ASCII unchanged
+
+	// Non-ASCII or anything with spaces or non-token chars is unchanged:
+	{"üser-agenT", "üser-agenT"},
+	{"a B", "a B"},
 
 	// This caused a panic due to mishandling of a space:
-	{"C Ontent-Transfer-Encoding", "C-Ontent-Transfer-Encoding"},
-	{"foo bar", "Foo-Bar"},
+	{"C Ontent-Transfer-Encoding", "C Ontent-Transfer-Encoding"},
+	{"foo bar", "foo bar"},
 }
 
 func TestCanonicalMIMEHeaderKey(t *testing.T) {
@@ -153,6 +156,15 @@ func TestReadMIMEHeaderSingle(t *testing.T) {
 	}
 }
 
+func TestReadMIMEHeaderNoKey(t *testing.T) {
+	r := reader(": bar\ntest-1: 1\n\n")
+	m, err := r.ReadMIMEHeader()
+	want := MIMEHeader{"Test-1": {"1"}}
+	if !reflect.DeepEqual(m, want) || err != nil {
+		t.Fatalf("ReadMIMEHeader: %v, %v; want %v", m, err, want)
+	}
+}
+
 func TestLargeReadMIMEHeader(t *testing.T) {
 	data := make([]byte, 16*1024)
 	for i := 0; i < len(data); i++ {
@@ -185,11 +197,37 @@ func TestReadMIMEHeaderNonCompliant(t *testing.T) {
 		"Foo":              {"bar"},
 		"Content-Language": {"en"},
 		"Sid":              {"0"},
-		"Audio-Mode":       {"None"},
+		"Audio Mode":       {"None"},
 		"Privilege":        {"127"},
 	}
 	if !reflect.DeepEqual(m, want) || err != nil {
 		t.Fatalf("ReadMIMEHeader =\n%v, %v; want:\n%v", m, err, want)
+	}
+}
+
+// Test that continued lines are properly trimmed. Issue 11204.
+func TestReadMIMEHeaderTrimContinued(t *testing.T) {
+	// In this header, \n and \r\n terminated lines are mixed on purpose.
+	// We expect each line to be trimmed (prefix and suffix) before being concatenated.
+	// Keep the spaces as they are.
+	r := reader("" + // for code formatting purpose.
+		"a:\n" +
+		" 0 \r\n" +
+		"b:1 \t\r\n" +
+		"c: 2\r\n" +
+		" 3\t\n" +
+		"  \t 4  \r\n\n")
+	m, err := r.ReadMIMEHeader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := MIMEHeader{
+		"A": {"0"},
+		"B": {"1"},
+		"C": {"2 3 4"},
+	}
+	if !reflect.DeepEqual(m, want) {
+		t.Fatalf("ReadMIMEHeader mismatch.\n got: %q\nwant: %q", m, want)
 	}
 }
 

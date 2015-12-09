@@ -5,6 +5,7 @@
 package net
 
 import (
+	"internal/race"
 	"os"
 	"runtime"
 	"sync"
@@ -208,7 +209,7 @@ func (s *ioSrv) ExecIO(o *operation, name string, submit func(o *operation) erro
 		s.req <- ioSrvReq{o, nil}
 		<-o.errc
 	}
-	// Wait for cancellation to complete.
+	// Wait for cancelation to complete.
 	fd.pd.WaitCanceled(int(o.mode))
 	if o.errno != 0 {
 		err = syscall.Errno(o.errno)
@@ -217,8 +218,8 @@ func (s *ioSrv) ExecIO(o *operation, name string, submit func(o *operation) erro
 		}
 		return 0, err
 	}
-	// We issued cancellation request. But, it seems, IO operation succeeded
-	// before cancellation request run. We need to treat IO operation as
+	// We issued a cancelation request. But, it seems, IO operation succeeded
+	// before the cancelation request run. We need to treat the IO operation as
 	// succeeded (the bytes are actually sent/recv from network).
 	return int(o.qty), nil
 }
@@ -461,8 +462,8 @@ func (fd *netFD) Read(buf []byte) (int, error) {
 	n, err := rsrv.ExecIO(o, "WSARecv", func(o *operation) error {
 		return syscall.WSARecv(o.fd.sysfd, &o.buf, 1, &o.qty, &o.flags, &o.o, nil)
 	})
-	if raceenabled {
-		raceAcquire(unsafe.Pointer(&ioSync))
+	if race.Enabled {
+		race.Acquire(unsafe.Pointer(&ioSync))
 	}
 	err = fd.eofError(n, err)
 	if _, ok := err.(syscall.Errno); ok {
@@ -504,8 +505,8 @@ func (fd *netFD) Write(buf []byte) (int, error) {
 		return 0, err
 	}
 	defer fd.writeUnlock()
-	if raceenabled {
-		raceReleaseMerge(unsafe.Pointer(&ioSync))
+	if race.Enabled {
+		race.ReleaseMerge(unsafe.Pointer(&ioSync))
 	}
 	o := &fd.wop
 	o.InitBuf(buf)

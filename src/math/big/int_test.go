@@ -6,10 +6,7 @@ package big
 
 import (
 	"bytes"
-	"encoding/gob"
 	"encoding/hex"
-	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -387,6 +384,11 @@ func TestSetBytes(t *testing.T) {
 }
 
 func checkBytes(b []byte) bool {
+	// trim leading zero bytes since Bytes() won't return them
+	// (was issue 12231)
+	for len(b) > 0 && b[0] == 0 {
+		b = b[1:]
+	}
 	b2 := new(Int).SetBytes(b).Bytes()
 	return bytes.Equal(b, b2)
 }
@@ -662,6 +664,21 @@ func testGcd(t *testing.T, d, x, y, a, b *Int) {
 	if D.Cmp(d) != 0 {
 		t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, D, d)
 	}
+
+	// check results in presence of aliasing (issue #11284)
+	a2 := new(Int).Set(a)
+	b2 := new(Int).Set(b)
+	a2.binaryGCD(a2, b2) // result is same as 1st argument
+	if a2.Cmp(d) != 0 {
+		t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, a2, d)
+	}
+
+	a2 = new(Int).Set(a)
+	b2 = new(Int).Set(b)
+	b2.binaryGCD(a2, b2) // result is same as 2nd argument
+	if b2.Cmp(d) != 0 {
+		t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, b2, d)
+	}
 }
 
 func TestGcd(t *testing.T) {
@@ -678,7 +695,9 @@ func TestGcd(t *testing.T) {
 		testGcd(t, d, x, y, a, b)
 	}
 
-	quick.Check(checkGcd, nil)
+	if err := quick.Check(checkGcd, nil); err != nil {
+		t.Error(err)
+	}
 }
 
 var primes = []string{
@@ -693,7 +712,7 @@ var primes = []string{
 	"10953742525620032441",
 	"17908251027575790097",
 
-	// http://golang.org/issue/638
+	// https://golang.org/issue/638
 	"18699199384836356663",
 
 	"98920366548084643601728869055592650835572950932266967461790948584315647051443",
@@ -1165,6 +1184,53 @@ func BenchmarkBitsetNegOrig(b *testing.B) {
 	}
 }
 
+// tri generates the trinomial 2**(n*2) - 2**n - 1, which is always 3 mod 4 and
+// 7 mod 8, so that 2 is always a quadratic residue.
+func tri(n uint) *Int {
+	x := NewInt(1)
+	x.Lsh(x, n)
+	x2 := new(Int).Lsh(x, n)
+	x2.Sub(x2, x)
+	x2.Sub(x2, intOne)
+	return x2
+}
+
+func BenchmarkModSqrt225_Tonelli(b *testing.B) {
+	p := tri(225)
+	x := NewInt(2)
+	for i := 0; i < b.N; i++ {
+		x.SetUint64(2)
+		x.modSqrtTonelliShanks(x, p)
+	}
+}
+
+func BenchmarkModSqrt224_3Mod4(b *testing.B) {
+	p := tri(225)
+	x := new(Int).SetUint64(2)
+	for i := 0; i < b.N; i++ {
+		x.SetUint64(2)
+		x.modSqrt3Mod4Prime(x, p)
+	}
+}
+
+func BenchmarkModSqrt5430_Tonelli(b *testing.B) {
+	p := tri(5430)
+	x := new(Int).SetUint64(2)
+	for i := 0; i < b.N; i++ {
+		x.SetUint64(2)
+		x.modSqrtTonelliShanks(x, p)
+	}
+}
+
+func BenchmarkModSqrt5430_3Mod4(b *testing.B) {
+	p := tri(5430)
+	x := new(Int).SetUint64(2)
+	for i := 0; i < b.N; i++ {
+		x.SetUint64(2)
+		x.modSqrt3Mod4Prime(x, p)
+	}
+}
+
 func TestBitwise(t *testing.T) {
 	x := new(Int)
 	y := new(Int)
@@ -1384,138 +1450,6 @@ func TestJacobiPanic(t *testing.T) {
 	// Jacobi should panic when the second argument is even.
 	Jacobi(x, y)
 	panic(failureMsg)
-}
-
-var encodingTests = []string{
-	"-539345864568634858364538753846587364875430589374589",
-	"-678645873",
-	"-100",
-	"-2",
-	"-1",
-	"0",
-	"1",
-	"2",
-	"10",
-	"42",
-	"1234567890",
-	"298472983472983471903246121093472394872319615612417471234712061",
-}
-
-func TestIntGobEncoding(t *testing.T) {
-	var medium bytes.Buffer
-	enc := gob.NewEncoder(&medium)
-	dec := gob.NewDecoder(&medium)
-	for _, test := range encodingTests {
-		medium.Reset() // empty buffer for each test case (in case of failures)
-		var tx Int
-		tx.SetString(test, 10)
-		if err := enc.Encode(&tx); err != nil {
-			t.Errorf("encoding of %s failed: %s", &tx, err)
-		}
-		var rx Int
-		if err := dec.Decode(&rx); err != nil {
-			t.Errorf("decoding of %s failed: %s", &tx, err)
-		}
-		if rx.Cmp(&tx) != 0 {
-			t.Errorf("transmission of %s failed: got %s want %s", &tx, &rx, &tx)
-		}
-	}
-}
-
-// Sending a nil Int pointer (inside a slice) on a round trip through gob should yield a zero.
-// TODO: top-level nils.
-func TestGobEncodingNilIntInSlice(t *testing.T) {
-	buf := new(bytes.Buffer)
-	enc := gob.NewEncoder(buf)
-	dec := gob.NewDecoder(buf)
-
-	var in = make([]*Int, 1)
-	err := enc.Encode(&in)
-	if err != nil {
-		t.Errorf("gob encode failed: %q", err)
-	}
-	var out []*Int
-	err = dec.Decode(&out)
-	if err != nil {
-		t.Fatalf("gob decode failed: %q", err)
-	}
-	if len(out) != 1 {
-		t.Fatalf("wrong len; want 1 got %d", len(out))
-	}
-	var zero Int
-	if out[0].Cmp(&zero) != 0 {
-		t.Errorf("transmission of (*Int)(nill) failed: got %s want 0", out)
-	}
-}
-
-func TestIntJSONEncoding(t *testing.T) {
-	for _, test := range encodingTests {
-		var tx Int
-		tx.SetString(test, 10)
-		b, err := json.Marshal(&tx)
-		if err != nil {
-			t.Errorf("marshaling of %s failed: %s", &tx, err)
-		}
-		var rx Int
-		if err := json.Unmarshal(b, &rx); err != nil {
-			t.Errorf("unmarshaling of %s failed: %s", &tx, err)
-		}
-		if rx.Cmp(&tx) != 0 {
-			t.Errorf("JSON encoding of %s failed: got %s want %s", &tx, &rx, &tx)
-		}
-	}
-}
-
-var intVals = []string{
-	"-141592653589793238462643383279502884197169399375105820974944592307816406286",
-	"-1415926535897932384626433832795028841971",
-	"-141592653589793",
-	"-1",
-	"0",
-	"1",
-	"141592653589793",
-	"1415926535897932384626433832795028841971",
-	"141592653589793238462643383279502884197169399375105820974944592307816406286",
-}
-
-func TestIntJSONEncodingTextMarshaller(t *testing.T) {
-	for _, num := range intVals {
-		var tx Int
-		tx.SetString(num, 0)
-		b, err := json.Marshal(&tx)
-		if err != nil {
-			t.Errorf("marshaling of %s failed: %s", &tx, err)
-			continue
-		}
-		var rx Int
-		if err := json.Unmarshal(b, &rx); err != nil {
-			t.Errorf("unmarshaling of %s failed: %s", &tx, err)
-			continue
-		}
-		if rx.Cmp(&tx) != 0 {
-			t.Errorf("JSON encoding of %s failed: got %s want %s", &tx, &rx, &tx)
-		}
-	}
-}
-
-func TestIntXMLEncodingTextMarshaller(t *testing.T) {
-	for _, num := range intVals {
-		var tx Int
-		tx.SetString(num, 0)
-		b, err := xml.Marshal(&tx)
-		if err != nil {
-			t.Errorf("marshaling of %s failed: %s", &tx, err)
-			continue
-		}
-		var rx Int
-		if err := xml.Unmarshal(b, &rx); err != nil {
-			t.Errorf("unmarshaling of %s failed: %s", &tx, err)
-			continue
-		}
-		if rx.Cmp(&tx) != 0 {
-			t.Errorf("XML encoding of %s failed: got %s want %s", &tx, &rx, &tx)
-		}
-	}
 }
 
 func TestIssue2607(t *testing.T) {

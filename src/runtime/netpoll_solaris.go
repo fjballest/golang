@@ -32,7 +32,7 @@ import "unsafe"
 // Beside calling runtime·netpollopen, the networking code paths
 // will call runtime·netpollarm each time goroutines are interested
 // in doing network I/O. Because now we know what kind of I/O we
-// are interested in (reading/writting), we can call port_associate
+// are interested in (reading/writing), we can call port_associate
 // passing the correct type of event set (POLLIN/POLLOUT). As we made
 // sure to have already associated the file descriptor with the port,
 // when we now call port_associate, we will unblock the main poller
@@ -174,9 +174,6 @@ func netpollarm(pd *pollDesc, mode int) {
 	unlock(&pd.lock)
 }
 
-// netpolllasterr holds the last error code returned by port_getn to prevent log spamming
-var netpolllasterr int32
-
 // polls for ready network connections
 // returns list of goroutines that become runnable
 func netpoll(block bool) *g {
@@ -194,9 +191,9 @@ func netpoll(block bool) *g {
 retry:
 	var n uint32 = 1
 	if port_getn(portfd, &events[0], uint32(len(events)), &n, wait) < 0 {
-		if e := errno(); e != _EINTR && e != netpolllasterr {
-			netpolllasterr = e
+		if e := errno(); e != _EINTR {
 			print("runtime: port_getn on fd ", portfd, " failed with ", e, "\n")
+			throw("port_getn failed")
 		}
 		goto retry
 	}

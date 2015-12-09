@@ -37,8 +37,6 @@ const (
 	NREGVAR = 16 /* 8 integer + 8 floating */
 )
 
-var reg [x86.MAXREG]uint8
-
 var regname = []string{
 	".ax",
 	".cx",
@@ -64,7 +62,11 @@ func regnames(n *int) []string {
 }
 
 func excludedregs() uint64 {
-	return RtoB(x86.REG_SP)
+	if gc.Ctxt.Flag_shared != 0 {
+		return RtoB(x86.REG_SP) | RtoB(x86.REG_CX)
+	} else {
+		return RtoB(x86.REG_SP)
+	}
 }
 
 func doregbits(r int) uint64 {

@@ -179,7 +179,7 @@ func (b *Reader) Discard(n int) (discarded int, err error) {
 
 // Read reads data into p.
 // It returns the number of bytes read into p.
-// It calls Read at most once on the underlying Reader,
+// The bytes are taken from at most one Read on the underlying Reader,
 // hence n may be less than len(p).
 // At EOF, the count will be zero and err will be io.EOF.
 func (b *Reader) Read(p []byte) (n int, err error) {
@@ -400,7 +400,6 @@ func (b *Reader) ReadBytes(delim byte) (line []byte, err error) {
 	// accumulating full buffers.
 	var frag []byte
 	var full [][]byte
-	err = nil
 
 	for {
 		var e error

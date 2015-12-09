@@ -224,6 +224,13 @@ type Request struct {
 	// otherwise it leaves the field nil.
 	// This field is ignored by the HTTP client.
 	TLS *tls.ConnectionState
+
+	// Cancel is an optional channel whose closure indicates that the client
+	// request should be regarded as canceled. Not all implementations of
+	// RoundTripper may support Cancel.
+	//
+	// For server requests, this field is not applicable.
+	Cancel <-chan struct{}
 }
 
 // ProtoAtLeast reports whether the HTTP protocol used
@@ -243,6 +250,7 @@ func (r *Request) Cookies() []*Cookie {
 	return readCookies(r.Header, "")
 }
 
+// ErrNoCookie is returned by Request's Cookie method when a cookie is not found.
 var ErrNoCookie = errors.New("http: named cookie not present")
 
 // Cookie returns the named cookie provided in the request or
@@ -327,13 +335,12 @@ func valueOrDefault(value, def string) string {
 }
 
 // NOTE: This is not intended to reflect the actual Go version being used.
-// It was changed from "Go http package" to "Go 1.1 package http" at the
-// time of the Go 1.1 release because the former User-Agent had ended up
-// on a blacklist for some intrusion detection systems.
+// It was changed at the time of Go 1.1 release because the former User-Agent
+// had ended up on a blacklist for some intrusion detection systems.
 // See https://codereview.appspot.com/7532043.
-const defaultUserAgent = "Go 1.1 package http"
+const defaultUserAgent = "Go-http-client/1.1"
 
-// Write writes an HTTP/1.1 request -- header and body -- in wire format.
+// Write writes an HTTP/1.1 request, which is the header and body, in wire format.
 // This method consults the following fields of the request:
 //	Host
 //	URL
@@ -347,7 +354,7 @@ const defaultUserAgent = "Go 1.1 package http"
 // hasn't been set to "identity", Write adds "Transfer-Encoding:
 // chunked" to the header. Body is closed after it is sent.
 func (r *Request) Write(w io.Writer) error {
-	return r.write(w, false, nil)
+	return r.write(w, false, nil, nil)
 }
 
 // WriteProxy is like Write but writes the request in the form
@@ -357,21 +364,32 @@ func (r *Request) Write(w io.Writer) error {
 // In either case, WriteProxy also writes a Host header, using
 // either r.Host or r.URL.Host.
 func (r *Request) WriteProxy(w io.Writer) error {
-	return r.write(w, true, nil)
+	return r.write(w, true, nil, nil)
 }
 
+// errMissingHost is returned by Write when there is no Host or URL present in
+// the Request.
+var errMissingHost = errors.New("http: Request.Write on Request with no Host or URL set")
+
 // extraHeaders may be nil
-func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header) error {
+// waitForContinue may be nil
+func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitForContinue func() bool) error {
+	// Find the target host. Prefer the Host: header, but if that
+	// is not given, use the host from the request URL.
+	//
+	// Clean the host, in case it arrives with unexpected stuff in it.
+	host := cleanHost(req.Host)
+	if host == "" {
+		if req.URL == nil {
+			return errMissingHost
+		}
+		host = cleanHost(req.URL.Host)
+	}
+
 	// According to RFC 6874, an HTTP client, proxy, or other
 	// intermediary must remove any IPv6 zone identifier attached
 	// to an outgoing URI.
-	host := removeZone(req.Host)
-	if host == "" {
-		if req.URL == nil {
-			return errors.New("http: Request.Write on Request with no Host or URL set")
-		}
-		host = removeZone(req.URL.Host)
-	}
+	host = removeZone(host)
 
 	ruri := req.URL.RequestURI()
 	if usingProxy && req.URL.Scheme != "" && req.URL.Opaque == "" {
@@ -445,6 +463,21 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header) err
 		return err
 	}
 
+	// Flush and wait for 100-continue if expected.
+	if waitForContinue != nil {
+		if bw, ok := w.(*bufio.Writer); ok {
+			err = bw.Flush()
+			if err != nil {
+				return err
+			}
+		}
+
+		if !waitForContinue() {
+			req.closeBody()
+			return nil
+		}
+	}
+
 	// Write body and trailer
 	err = tw.WriteBody(w)
 	if err != nil {
@@ -455,6 +488,22 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header) err
 		return bw.Flush()
 	}
 	return nil
+}
+
+// cleanHost strips anything after '/' or ' '.
+// Ideally we'd clean the Host header according to the spec:
+//   https://tools.ietf.org/html/rfc7230#section-5.4 (Host = uri-host [ ":" port ]")
+//   https://tools.ietf.org/html/rfc7230#section-2.7 (uri-host -> rfc3986's host)
+//   https://tools.ietf.org/html/rfc3986#section-3.2.2 (definition of host)
+// But practically, what we are trying to avoid is the situation in
+// issue 11206, where a malformed Host header used in the proxy context
+// would create a bad request. So it is enough to just truncate at the
+// first offending character.
+func cleanHost(in string) string {
+	if i := strings.IndexAny(in, " /"); i != -1 {
+		return in[:i]
+	}
+	return in
 }
 
 // removeZone removes IPv6 zone identifer from host.
@@ -502,6 +551,23 @@ func ParseHTTPVersion(vers string) (major, minor int, ok bool) {
 	return major, minor, true
 }
 
+func validMethod(method string) bool {
+	/*
+	     Method         = "OPTIONS"                ; Section 9.2
+	                    | "GET"                    ; Section 9.3
+	                    | "HEAD"                   ; Section 9.4
+	                    | "POST"                   ; Section 9.5
+	                    | "PUT"                    ; Section 9.6
+	                    | "DELETE"                 ; Section 9.7
+	                    | "TRACE"                  ; Section 9.8
+	                    | "CONNECT"                ; Section 9.9
+	                    | extension-method
+	   extension-method = token
+	     token          = 1*<any CHAR except CTLs or separators>
+	*/
+	return len(method) > 0 && strings.IndexFunc(method, isNotToken) == -1
+}
+
 // NewRequest returns a new Request given a method, URL, and optional body.
 //
 // If the provided body is also an io.Closer, the returned
@@ -515,6 +581,9 @@ func ParseHTTPVersion(vers string) (major, minor int, ok bool) {
 // type's documentation for the difference between inbound and outbound
 // request fields.
 func NewRequest(method, urlStr string, body io.Reader) (*Request, error) {
+	if !validMethod(method) {
+		return nil, fmt.Errorf("net/http: invalid method %q", method)
+	}
 	u, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, err
@@ -686,12 +755,13 @@ func ReadRequest(b *bufio.Reader) (req *Request, err error) {
 
 	fixPragmaCacheControl(req.Header)
 
+	req.Close = shouldClose(req.ProtoMajor, req.ProtoMinor, req.Header, false)
+
 	err = readTransfer(req, b)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Close = shouldClose(req.ProtoMajor, req.ProtoMinor, req.Header, false)
 	return req, nil
 }
 
@@ -712,23 +782,52 @@ type maxBytesReader struct {
 	r       io.ReadCloser // underlying reader
 	n       int64         // max bytes remaining
 	stopped bool
+	sawEOF  bool
+}
+
+func (l *maxBytesReader) tooLarge() (n int, err error) {
+	if !l.stopped {
+		l.stopped = true
+		if res, ok := l.w.(*response); ok {
+			res.requestTooLarge()
+		}
+	}
+	return 0, errors.New("http: request body too large")
 }
 
 func (l *maxBytesReader) Read(p []byte) (n int, err error) {
-	if l.n <= 0 {
-		if !l.stopped {
-			l.stopped = true
-			if res, ok := l.w.(*response); ok {
-				res.requestTooLarge()
-			}
+	toRead := l.n
+	if l.n == 0 {
+		if l.sawEOF {
+			return l.tooLarge()
 		}
-		return 0, errors.New("http: request body too large")
+		// The underlying io.Reader may not return (0, io.EOF)
+		// at EOF if the requested size is 0, so read 1 byte
+		// instead. The io.Reader docs are a bit ambiguous
+		// about the return value of Read when 0 bytes are
+		// requested, and {bytes,strings}.Reader gets it wrong
+		// too (it returns (0, nil) even at EOF).
+		toRead = 1
 	}
-	if int64(len(p)) > l.n {
-		p = p[:l.n]
+	if int64(len(p)) > toRead {
+		p = p[:toRead]
 	}
 	n, err = l.r.Read(p)
+	if err == io.EOF {
+		l.sawEOF = true
+	}
+	if l.n == 0 {
+		// If we had zero bytes to read remaining (but hadn't seen EOF)
+		// and we get a byte here, that means we went over our limit.
+		if n > 0 {
+			return l.tooLarge()
+		}
+		return 0, err
+	}
 	l.n -= int64(n)
+	if l.n < 0 {
+		l.n = 0
+	}
 	return
 }
 
@@ -878,6 +977,7 @@ func (r *Request) ParseMultipartForm(maxMemory int64) error {
 // POST and PUT body parameters take precedence over URL query string values.
 // FormValue calls ParseMultipartForm and ParseForm if necessary and ignores
 // any errors returned by these functions.
+// If key is not present, FormValue returns the empty string.
 // To access multiple values of the same key, call ParseForm and
 // then inspect Request.Form directly.
 func (r *Request) FormValue(key string) string {
@@ -894,6 +994,7 @@ func (r *Request) FormValue(key string) string {
 // or PUT request body. URL query parameters are ignored.
 // PostFormValue calls ParseMultipartForm and ParseForm if necessary and ignores
 // any errors returned by these functions.
+// If key is not present, PostFormValue returns the empty string.
 func (r *Request) PostFormValue(key string) string {
 	if r.PostForm == nil {
 		r.ParseMultipartForm(defaultMaxMemory)
@@ -944,4 +1045,12 @@ func (r *Request) closeBody() {
 	if r.Body != nil {
 		r.Body.Close()
 	}
+}
+
+func (r *Request) isReplayable() bool {
+	return r.Body == nil &&
+		(r.Method == "GET" ||
+			r.Method == "HEAD" ||
+			r.Method == "OPTIONS" ||
+			r.Method == "TRACE")
 }

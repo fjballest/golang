@@ -4,7 +4,10 @@
 
 package runtime
 
-import "unsafe"
+import (
+	"runtime/internal/sys"
+	"unsafe"
+)
 
 // From FreeBSD's <sys/sysctl.h>
 const (
@@ -70,7 +73,7 @@ func thr_start()
 //go:nowritebarrier
 func newosproc(mp *m, stk unsafe.Pointer) {
 	if false {
-		print("newosproc stk=", stk, " m=", mp, " g=", mp.g0, " thr_start=", funcPC(thr_start), " id=", mp.id, "/", mp.tls[0], " ostk=", &mp, "\n")
+		print("newosproc stk=", stk, " m=", mp, " g=", mp.g0, " thr_start=", funcPC(thr_start), " id=", mp.id, " ostk=", &mp, "\n")
 	}
 
 	// NOTE(rsc): This code is confused. stackbase is the top of the stack
@@ -85,12 +88,11 @@ func newosproc(mp *m, stk unsafe.Pointer) {
 		tls_base:   unsafe.Pointer(&mp.tls[0]),
 		tls_size:   unsafe.Sizeof(mp.tls),
 	}
-	mp.tls[0] = uintptr(mp.id) // so 386 asm can find it
 
 	var oset sigset
-	sigprocmask(&sigset_all, &oset)
+	sigprocmask(_SIG_SETMASK, &sigset_all, &oset)
 	thr_new(&param, int32(unsafe.Sizeof(param)))
-	sigprocmask(&oset, nil)
+	sigprocmask(_SIG_SETMASK, &oset, nil)
 }
 
 func osinit() {
@@ -118,12 +120,19 @@ func mpreinit(mp *m) {
 	mp.gsignal.m = mp
 }
 
+//go:nosplit
 func msigsave(mp *m) {
-	smask := (*sigset)(unsafe.Pointer(&mp.sigmask))
-	if unsafe.Sizeof(*smask) > unsafe.Sizeof(mp.sigmask) {
-		throw("insufficient storage for signal mask")
-	}
-	sigprocmask(nil, smask)
+	sigprocmask(_SIG_SETMASK, nil, &mp.sigmask)
+}
+
+//go:nosplit
+func msigrestore(mp *m) {
+	sigprocmask(_SIG_SETMASK, &mp.sigmask, nil)
+}
+
+//go:nosplit
+func sigblock() {
+	sigprocmask(_SIG_SETMASK, &sigset_all, nil)
 }
 
 // Called to initialize a new m (including the bootstrap m).
@@ -133,7 +142,7 @@ func minit() {
 
 	// m.procid is a uint64, but thr_new writes a uint32 on 32-bit systems.
 	// Fix it up. (Only matters on big-endian, but be clean anyway.)
-	if ptrSize == 4 {
+	if sys.PtrSize == 4 {
 		_g_.m.procid = uint64(*(*uint32)(unsafe.Pointer(&_g_.m.procid)))
 	}
 
@@ -141,20 +150,18 @@ func minit() {
 	signalstack(&_g_.m.gsignal.stack)
 
 	// restore signal mask from m.sigmask and unblock essential signals
-	nmask := *(*sigset)(unsafe.Pointer(&_g_.m.sigmask))
+	nmask := _g_.m.sigmask
 	for i := range sigtable {
 		if sigtable[i].flags&_SigUnblock != 0 {
 			nmask.__bits[(i-1)/32] &^= 1 << ((uint32(i) - 1) & 31)
 		}
 	}
-	sigprocmask(&nmask, nil)
+	sigprocmask(_SIG_SETMASK, &nmask, nil)
 }
 
 // Called from dropm to undo the effect of an minit.
+//go:nosplit
 func unminit() {
-	_g_ := getg()
-	smask := (*sigset)(unsafe.Pointer(&_g_.m.sigmask))
-	sigprocmask(smask, nil)
 	signalstack(nil)
 }
 
@@ -224,6 +231,7 @@ func getsig(i int32) uintptr {
 	return sa.sa_handler
 }
 
+//go:nosplit
 func signalstack(s *stack) {
 	var st stackt
 	if s == nil {
@@ -239,5 +247,11 @@ func signalstack(s *stack) {
 func updatesigmask(m [(_NSIG + 31) / 32]uint32) {
 	var mask sigset
 	copy(mask.__bits[:], m[:])
-	sigprocmask(&mask, nil)
+	sigprocmask(_SIG_SETMASK, &mask, nil)
+}
+
+func unblocksig(sig int32) {
+	var mask sigset
+	mask.__bits[(sig-1)/32] |= 1 << ((uint32(sig) - 1) & 31)
+	sigprocmask(_SIG_UNBLOCK, &mask, nil)
 }

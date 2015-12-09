@@ -74,11 +74,11 @@ func lwp_start(uintptr)
 //go:nowritebarrier
 func newosproc(mp *m, stk unsafe.Pointer) {
 	if false {
-		print("newosproc stk=", stk, " m=", mp, " g=", mp.g0, " lwp_start=", funcPC(lwp_start), " id=", mp.id, "/", mp.tls[0], " ostk=", &mp, "\n")
+		print("newosproc stk=", stk, " m=", mp, " g=", mp.g0, " lwp_start=", funcPC(lwp_start), " id=", mp.id, " ostk=", &mp, "\n")
 	}
 
 	var oset sigset
-	sigprocmask(&sigset_all, &oset)
+	sigprocmask(_SIG_SETMASK, &sigset_all, &oset)
 
 	params := lwpparams{
 		start_func: funcPC(lwp_start),
@@ -88,10 +88,8 @@ func newosproc(mp *m, stk unsafe.Pointer) {
 		tid2:       nil,
 	}
 
-	mp.tls[0] = uintptr(mp.id) // XXX so 386 asm can find it
-
 	lwp_create(&params)
-	sigprocmask(&oset, nil)
+	sigprocmask(_SIG_SETMASK, &oset, nil)
 }
 
 func osinit() {
@@ -119,12 +117,19 @@ func mpreinit(mp *m) {
 	mp.gsignal.m = mp
 }
 
+//go:nosplit
 func msigsave(mp *m) {
-	smask := (*sigset)(unsafe.Pointer(&mp.sigmask))
-	if unsafe.Sizeof(*smask) > unsafe.Sizeof(mp.sigmask) {
-		throw("insufficient storage for signal mask")
-	}
-	sigprocmask(nil, smask)
+	sigprocmask(_SIG_SETMASK, nil, &mp.sigmask)
+}
+
+//go:nosplit
+func msigrestore(mp *m) {
+	sigprocmask(_SIG_SETMASK, &mp.sigmask, nil)
+}
+
+//go:nosplit
+func sigblock() {
+	sigprocmask(_SIG_SETMASK, &sigset_all, nil)
 }
 
 // Called to initialize a new m (including the bootstrap m).
@@ -139,20 +144,17 @@ func minit() {
 	signalstack(&_g_.m.gsignal.stack)
 
 	// restore signal mask from m.sigmask and unblock essential signals
-	nmask := *(*sigset)(unsafe.Pointer(&_g_.m.sigmask))
+	nmask := _g_.m.sigmask
 	for i := range sigtable {
 		if sigtable[i].flags&_SigUnblock != 0 {
 			nmask.__bits[(i-1)/32] &^= 1 << ((uint32(i) - 1) & 31)
 		}
 	}
-	sigprocmask(&nmask, nil)
+	sigprocmask(_SIG_SETMASK, &nmask, nil)
 }
 
 // Called from dropm to undo the effect of an minit.
 func unminit() {
-	_g_ := getg()
-	smask := (*sigset)(unsafe.Pointer(&_g_.m.sigmask))
-	sigprocmask(smask, nil)
 	signalstack(nil)
 }
 
@@ -222,6 +224,7 @@ func getsig(i int32) uintptr {
 	return sa.sa_sigaction
 }
 
+//go:nosplit
 func signalstack(s *stack) {
 	var st sigaltstackt
 	if s == nil {
@@ -237,5 +240,11 @@ func signalstack(s *stack) {
 func updatesigmask(m sigmask) {
 	var mask sigset
 	copy(mask.__bits[:], m[:])
-	sigprocmask(&mask, nil)
+	sigprocmask(_SIG_SETMASK, &mask, nil)
+}
+
+func unblocksig(sig int32) {
+	var mask sigset
+	mask.__bits[(sig-1)/32] |= 1 << ((uint32(sig) - 1) & 31)
+	sigprocmask(_SIG_UNBLOCK, &mask, nil)
 }

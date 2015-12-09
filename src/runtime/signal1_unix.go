@@ -6,6 +6,8 @@
 
 package runtime
 
+import "runtime/internal/sys"
+
 const (
 	_SIG_DFL uintptr = 0
 	_SIG_IGN uintptr = 1
@@ -16,7 +18,7 @@ const (
 // handle a particular signal (e.g., signal occurred on a non-Go thread).
 // See sigfwdgo() for more information on when the signals are forwarded.
 //
-// Signal forwarding is currently available only on Linux.
+// Signal forwarding is currently available only on Darwin and Linux.
 var fwdSig [_NSIG]uintptr
 
 // sigmask represents a general signal mask compatible with the GOOS
@@ -140,6 +142,43 @@ func sigpipe() {
 	raise(_SIGPIPE)
 }
 
+// raisebadsignal is called when a signal is received on a non-Go
+// thread, and the Go program does not want to handle it (that is, the
+// program has not called os/signal.Notify for the signal).
+func raisebadsignal(sig int32) {
+	if sig == _SIGPROF {
+		// Ignore profiling signals that arrive on non-Go threads.
+		return
+	}
+
+	var handler uintptr
+	if sig >= _NSIG {
+		handler = _SIG_DFL
+	} else {
+		handler = fwdSig[sig]
+	}
+
+	// Reset the signal handler and raise the signal.
+	// We are currently running inside a signal handler, so the
+	// signal is blocked.  We need to unblock it before raising the
+	// signal, or the signal we raise will be ignored until we return
+	// from the signal handler.  We know that the signal was unblocked
+	// before entering the handler, or else we would not have received
+	// it.  That means that we don't have to worry about blocking it
+	// again.
+	unblocksig(sig)
+	setsig(sig, handler, false)
+	raise(sig)
+
+	// If the signal didn't cause the program to exit, restore the
+	// Go signal handler and carry on.
+	//
+	// We may receive another instance of the signal before we
+	// restore the Go handler, but that is not so bad: we know
+	// that the Go program has been ignoring the signal.
+	setsig(sig, funcPC(sighandler), true)
+}
+
 func crash() {
 	if GOOS == "darwin" {
 		// OS X core dumps are linear dumps of the mapped memory,
@@ -148,7 +187,7 @@ func crash() {
 		// this means the OS X core file will be >128 GB and even on a zippy
 		// workstation can take OS X well over an hour to write (uninterruptible).
 		// Save users from making that mistake.
-		if ptrSize == 8 {
+		if sys.PtrSize == 8 {
 			return
 		}
 	}
@@ -158,7 +197,7 @@ func crash() {
 	raise(_SIGABRT)
 }
 
-// createSigM starts one global, sleeping thread to make sure at least one thread
+// ensureSigM starts one global, sleeping thread to make sure at least one thread
 // is available to catch signals enabled for os/signal.
 func ensureSigM() {
 	if maskUpdatedChan != nil {
@@ -189,11 +228,11 @@ func ensureSigM() {
 		for {
 			select {
 			case sig := <-enableSigChan:
-				if b := sig - 1; b >= 0 {
+				if b := sig - 1; sig > 0 {
 					sigBlocked[b/32] &^= (1 << (b & 31))
 				}
 			case sig := <-disableSigChan:
-				if b := sig - 1; b >= 0 {
+				if b := sig - 1; sig > 0 {
 					sigBlocked[b/32] |= (1 << (b & 31))
 				}
 			}

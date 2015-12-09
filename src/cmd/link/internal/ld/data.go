@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -355,57 +356,41 @@ func relocsym(s *LSym) {
 		// We need to be able to reference dynimport symbols when linking against
 		// shared libraries, and Solaris needs it always
 		if HEADTYPE != obj.Hsolaris && r.Sym != nil && r.Sym.Type == obj.SDYNIMPORT && !DynlinkingGo() {
-			Diag("unhandled relocation for %s (type %d rtype %d)", r.Sym.Name, r.Sym.Type, r.Type)
+			if !(Thearch.Thechar == '9' && Linkmode == LinkExternal && r.Sym.Name == ".TOC.") {
+				Diag("unhandled relocation for %s (type %d rtype %d)", r.Sym.Name, r.Sym.Type, r.Type)
+			}
 		}
 		if r.Sym != nil && r.Sym.Type != obj.STLSBSS && !r.Sym.Reachable {
 			Diag("unreachable sym in relocation: %s %s", s.Name, r.Sym.Name)
 		}
 
-		// Android emulates runtime.tlsg as a regular variable.
-		if r.Type == obj.R_TLS && goos == "android" {
-			r.Type = obj.R_ADDR
-		}
-
 		switch r.Type {
 		default:
-			o = 0
+			switch siz {
+			default:
+				Diag("bad reloc size %#x for %s", uint32(siz), r.Sym.Name)
+			case 1:
+				o = int64(s.P[off])
+			case 2:
+				o = int64(Ctxt.Arch.ByteOrder.Uint16(s.P[off:]))
+			case 4:
+				o = int64(Ctxt.Arch.ByteOrder.Uint32(s.P[off:]))
+			case 8:
+				o = int64(Ctxt.Arch.ByteOrder.Uint64(s.P[off:]))
+			}
 			if Thearch.Archreloc(r, s, &o) < 0 {
 				Diag("unknown reloc %d", r.Type)
 			}
 
-		case obj.R_TLS:
-			if Linkmode == LinkExternal && Iself && HEADTYPE != obj.Hopenbsd {
-				r.Done = 0
-				r.Sym = Ctxt.Tlsg
-				r.Xsym = Ctxt.Tlsg
-				r.Xadd = r.Add
-				o = r.Add
-				break
-			}
-			if Linkmode == LinkInternal && Iself && Thearch.Thechar == '5' {
-				// On ELF ARM, the thread pointer is 8 bytes before
-				// the start of the thread-local data block, so add 8
-				// to the actual TLS offset (r->sym->value).
-				// This 8 seems to be a fundamental constant of
-				// ELF on ARM (or maybe Glibc on ARM); it is not
-				// related to the fact that our own TLS storage happens
-				// to take up 8 bytes.
-				o = 8 + r.Sym.Value
-
-				break
-			}
-
-			r.Done = 0
-			o = 0
-			if Thearch.Thechar != '6' {
-				o = r.Add
-			}
-
 		case obj.R_TLS_LE:
-			if Linkmode == LinkExternal && Iself && HEADTYPE != obj.Hopenbsd {
+			isAndroidX86 := goos == "android" && (Thearch.Thechar == '6' || Thearch.Thechar == '8')
+
+			if Linkmode == LinkExternal && Iself && HEADTYPE != obj.Hopenbsd && !isAndroidX86 {
 				r.Done = 0
-				r.Sym = Ctxt.Tlsg
-				r.Xsym = Ctxt.Tlsg
+				if r.Sym == nil {
+					r.Sym = Ctxt.Tlsg
+				}
+				r.Xsym = r.Sym
 				r.Xadd = r.Add
 				o = 0
 				if Thearch.Thechar != '6' {
@@ -414,7 +399,16 @@ func relocsym(s *LSym) {
 				break
 			}
 
-			if Iself || Ctxt.Headtype == obj.Hplan9 || Ctxt.Headtype == obj.Hdarwin {
+			if Iself && Thearch.Thechar == '5' {
+				// On ELF ARM, the thread pointer is 8 bytes before
+				// the start of the thread-local data block, so add 8
+				// to the actual TLS offset (r->sym->value).
+				// This 8 seems to be a fundamental constant of
+				// ELF on ARM (or maybe Glibc on ARM); it is not
+				// related to the fact that our own TLS storage happens
+				// to take up 8 bytes.
+				o = 8 + r.Sym.Value
+			} else if Iself || Ctxt.Headtype == obj.Hplan9 || Ctxt.Headtype == obj.Hdarwin || isAndroidX86 {
 				o = int64(Ctxt.Tlsoffset) + r.Add
 			} else if Ctxt.Headtype == obj.Hwindows {
 				o = r.Add
@@ -423,10 +417,14 @@ func relocsym(s *LSym) {
 			}
 
 		case obj.R_TLS_IE:
-			if Linkmode == LinkExternal && Iself && HEADTYPE != obj.Hopenbsd {
+			isAndroidX86 := goos == "android" && (Thearch.Thechar == '6' || Thearch.Thechar == '8')
+
+			if Linkmode == LinkExternal && Iself && HEADTYPE != obj.Hopenbsd && !isAndroidX86 {
 				r.Done = 0
-				r.Sym = Ctxt.Tlsg
-				r.Xsym = Ctxt.Tlsg
+				if r.Sym == nil {
+					r.Sym = Ctxt.Tlsg
+				}
+				r.Xsym = r.Sym
 				r.Xadd = r.Add
 				o = 0
 				if Thearch.Thechar != '6' {
@@ -486,7 +484,7 @@ func relocsym(s *LSym) {
 
 			// On amd64, 4-byte offsets will be sign-extended, so it is impossible to
 			// access more than 2GB of static data; fail at link time is better than
-			// fail at runtime. See http://golang.org/issue/7980.
+			// fail at runtime. See https://golang.org/issue/7980.
 			// Instead of special casing only amd64, we treat this as an error on all
 			// 64-bit architectures so as to be future-proof.
 			if int32(o) < 0 && Thearch.Ptrsize > 4 && siz == 4 {
@@ -777,7 +775,6 @@ func Codeblk(addr int64, size int64) {
 	}
 
 	eaddr := addr + size
-	var n int64
 	var q []byte
 	for ; sym != nil; sym = sym.Next {
 		if !sym.Reachable {
@@ -796,20 +793,18 @@ func Codeblk(addr int64, size int64) {
 		}
 
 		fmt.Fprintf(&Bso, "%.6x\t%-20s\n", uint64(int64(addr)), sym.Name)
-		n = sym.Size
 		q = sym.P
 
-		for n >= 16 {
-			fmt.Fprintf(&Bso, "%.6x\t%-20.16I\n", uint64(addr), q)
+		for len(q) >= 16 {
+			fmt.Fprintf(&Bso, "%.6x\t% x\n", uint64(addr), q[:16])
 			addr += 16
 			q = q[16:]
-			n -= 16
 		}
 
-		if n > 0 {
-			fmt.Fprintf(&Bso, "%.6x\t%-20.*I\n", uint64(addr), int(n), q)
+		if len(q) > 0 {
+			fmt.Fprintf(&Bso, "%.6x\t% x\n", uint64(addr), q)
+			addr += int64(len(q))
 		}
-		addr += n
 	}
 
 	if addr < eaddr {
@@ -916,14 +911,14 @@ func strnput(s string, n int) {
 	}
 }
 
-var addstrdata_name string
+var strdata []*LSym
 
 func addstrdata1(arg string) {
-	if strings.HasPrefix(arg, "VALUE:") {
-		addstrdata(addstrdata_name, arg[6:])
-	} else {
-		addstrdata_name = arg
+	i := strings.Index(arg, "=")
+	if i < 0 {
+		Exitf("-X flag requires argument of the form importpath.name=value")
 	}
+	addstrdata(arg[:i], arg[i+1:])
 }
 
 func addstrdata(name string, value string) {
@@ -945,7 +940,19 @@ func addstrdata(name string, value string) {
 	// we know before entering this function.
 	s.Reachable = reachable
 
+	strdata = append(strdata, s)
+
 	sp.Reachable = reachable
+}
+
+func checkstrdata() {
+	for _, s := range strdata {
+		if s.Type == obj.STEXT {
+			Diag("cannot use -X with text symbol %s", s.Name)
+		} else if s.Gotype != nil && s.Gotype.Name != "type.string" {
+			Diag("cannot use -X with non-string symbol %s", s.Name)
+		}
+	}
 }
 
 func Addstring(s *LSym, str string) int64 {
@@ -1109,11 +1116,14 @@ func (p *GCProg) AddSym(s *LSym) {
 
 func growdatsize(datsizep *int64, s *LSym) {
 	datsize := *datsizep
-	if s.Size < 0 {
-		Diag("negative size (datsize = %d, s->size = %d)", datsize, s.Size)
-	}
-	if datsize+s.Size < datsize {
-		Diag("symbol too large (datsize = %d, s->size = %d)", datsize, s.Size)
+	const cutoff int64 = 2e9 // 2 GB (or so; looks better in errors than 2^31)
+	switch {
+	case s.Size < 0:
+		Diag("%s: negative size (%d bytes)", s.Name, s.Size)
+	case s.Size > cutoff:
+		Diag("%s: symbol too large (%d bytes)", s.Name, s.Size)
+	case datsize <= cutoff && datsize+s.Size > cutoff:
+		Diag("%s: too much data (over %d bytes)", s.Name, cutoff)
 	}
 	*datsizep = datsize + s.Size
 }
@@ -1182,6 +1192,31 @@ func dodata() {
 	}
 
 	*l = nil
+
+	if UseRelro() {
+		// "read only" data with relocations needs to go in its own section
+		// when building a shared library. We do this by boosting objects of
+		// type SXXX with relocations to type SXXXRELRO.
+		for s := datap; s != nil; s = s.Next {
+			if (s.Type >= obj.STYPE && s.Type <= obj.SFUNCTAB && len(s.R) > 0) || s.Type == obj.SGOSTRING {
+				s.Type += (obj.STYPERELRO - obj.STYPE)
+				if s.Outer != nil {
+					s.Outer.Type = s.Type
+				}
+			}
+		}
+		// Check that we haven't made two symbols with the same .Outer into
+		// different types (because references two symbols with non-nil Outer
+		// become references to the outer symbol + offset it's vital that the
+		// symbol and the outer end up in the same section).
+		for s := datap; s != nil; s = s.Next {
+			if s.Outer != nil && s.Outer.Type != s.Type {
+				Diag("inconsistent types for %s and its Outer %s (%d != %d)",
+					s.Name, s.Outer.Name, s.Type, s.Outer.Type)
+			}
+		}
+
+	}
 
 	datap = listsort(datap, datcmp, listnextp)
 
@@ -1377,26 +1412,25 @@ func dodata() {
 		Diag("data or bss segment too large")
 	}
 
-	if Iself && Linkmode == LinkExternal && s != nil && s.Type == obj.STLSBSS && HEADTYPE != obj.Hopenbsd {
-		sect := addsection(&Segdata, ".tbss", 06)
-		sect.Align = int32(Thearch.Ptrsize)
-		sect.Vaddr = 0
+	if s != nil && s.Type == obj.STLSBSS {
+		if Iself && (Linkmode == LinkExternal || Debug['d'] == 0) && HEADTYPE != obj.Hopenbsd {
+			sect = addsection(&Segdata, ".tbss", 06)
+			sect.Align = int32(Thearch.Ptrsize)
+			sect.Vaddr = 0
+		} else {
+			sect = nil
+		}
 		datsize = 0
+
 		for ; s != nil && s.Type == obj.STLSBSS; s = s.Next {
 			datsize = aligndatsize(datsize, s)
 			s.Sect = sect
-			s.Value = int64(uint64(datsize) - sect.Vaddr)
+			s.Value = datsize
 			growdatsize(&datsize, s)
 		}
 
-		sect.Length = uint64(datsize)
-	} else {
-		// Might be internal linking but still using cgo.
-		// In that case, the only possible STLSBSS symbol is runtime.tlsg.
-		// Give it offset 0, because it's the only thing here.
-		if s != nil && s.Type == obj.STLSBSS && s.Name == "runtime.tlsg" {
-			s.Value = 0
-			s = s.Next
+		if sect != nil {
+			sect.Length = uint64(datsize)
 		}
 	}
 
@@ -1442,12 +1476,12 @@ func dodata() {
 	/* read-only data */
 	sect = addsection(segro, ".rodata", 04)
 
-	sect.Align = maxalign(s, obj.STYPELINK-1)
+	sect.Align = maxalign(s, obj.STYPERELRO-1)
 	datsize = Rnd(datsize, int64(sect.Align))
 	sect.Vaddr = 0
 	Linklookup(Ctxt, "runtime.rodata", 0).Sect = sect
 	Linklookup(Ctxt, "runtime.erodata", 0).Sect = sect
-	for ; s != nil && s.Type < obj.STYPELINK; s = s.Next {
+	for ; s != nil && s.Type < obj.STYPERELRO; s = s.Next {
 		datsize = aligndatsize(datsize, s)
 		s.Sect = sect
 		s.Type = obj.SRODATA
@@ -1457,8 +1491,45 @@ func dodata() {
 
 	sect.Length = uint64(datsize) - sect.Vaddr
 
+	// There is some data that are conceptually read-only but are written to by
+	// relocations. On GNU systems, we can arrange for the dynamic linker to
+	// mprotect sections after relocations are applied by giving them write
+	// permissions in the object file and calling them ".data.rel.ro.FOO". We
+	// divide the .rodata section between actual .rodata and .data.rel.ro.rodata,
+	// but for the other sections that this applies to, we just write a read-only
+	// .FOO section or a read-write .data.rel.ro.FOO section depending on the
+	// situation.
+	// TODO(mwhudson): It would make sense to do this more widely, but it makes
+	// the system linker segfault on darwin.
+	relro_perms := 04
+	relro_prefix := ""
+
+	if UseRelro() {
+		relro_perms = 06
+		relro_prefix = ".data.rel.ro"
+		/* data only written by relocations */
+		sect = addsection(segro, ".data.rel.ro", 06)
+
+		sect.Align = maxalign(s, obj.STYPELINK-1)
+		datsize = Rnd(datsize, int64(sect.Align))
+		sect.Vaddr = 0
+		for ; s != nil && s.Type < obj.STYPELINK; s = s.Next {
+			datsize = aligndatsize(datsize, s)
+			if s.Outer != nil && s.Outer.Sect != nil && s.Outer.Sect != sect {
+				Diag("s.Outer (%s) in different section from s (%s)", s.Outer.Name, s.Name)
+			}
+			s.Sect = sect
+			s.Type = obj.SRODATA
+			s.Value = int64(uint64(datsize) - sect.Vaddr)
+			growdatsize(&datsize, s)
+		}
+
+		sect.Length = uint64(datsize) - sect.Vaddr
+
+	}
+
 	/* typelink */
-	sect = addsection(segro, ".typelink", 04)
+	sect = addsection(segro, relro_prefix+".typelink", relro_perms)
 
 	sect.Align = maxalign(s, obj.STYPELINK)
 	datsize = Rnd(datsize, int64(sect.Align))
@@ -1476,7 +1547,7 @@ func dodata() {
 	sect.Length = uint64(datsize) - sect.Vaddr
 
 	/* gosymtab */
-	sect = addsection(segro, ".gosymtab", 04)
+	sect = addsection(segro, relro_prefix+".gosymtab", relro_perms)
 
 	sect.Align = maxalign(s, obj.SPCLNTAB-1)
 	datsize = Rnd(datsize, int64(sect.Align))
@@ -1494,7 +1565,7 @@ func dodata() {
 	sect.Length = uint64(datsize) - sect.Vaddr
 
 	/* gopclntab */
-	sect = addsection(segro, ".gopclntab", 04)
+	sect = addsection(segro, relro_prefix+".gopclntab", relro_perms)
 
 	sect.Align = maxalign(s, obj.SELFROSECT-1)
 	datsize = Rnd(datsize, int64(sect.Align))
@@ -1544,6 +1615,29 @@ func dodata() {
 		sect.Extnum = int16(n)
 		n++
 	}
+}
+
+// Add buildid to beginning of text segment, on non-ELF systems.
+// Non-ELF binary formats are not always flexible enough to
+// give us a place to put the Go build ID. On those systems, we put it
+// at the very beginning of the text segment.
+// This ``header'' is read by cmd/go.
+func textbuildid() {
+	if Iself || buildid == "" {
+		return
+	}
+
+	sym := Linklookup(Ctxt, "go.buildid", 0)
+	sym.Reachable = true
+	// The \xff is invalid UTF-8, meant to make it less likely
+	// to find one of these accidentally.
+	data := "\xff Go build ID: " + strconv.Quote(buildid) + "\n \xff"
+	sym.Type = obj.STEXT
+	sym.P = []byte(data)
+	sym.Size = int64(len(sym.P))
+
+	sym.Next = Ctxt.Textp
+	Ctxt.Textp = sym
 }
 
 // assign addresses to text
@@ -1643,8 +1737,11 @@ func address() {
 	var noptrbss *Section
 	var vlen int64
 	for s := Segdata.Sect; s != nil; s = s.Next {
+		if Iself && s.Name == ".tbss" {
+			continue
+		}
 		vlen = int64(s.Length)
-		if s.Next != nil {
+		if s.Next != nil && !(Iself && s.Next.Name == ".tbss") {
 			vlen = int64(s.Next.Vaddr - s.Vaddr)
 		}
 		s.Vaddr = va
@@ -1674,6 +1771,11 @@ func address() {
 		rodata = text.Next
 	}
 	typelink := rodata.Next
+	if UseRelro() {
+		// There is another section (.data.rel.ro) when building a shared
+		// object on elf systems.
+		typelink = typelink.Next
+	}
 	symtab := typelink.Next
 	pclntab := symtab.Next
 

@@ -17,13 +17,11 @@ package gc
 //		a->offset += v;
 //		break;
 
-/*
- * a function named init is a special case.
- * it is called by the initialization before
- * main is run. to make it unique within a
- * package and also uncallable, the name,
- * normally "pkg.init", is altered to "pkg.init.1".
- */
+// a function named init is a special case.
+// it is called by the initialization before
+// main is run. to make it unique within a
+// package and also uncallable, the name,
+// normally "pkg.init", is altered to "pkg.init.1".
 
 var renameinit_initgen int
 
@@ -32,24 +30,22 @@ func renameinit() *Sym {
 	return Lookupf("init.%d", renameinit_initgen)
 }
 
-/*
- * hand-craft the following initialization code
- *	var initdone· uint8 				(1)
- *	func init()					(2)
- *		if initdone· != 0 {			(3)
- *			if initdone· == 2		(4)
- *				return
- *			throw();			(5)
- *		}
- *		initdone· = 1;				(6)
- *		// over all matching imported symbols
- *			<pkg>.init()			(7)
- *		{ <init stmts> }			(8)
- *		init.<n>() // if any			(9)
- *		initdone· = 2;				(10)
- *		return					(11)
- *	}
- */
+// hand-craft the following initialization code
+//	var initdone· uint8 				(1)
+//	func init()					(2)
+//		if initdone· != 0 {			(3)
+//			if initdone· == 2		(4)
+//				return
+//			throw();			(5)
+//		}
+//		initdone· = 1;				(6)
+//		// over all matching imported symbols
+//			<pkg>.init()			(7)
+//		{ <init stmts> }			(8)
+//		init.<n>() // if any			(9)
+//		initdone· = 2;				(10)
+//		return					(11)
+//	}
 func anyinit(n *NodeList) bool {
 	// are there any interesting init statements
 	for l := n; l != nil; l = l.Next {
@@ -114,22 +110,22 @@ func fninit(n *NodeList) {
 
 	fn := Nod(ODCLFUNC, nil, nil)
 	initsym := Lookup("init")
-	fn.Nname = newname(initsym)
-	fn.Nname.Defn = fn
-	fn.Nname.Param.Ntype = Nod(OTFUNC, nil, nil)
-	declare(fn.Nname, PFUNC)
+	fn.Func.Nname = newname(initsym)
+	fn.Func.Nname.Name.Defn = fn
+	fn.Func.Nname.Name.Param.Ntype = Nod(OTFUNC, nil, nil)
+	declare(fn.Func.Nname, PFUNC)
 	funchdr(fn)
 
 	// (3)
 	a := Nod(OIF, nil, nil)
 
-	a.Ntest = Nod(ONE, gatevar, Nodintconst(0))
+	a.Left = Nod(ONE, gatevar, Nodintconst(0))
 	r = list(r, a)
 
 	// (4)
 	b := Nod(OIF, nil, nil)
 
-	b.Ntest = Nod(OEQ, gatevar, Nodintconst(2))
+	b.Left = Nod(OEQ, gatevar, Nodintconst(2))
 	b.Nbody = list1(Nod(ORETURN, nil, nil))
 	a.Nbody = list1(b)
 
@@ -176,7 +172,7 @@ func fninit(n *NodeList) {
 	a = Nod(ORETURN, nil, nil)
 
 	r = list(r, a)
-	exportsym(fn.Nname)
+	exportsym(fn.Func.Nname)
 
 	fn.Nbody = r
 	funcbody(fn)

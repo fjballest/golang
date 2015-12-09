@@ -387,6 +387,11 @@ func TestSetBytes(t *testing.T) {
 }
 
 func checkBytes(b []byte) bool {
+	// trim leading zero bytes since Bytes() won't return them
+	// (was issue 12231)
+	for len(b) > 0 && b[0] == 0 {
+		b = b[1:]
+	}
 	b2 := new(Int).SetBytes(b).Bytes()
 	return bytes.Equal(b, b2)
 }
@@ -662,6 +667,21 @@ func testGcd(t *testing.T, d, x, y, a, b *Int) {
 	if D.Cmp(d) != 0 {
 		t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, D, d)
 	}
+
+	// check results in presence of aliasing (issue #11284)
+	a2 := new(Int).Set(a)
+	b2 := new(Int).Set(b)
+	a2.binaryGCD(a2, b2) // result is same as 1st argument
+	if a2.Cmp(d) != 0 {
+		t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, a2, d)
+	}
+
+	a2 = new(Int).Set(a)
+	b2 = new(Int).Set(b)
+	b2.binaryGCD(a2, b2) // result is same as 2nd argument
+	if b2.Cmp(d) != 0 {
+		t.Errorf("binaryGcd(%s, %s): got d = %s, want %s", a, b, b2, d)
+	}
 }
 
 func TestGcd(t *testing.T) {
@@ -678,7 +698,9 @@ func TestGcd(t *testing.T) {
 		testGcd(t, d, x, y, a, b)
 	}
 
-	quick.Check(checkGcd, nil)
+	if err := quick.Check(checkGcd, nil); err != nil {
+		t.Error(err)
+	}
 }
 
 var primes = []string{
@@ -693,7 +715,7 @@ var primes = []string{
 	"10953742525620032441",
 	"17908251027575790097",
 
-	// http://golang.org/issue/638
+	// https://golang.org/issue/638
 	"18699199384836356663",
 
 	"98920366548084643601728869055592650835572950932266967461790948584315647051443",

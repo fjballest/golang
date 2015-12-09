@@ -33,12 +33,22 @@ func makeslice(t *slicetype, len64, cap64 int64) slice {
 	return slice{p, len, cap}
 }
 
-func growslice(t *slicetype, old slice, n int) slice {
+// growslice_n is a variant of growslice that takes the number of new elements
+// instead of the new minimum capacity.
+// TODO(rsc): This is used by append(slice, slice...).
+// The compiler should change that code to use growslice directly (issue #11419).
+func growslice_n(t *slicetype, old slice, n int) slice {
 	if n < 1 {
 		panic(errorString("growslice: invalid n"))
 	}
+	return growslice(t, old, old.cap+n)
+}
 
-	cap := old.cap + n
+// growslice handles slice growth during append.
+// It is passed the slice type, the old slice, and the desired new minimum capacity,
+// and it returns a new slice with at least that capacity, with the old data
+// copied into it.
+func growslice(t *slicetype, old slice, cap int) slice {
 	if cap < old.cap || t.elem.size > 0 && uintptr(cap) > _MaxMem/uintptr(t.elem.size) {
 		panic(errorString("growslice: cap out of range"))
 	}
@@ -46,6 +56,9 @@ func growslice(t *slicetype, old slice, n int) slice {
 	if raceenabled {
 		callerpc := getcallerpc(unsafe.Pointer(&t))
 		racereadrangepc(old.array, uintptr(old.len*int(t.elem.size)), callerpc, funcPC(growslice))
+	}
+	if msanenabled {
+		msanread(old.array, uintptr(old.len*int(t.elem.size)))
 	}
 
 	et := t.elem
@@ -83,9 +96,9 @@ func growslice(t *slicetype, old slice, n int) slice {
 		memmove(p, old.array, lenmem)
 		memclr(add(p, lenmem), capmem-lenmem)
 	} else {
-		// Note: can't use rawmem (which avoids zeroing of memory), because then GC can scan unitialized memory.
+		// Note: can't use rawmem (which avoids zeroing of memory), because then GC can scan uninitialized memory.
 		p = newarray(et, uintptr(newcap))
-		if !writeBarrierEnabled {
+		if !writeBarrier.enabled {
 			memmove(p, old.array, lenmem)
 		} else {
 			for i := uintptr(0); i < lenmem; i += et.size {
@@ -117,6 +130,10 @@ func slicecopy(to, fm slice, width uintptr) int {
 		racewriterangepc(to.array, uintptr(n*int(width)), callerpc, pc)
 		racereadrangepc(fm.array, uintptr(n*int(width)), callerpc, pc)
 	}
+	if msanenabled {
+		msanwrite(to.array, uintptr(n*int(width)))
+		msanread(fm.array, uintptr(n*int(width)))
+	}
 
 	size := uintptr(n) * width
 	if size == 1 { // common case worth about 2x to do here
@@ -143,7 +160,10 @@ func slicestringcopy(to []byte, fm string) int {
 		pc := funcPC(slicestringcopy)
 		racewriterangepc(unsafe.Pointer(&to[0]), uintptr(n), callerpc, pc)
 	}
+	if msanenabled {
+		msanwrite(unsafe.Pointer(&to[0]), uintptr(n))
+	}
 
-	memmove(unsafe.Pointer(&to[0]), unsafe.Pointer((*stringStruct)(unsafe.Pointer(&fm)).str), uintptr(n))
+	memmove(unsafe.Pointer(&to[0]), unsafe.Pointer(stringStructOf(&fm).str), uintptr(n))
 	return n
 }

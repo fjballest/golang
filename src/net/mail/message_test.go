@@ -127,6 +127,14 @@ func TestAddressParsingError(t *testing.T) {
 	}
 }
 
+func TestAddressParsingErrorUnquotedNonASCII(t *testing.T) {
+	const txt = "µ <micro@example.net>"
+	_, err := ParseAddress(txt)
+	if err == nil || !strings.Contains(err.Error(), "unencoded non-ASCII text in address") {
+		t.Errorf(`mail.ParseAddress(%q) err: %q, want ".*unencoded non-ASCII text in address.*"`, txt, err)
+	}
+}
+
 func TestAddressParsing(t *testing.T) {
 	tests := []struct {
 		addrsStr string
@@ -449,7 +457,7 @@ func TestAddressParser(t *testing.T) {
 	}
 }
 
-func TestAddressFormatting(t *testing.T) {
+func TestAddressString(t *testing.T) {
 	tests := []struct {
 		addr *Address
 		exp  string
@@ -457,6 +465,14 @@ func TestAddressFormatting(t *testing.T) {
 		{
 			&Address{Address: "bob@example.com"},
 			"<bob@example.com>",
+		},
+		{ // quoted local parts: RFC 5322, 3.4.1. and 3.2.4.
+			&Address{Address: `my@idiot@address@example.com`},
+			`<"my@idiot@address"@example.com>`,
+		},
+		{ // quoted local parts
+			&Address{Address: ` @example.com`},
+			`<" "@example.com>`,
 		},
 		{
 			&Address{Name: "Bob", Address: "bob@example.com"},
@@ -475,11 +491,164 @@ func TestAddressFormatting(t *testing.T) {
 			&Address{Name: "Böb Jacöb", Address: "bob@example.com"},
 			`=?utf-8?q?B=C3=B6b_Jac=C3=B6b?= <bob@example.com>`,
 		},
+		{ // https://golang.org/issue/12098
+			&Address{Name: "Rob", Address: ""},
+			`"Rob" <@>`,
+		},
+		{ // https://golang.org/issue/12098
+			&Address{Name: "Rob", Address: "@"},
+			`"Rob" <@>`,
+		},
+		{
+			&Address{Name: "Böb, Jacöb", Address: "bob@example.com"},
+			`=?utf-8?b?QsO2YiwgSmFjw7Zi?= <bob@example.com>`,
+		},
+		{
+			&Address{Name: "=??Q?x?=", Address: "hello@world.com"},
+			`"=??Q?x?=" <hello@world.com>`,
+		},
+		{
+			&Address{Name: "=?hello", Address: "hello@world.com"},
+			`"=?hello" <hello@world.com>`,
+		},
+		{
+			&Address{Name: "world?=", Address: "hello@world.com"},
+			`"world?=" <hello@world.com>`,
+		},
 	}
 	for _, test := range tests {
 		s := test.addr.String()
 		if s != test.exp {
 			t.Errorf("Address%+v.String() = %v, want %v", *test.addr, s, test.exp)
+			continue
+		}
+
+		// Check round-trip.
+		if test.addr.Address != "" && test.addr.Address != "@" {
+			a, err := ParseAddress(test.exp)
+			if err != nil {
+				t.Errorf("ParseAddress(%#q): %v", test.exp, err)
+				continue
+			}
+			if a.Name != test.addr.Name || a.Address != test.addr.Address {
+				t.Errorf("ParseAddress(%#q) = %#v, want %#v", test.exp, a, test.addr)
+			}
+		}
+	}
+}
+
+// Check if all valid addresses can be parsed, formatted and parsed again
+func TestAddressParsingAndFormatting(t *testing.T) {
+
+	// Should pass
+	tests := []string{
+		`<Bob@example.com>`,
+		`<bob.bob@example.com>`,
+		`<".bob"@example.com>`,
+		`<" "@example.com>`,
+		`<some.mail-with-dash@example.com>`,
+		`<"dot.and space"@example.com>`,
+		`<"very.unusual.@.unusual.com"@example.com>`,
+		`<admin@mailserver1>`,
+		`<postmaster@localhost>`,
+		"<#!$%&'*+-/=?^_`{}|~@example.org>",
+		`<"very.(),:;<>[]\".VERY.\"very@\\ \"very\".unusual"@strange.example.com>`, // escaped quotes
+		`<"()<>[]:,;@\\\"!#$%&'*+-/=?^_{}| ~.a"@example.org>`,                      // escaped backslashes
+		`<"Abc\\@def"@example.com>`,
+		`<"Joe\\Blow"@example.com>`,
+		`<test1/test2=test3@example.com>`,
+		`<def!xyz%abc@example.com>`,
+		`<_somename@example.com>`,
+		`<joe@uk>`,
+		`<~@example.com>`,
+		`<"..."@test.com>`,
+		`<"john..doe"@example.com>`,
+		`<"john.doe."@example.com>`,
+		`<".john.doe"@example.com>`,
+		`<"."@example.com>`,
+		`<".."@example.com>`,
+		`<"0:"@0>`,
+	}
+
+	for _, test := range tests {
+		addr, err := ParseAddress(test)
+		if err != nil {
+			t.Errorf("Couldn't parse address %s: %s", test, err.Error())
+			continue
+		}
+		str := addr.String()
+		addr, err = ParseAddress(str)
+		if err != nil {
+			t.Errorf("ParseAddr(%q) error: %v", test, err)
+			continue
+		}
+
+		if addr.String() != test {
+			t.Errorf("String() round-trip = %q; want %q", addr, test)
+			continue
+		}
+
+	}
+
+	// Should fail
+	badTests := []string{
+		`<Abc.example.com>`,
+		`<A@b@c@example.com>`,
+		`<a"b(c)d,e:f;g<h>i[j\k]l@example.com>`,
+		`<just"not"right@example.com>`,
+		`<this is"not\allowed@example.com>`,
+		`<this\ still\"not\\allowed@example.com>`,
+		`<john..doe@example.com>`,
+		`<john.doe@example..com>`,
+		`<john.doe@example..com>`,
+		`<john.doe.@example.com>`,
+		`<john.doe.@.example.com>`,
+		`<.john.doe@example.com>`,
+		`<@example.com>`,
+		`<.@example.com>`,
+		`<test@.>`,
+		`< @example.com>`,
+		`<""test""blah""@example.com>`,
+		`<""@0>`,
+		"<\"\t0\"@0>",
+	}
+
+	for _, test := range badTests {
+		_, err := ParseAddress(test)
+		if err == nil {
+			t.Errorf("Should have failed to parse address: %s", test)
+			continue
+		}
+
+	}
+
+}
+
+func TestAddressFormattingAndParsing(t *testing.T) {
+	tests := []*Address{
+		{Name: "@lïce", Address: "alice@example.com"},
+		{Name: "Böb O'Connor", Address: "bob@example.com"},
+		{Name: "???", Address: "bob@example.com"},
+		{Name: "Böb ???", Address: "bob@example.com"},
+		{Name: "Böb (Jacöb)", Address: "bob@example.com"},
+		{Name: "à#$%&'(),.:;<>@[]^`{|}~'", Address: "bob@example.com"},
+		// https://golang.org/issue/11292
+		{Name: "\"\\\x1f,\"", Address: "0@0"},
+		// https://golang.org/issue/12782
+		{Name: "naé, mée", Address: "test.mail@gmail.com"},
+	}
+
+	for i, test := range tests {
+		parsed, err := ParseAddress(test.String())
+		if err != nil {
+			t.Errorf("test #%d: ParseAddr(%q) error: %v", i, test.String(), err)
+			continue
+		}
+		if parsed.Name != test.Name {
+			t.Errorf("test #%d: Parsed name = %q; want %q", i, parsed.Name, test.Name)
+		}
+		if parsed.Address != test.Address {
+			t.Errorf("test #%d: Parsed address = %q; want %q", i, parsed.Address, test.Address)
 		}
 	}
 }

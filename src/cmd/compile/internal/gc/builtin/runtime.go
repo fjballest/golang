@@ -108,7 +108,11 @@ func chanrecv2(chanType *byte, hchan <-chan any, elem *any) bool
 func chansend1(chanType *byte, hchan chan<- any, elem *any)
 func closechan(hchan any)
 
-var writeBarrierEnabled bool
+var writeBarrier struct {
+	enabled bool
+	needed  bool
+	cgo     bool
+}
 
 func writebarrierptr(dst *any, src any)
 func writebarrierstring(dst *any, src any)
@@ -162,7 +166,8 @@ func selectgo(sel *byte)
 func block()
 
 func makeslice(typ *byte, nel int64, cap int64) (ary []any)
-func growslice(typ *byte, old []any, n int) (ary []any)
+func growslice(typ *byte, old []any, cap int) (ary []any)
+func growslice_n(typ *byte, old []any, n int) (ary []any)
 func memmove(to *any, frm *any, length uintptr)
 func memclr(ptr *byte, length uintptr)
 
@@ -192,3 +197,7 @@ func raceread(uintptr)
 func racewrite(uintptr)
 func racereadrange(addr, size uintptr)
 func racewriterange(addr, size uintptr)
+
+// memory sanitizer
+func msanread(addr, size uintptr)
+func msanwrite(addr, size uintptr)

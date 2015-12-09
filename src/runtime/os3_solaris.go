@@ -17,6 +17,7 @@ import "unsafe"
 //go:cgo_import_dynamic libc_fstat fstat "libc.so"
 //go:cgo_import_dynamic libc_getcontext getcontext "libc.so"
 //go:cgo_import_dynamic libc_getrlimit getrlimit "libc.so"
+//go:cgo_import_dynamic libc_kill kill "libc.so"
 //go:cgo_import_dynamic libc_madvise madvise "libc.so"
 //go:cgo_import_dynamic libc_malloc malloc "libc.so"
 //go:cgo_import_dynamic libc_mmap mmap "libc.so"
@@ -51,6 +52,7 @@ import "unsafe"
 //go:linkname libc_fstat libc_fstat
 //go:linkname libc_getcontext libc_getcontext
 //go:linkname libc_getrlimit libc_getrlimit
+//go:linkname libc_kill libc_kill
 //go:linkname libc_madvise libc_madvise
 //go:linkname libc_malloc libc_malloc
 //go:linkname libc_mmap libc_mmap
@@ -86,6 +88,7 @@ var (
 	libc_fstat,
 	libc_getcontext,
 	libc_getrlimit,
+	libc_kill,
 	libc_madvise,
 	libc_malloc,
 	libc_mmap,
@@ -189,12 +192,19 @@ func mpreinit(mp *m) {
 
 func miniterrno()
 
+//go:nosplit
 func msigsave(mp *m) {
-	smask := (*sigset)(unsafe.Pointer(&mp.sigmask))
-	if unsafe.Sizeof(*smask) > unsafe.Sizeof(mp.sigmask) {
-		throw("insufficient storage for signal mask")
-	}
-	sigprocmask(_SIG_SETMASK, nil, smask)
+	sigprocmask(_SIG_SETMASK, nil, &mp.sigmask)
+}
+
+//go:nosplit
+func msigrestore(mp *m) {
+	sigprocmask(_SIG_SETMASK, &mp.sigmask, nil)
+}
+
+//go:nosplit
+func sigblock() {
+	sigprocmask(_SIG_SETMASK, &sigset_all, nil)
 }
 
 // Called to initialize a new m (including the bootstrap m).
@@ -206,7 +216,7 @@ func minit() {
 	signalstack(&_g_.m.gsignal.stack)
 
 	// restore signal mask from m.sigmask and unblock essential signals
-	nmask := *(*sigset)(unsafe.Pointer(&_g_.m.sigmask))
+	nmask := _g_.m.sigmask
 	for i := range sigtable {
 		if sigtable[i].flags&_SigUnblock != 0 {
 			nmask.__sigbits[(i-1)/32] &^= 1 << ((uint32(i) - 1) & 31)
@@ -217,10 +227,6 @@ func minit() {
 
 // Called from dropm to undo the effect of an minit.
 func unminit() {
-	_g_ := getg()
-	smask := (*sigset)(unsafe.Pointer(&_g_.m.sigmask))
-	sigprocmask(_SIG_SETMASK, smask, nil)
-
 	signalstack(nil)
 }
 
@@ -286,6 +292,7 @@ func getsig(i int32) uintptr {
 	return *((*uintptr)(unsafe.Pointer(&sa._funcptr)))
 }
 
+//go:nosplit
 func signalstack(s *stack) {
 	var st sigaltstackt
 	if s == nil {
@@ -304,8 +311,18 @@ func updatesigmask(m sigmask) {
 	sigprocmask(_SIG_SETMASK, &mask, nil)
 }
 
+func unblocksig(sig int32) {
+	var mask sigset
+	mask.__sigbits[(sig-1)/32] |= 1 << ((uint32(sig) - 1) & 31)
+	sigprocmask(_SIG_UNBLOCK, &mask, nil)
+}
+
 //go:nosplit
-func semacreate() uintptr {
+func semacreate(mp *m) {
+	if mp.waitsema != 0 {
+		return
+	}
+
 	var sem *semt
 	_g_ := getg()
 
@@ -322,7 +339,7 @@ func semacreate() uintptr {
 	if sem_init(sem, 0, 0) != 0 {
 		throw("sem_init")
 	}
-	return uintptr(unsafe.Pointer(sem))
+	mp.waitsema = uintptr(unsafe.Pointer(sem))
 }
 
 //go:nosplit
@@ -443,7 +460,8 @@ func raise(sig int32) /* int32 */ {
 }
 
 func raiseproc(sig int32) /* int32 */ {
-	sysvicall1(&libc_raise, uintptr(sig))
+	pid := sysvicall0(&libc_getpid)
+	sysvicall2(&libc_kill, pid, uintptr(sig))
 }
 
 //go:nosplit
@@ -483,6 +501,7 @@ func sigaltstack(ss *sigaltstackt, oss *sigaltstackt) /* int32 */ {
 	sysvicall2(&libc_sigaltstack, uintptr(unsafe.Pointer(ss)), uintptr(unsafe.Pointer(oss)))
 }
 
+//go:nosplit
 func sigprocmask(how int32, set *sigset, oset *sigset) /* int32 */ {
 	sysvicall3(&libc_sigprocmask, uintptr(how), uintptr(unsafe.Pointer(set)), uintptr(unsafe.Pointer(oset)))
 }

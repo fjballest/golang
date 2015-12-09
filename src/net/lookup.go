@@ -25,12 +25,28 @@ var protocols = map[string]int{
 // LookupHost looks up the given host using the local resolver.
 // It returns an array of that host's addresses.
 func LookupHost(host string) (addrs []string, err error) {
+	// Make sure that no matter what we do later, host=="" is rejected.
+	// ParseIP, for example, does accept empty strings.
+	if host == "" {
+		return nil, &DNSError{Err: errNoSuchHost.Error(), Name: host}
+	}
+	if ip := ParseIP(host); ip != nil {
+		return []string{host}, nil
+	}
 	return lookupHost(host)
 }
 
 // LookupIP looks up host using the local resolver.
 // It returns an array of that host's IPv4 and IPv6 addresses.
 func LookupIP(host string) (ips []IP, err error) {
+	// Make sure that no matter what we do later, host=="" is rejected.
+	// ParseIP, for example, does accept empty strings.
+	if host == "" {
+		return nil, &DNSError{Err: errNoSuchHost.Error(), Name: host}
+	}
+	if ip := ParseIP(host); ip != nil {
+		return []IP{ip}, nil
+	}
 	addrs, err := lookupIPMerge(host)
 	if err != nil {
 		return
@@ -107,7 +123,17 @@ func lookupIPDeadline(host string, deadline time.Time) (addrs []IPAddr, err erro
 
 // LookupPort looks up the port for the given network and service.
 func LookupPort(network, service string) (port int, err error) {
-	return lookupPort(network, service)
+	port, _, ok := dtoi(service, 0)
+	if !ok && port != big && port != -big {
+		port, err = lookupPort(network, service)
+		if err != nil {
+			return 0, err
+		}
+	}
+	if 0 > port || port > 65535 {
+		return 0, &AddrError{Err: "invalid port", Addr: service}
+	}
+	return port, nil
 }
 
 // LookupCNAME returns the canonical DNS host for the given name.

@@ -6,17 +6,20 @@
 
 package runtime
 
-import "unsafe"
+import (
+	"runtime/internal/sys"
+	"unsafe"
+)
 
 // adjust Gobuf as it if executed a call to fn with context ctxt
 // and then did an immediate gosave.
 func gostartcall(buf *gobuf, fn, ctxt unsafe.Pointer) {
 	sp := buf.sp
-	if regSize > ptrSize {
-		sp -= ptrSize
+	if sys.RegSize > sys.PtrSize {
+		sp -= sys.PtrSize
 		*(*uintptr)(unsafe.Pointer(sp)) = 0
 	}
-	sp -= ptrSize
+	sp -= sys.PtrSize
 	*(*uintptr)(unsafe.Pointer(sp)) = buf.pc
 	buf.sp = sp
 	buf.pc = uintptr(fn)
@@ -45,7 +48,7 @@ func rewindmorestack(buf *gobuf) {
 		// buf.pc, so that when we return we will execute
 		// the jump instruction and carry on.  This means that
 		// stack unwinding may not work entirely correctly
-		// (http://golang.org/issue/5723) but the user is
+		// (https://golang.org/issue/5723) but the user is
 		// running under gdb anyhow.
 		return
 	}

@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // A copy of Sqrt tests from the math package to test the
-// purely integer arithmetic implementaiton in sqrt.go.
+// purely integer arithmetic implementation in sqrt.go.
 
 package runtime_test
 
@@ -74,6 +74,7 @@ var vfsqrtSC = []float64{
 	0,
 	math.Inf(1),
 	math.NaN(),
+	math.Float64frombits(2),
 }
 var sqrtSC = []float64{
 	math.NaN(),
@@ -82,4 +83,5 @@ var sqrtSC = []float64{
 	0,
 	math.Inf(1),
 	math.NaN(),
+	3.1434555694052576e-162,
 }

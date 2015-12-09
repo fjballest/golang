@@ -85,7 +85,7 @@ func makefuncdatasym(namefmt string, funcdatakind int64) *Sym {
 
 func gvardefx(n *Node, as int) {
 	if n == nil {
-		Fatal("gvardef nil")
+		Fatalf("gvardef nil")
 	}
 	if n.Op != ONAME {
 		Yyerror("gvardef %v; %v", Oconv(int(n.Op), obj.FmtSharp), n)
@@ -122,14 +122,17 @@ func removevardef(firstp *obj.Prog) {
 func gcsymdup(s *Sym) {
 	ls := Linksym(s)
 	if len(ls.R) > 0 {
-		Fatal("cannot rosymdup %s with relocations", ls.Name)
+		Fatalf("cannot rosymdup %s with relocations", ls.Name)
 	}
 	ls.Name = fmt.Sprintf("gclocals·%x", md5.Sum(ls.P))
 	ls.Dupok = 1
 }
 
 func emitptrargsmap() {
-	sym := Lookup(fmt.Sprintf("%s.args_stackmap", Curfn.Nname.Sym.Name))
+	if Curfn.Func.Nname.Sym.Name == "_" {
+		return
+	}
+	sym := Lookup(fmt.Sprintf("%s.args_stackmap", Curfn.Func.Nname.Sym.Name))
 
 	nptr := int(Curfn.Type.Argwid / int64(Widthptr))
 	bv := bvalloc(int32(nptr) * 2)
@@ -164,6 +167,8 @@ func emitptrargsmap() {
 	ggloblsym(sym, int32(off), obj.RODATA|obj.LOCAL)
 }
 
+// cmpstackvarlt reports whether the stack variable a sorts before b.
+//
 // Sort the list of stack variables. Autos after anything else,
 // within autos, unused after used, within used, things with
 // pointers first, zeroed things first, and then decreasing size.
@@ -172,49 +177,54 @@ func emitptrargsmap() {
 // really means, in memory, things with pointers needing zeroing at
 // the top of the stack and increasing in size.
 // Non-autos sort on offset.
-func cmpstackvar(a *Node, b *Node) int {
+func cmpstackvarlt(a, b *Node) bool {
 	if a.Class != b.Class {
 		if a.Class == PAUTO {
-			return +1
+			return false
 		}
-		return -1
+		return true
 	}
 
 	if a.Class != PAUTO {
 		if a.Xoffset < b.Xoffset {
-			return -1
+			return true
 		}
 		if a.Xoffset > b.Xoffset {
-			return +1
+			return false
 		}
-		return 0
+		return false
 	}
 
 	if a.Used != b.Used {
-		return obj.Bool2int(b.Used) - obj.Bool2int(a.Used)
+		return a.Used
 	}
 
-	ap := obj.Bool2int(haspointers(a.Type))
-	bp := obj.Bool2int(haspointers(b.Type))
+	ap := haspointers(a.Type)
+	bp := haspointers(b.Type)
 	if ap != bp {
-		return bp - ap
+		return ap
 	}
 
-	ap = obj.Bool2int(a.Name.Needzero)
-	bp = obj.Bool2int(b.Name.Needzero)
+	ap = a.Name.Needzero
+	bp = b.Name.Needzero
 	if ap != bp {
-		return bp - ap
+		return ap
 	}
 
 	if a.Type.Width < b.Type.Width {
-		return +1
+		return false
 	}
 	if a.Type.Width > b.Type.Width {
-		return -1
+		return true
 	}
 
-	return stringsCompare(a.Sym.Name, b.Sym.Name)
+	return a.Sym.Name < b.Sym.Name
 }
+
+// stkdelta records the stack offset delta for a node
+// during the compaction of the stack frame to remove
+// unused stack slots.
+var stkdelta = map[*Node]int64{}
 
 // TODO(lvd) find out where the PAUTO/OLITERAL nodes come from.
 func allocauto(ptxt *obj.Prog) {
@@ -234,7 +244,7 @@ func allocauto(ptxt *obj.Prog) {
 
 	markautoused(ptxt)
 
-	listsort(&Curfn.Func.Dcl, cmpstackvar)
+	listsort(&Curfn.Func.Dcl, cmpstackvarlt)
 
 	// Unused autos are at the end, chop 'em off.
 	ll := Curfn.Func.Dcl
@@ -268,14 +278,14 @@ func allocauto(ptxt *obj.Prog) {
 		dowidth(n.Type)
 		w = n.Type.Width
 		if w >= Thearch.MAXWIDTH || w < 0 {
-			Fatal("bad width")
+			Fatalf("bad width")
 		}
 		Stksize += w
 		Stksize = Rnd(Stksize, int64(n.Type.Align))
 		if haspointers(n.Type) {
 			stkptrsize = Stksize
 		}
-		if Thearch.Thechar == '5' || Thearch.Thechar == '7' || Thearch.Thechar == '9' {
+		if Thearch.Thechar == '0' || Thearch.Thechar == '5' || Thearch.Thechar == '7' || Thearch.Thechar == '9' {
 			Stksize = Rnd(Stksize, int64(Widthptr))
 		}
 		if Stksize >= 1<<31 {
@@ -283,7 +293,7 @@ func allocauto(ptxt *obj.Prog) {
 			Yyerror("stack frame too large (>2GB)")
 		}
 
-		n.Stkdelta = -Stksize - n.Xoffset
+		stkdelta[n] = -Stksize - n.Xoffset
 	}
 
 	Stksize = Rnd(Stksize, int64(Widthreg))
@@ -296,8 +306,8 @@ func allocauto(ptxt *obj.Prog) {
 		if ll.N.Class != PAUTO || ll.N.Op != ONAME {
 			continue
 		}
-		ll.N.Xoffset += ll.N.Stkdelta
-		ll.N.Stkdelta = 0
+		ll.N.Xoffset += stkdelta[ll.N]
+		delete(stkdelta, ll.N)
 	}
 }
 
@@ -309,10 +319,10 @@ func Cgen_checknil(n *Node) {
 	// Ideally we wouldn't see any integer types here, but we do.
 	if n.Type == nil || (!Isptr[n.Type.Etype] && !Isint[n.Type.Etype] && n.Type.Etype != TUNSAFEPTR) {
 		Dump("checknil", n)
-		Fatal("bad checknil")
+		Fatalf("bad checknil")
 	}
 
-	if ((Thearch.Thechar == '5' || Thearch.Thechar == '7' || Thearch.Thechar == '9') && n.Op != OREGISTER) || !n.Addable || n.Op == OLITERAL {
+	if ((Thearch.Thechar == '0' || Thearch.Thechar == '5' || Thearch.Thechar == '7' || Thearch.Thechar == '9') && n.Op != OREGISTER) || !n.Addable || n.Op == OLITERAL {
 		var reg Node
 		Regalloc(&reg, Types[Tptr], n)
 		Cgen(n, &reg)
@@ -349,8 +359,8 @@ func compile(fn *Node) {
 	var gcargs *Sym
 	var gclocals *Sym
 	if fn.Nbody == nil {
-		if pure_go != 0 || strings.HasPrefix(fn.Nname.Sym.Name, "init.") {
-			Yyerror("missing function body for %q", fn.Nname.Sym.Name)
+		if pure_go != 0 || strings.HasPrefix(fn.Func.Nname.Sym.Name, "init.") {
+			Yyerror("missing function body for %q", fn.Func.Nname.Sym.Name)
 			goto ret
 		}
 
@@ -366,7 +376,7 @@ func compile(fn *Node) {
 	// set up domain for labels
 	clearlabels()
 
-	if Curfn.Type.Outnamed != 0 {
+	if Curfn.Type.Outnamed {
 		// add clearing of the output parameters
 		var save Iter
 		t := Structfirst(&save, Getoutarg(Curfn.Type))
@@ -387,13 +397,13 @@ func compile(fn *Node) {
 		goto ret
 	}
 
-	Hasdefer = 0
+	hasdefer = false
 	walk(Curfn)
 	if nerrors != 0 {
 		goto ret
 	}
-	if flag_race != 0 {
-		racewalk(Curfn)
+	if instrumenting {
+		instrument(Curfn)
 	}
 	if nerrors != 0 {
 		goto ret
@@ -403,16 +413,17 @@ func compile(fn *Node) {
 	breakpc = nil
 
 	pl = newplist()
-	pl.Name = Linksym(Curfn.Nname.Sym)
+	pl.Name = Linksym(Curfn.Func.Nname.Sym)
 
 	setlineno(Curfn)
 
 	Nodconst(&nod1, Types[TINT32], 0)
-	nam = Curfn.Nname
+	nam = Curfn.Func.Nname
 	if isblank(nam) {
 		nam = nil
 	}
 	ptxt = Thearch.Gins(obj.ATEXT, nam, &nod1)
+	Afunclit(&ptxt.From, Curfn.Func.Nname)
 	ptxt.From3 = new(obj.Addr)
 	if fn.Func.Dupok {
 		ptxt.From3.Offset |= obj.DUPOK
@@ -426,25 +437,26 @@ func compile(fn *Node) {
 	if fn.Func.Nosplit {
 		ptxt.From3.Offset |= obj.NOSPLIT
 	}
+	if fn.Func.Systemstack {
+		ptxt.From.Sym.Cfunc = 1
+	}
 
 	// Clumsy but important.
 	// See test/recover.go for test cases and src/reflect/value.go
 	// for the actual functions being considered.
 	if myimportpath != "" && myimportpath == "reflect" {
-		if Curfn.Nname.Sym.Name == "callReflect" || Curfn.Nname.Sym.Name == "callMethod" {
+		if Curfn.Func.Nname.Sym.Name == "callReflect" || Curfn.Func.Nname.Sym.Name == "callMethod" {
 			ptxt.From3.Offset |= obj.WRAPPER
 		}
 	}
-
-	Afunclit(&ptxt.From, Curfn.Nname)
 
 	ginit()
 
 	gcargs = makefuncdatasym("gcargs·%d", obj.FUNCDATA_ArgsPointerMaps)
 	gclocals = makefuncdatasym("gclocals·%d", obj.FUNCDATA_LocalsPointerMaps)
 
-	for t := Curfn.Paramfld; t != nil; t = t.Down {
-		gtrack(tracksym(t.Type))
+	for _, t := range Curfn.Func.Fieldtrack {
+		gtrack(tracksym(t))
 	}
 
 	for l := fn.Func.Dcl; l != nil; l = l.Next {
@@ -480,7 +492,7 @@ func compile(fn *Node) {
 	// TODO: Determine when the final cgen_ret can be omitted. Perhaps always?
 	cgen_ret(nil)
 
-	if Hasdefer != 0 {
+	if hasdefer {
 		// deferreturn pretends to have one uintptr argument.
 		// Reserve space for it so stack scanner is happy.
 		if Maxarg < int64(Widthptr) {

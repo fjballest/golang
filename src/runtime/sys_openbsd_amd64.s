@@ -162,6 +162,15 @@ TEXT runtime·raise(SB),NOSPLIT,$16
 	SYSCALL
 	RET
 
+TEXT runtime·raiseproc(SB),NOSPLIT,$16
+	MOVL	$20, AX			// sys_getpid
+	SYSCALL
+	MOVQ	AX, DI			// arg 1 - pid
+	MOVL	sig+0(FP), SI		// arg 2 - signum
+	MOVL	$37, AX			// sys_kill
+	SYSCALL
+	RET
+
 TEXT runtime·setitimer(SB),NOSPLIT,$-8
 	MOVL	mode+0(FP), DI		// arg 1 - which
 	MOVQ	new+8(FP), SI		// arg 2 - itv
@@ -297,7 +306,7 @@ TEXT runtime·sigaltstack(SB),NOSPLIT,$-8
 
 // set tls base to DI
 TEXT runtime·settls(SB),NOSPLIT,$0
-	// adjust for ELF: wants to use -16(FS) and -8(FS) for g and m
+	// adjust for ELF: wants to use -8(FS) for g
 	ADDQ	$8, DI
 	MOVQ	$329, AX		// sys___settcb
 	SYSCALL

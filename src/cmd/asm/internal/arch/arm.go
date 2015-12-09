@@ -79,6 +79,7 @@ var armJump = map[string]bool{
 	"BGT":  true,
 	"BLE":  true,
 	"CALL": true,
+	"JMP":  true,
 }
 
 func jumpArm(word string) bool {
@@ -115,6 +116,15 @@ const aMCR = arm.ALAST + 1
 func IsARMMRC(op int) bool {
 	switch op {
 	case arm.AMRC, aMCR: // Note: aMCR is defined in this package.
+		return true
+	}
+	return false
+}
+
+// IsARMFloatCmp reports whether the op is a floating comparison instruction.
+func IsARMFloatCmp(op int) bool {
+	switch op {
+	case arm.ACMPF, arm.ACMPD:
 		return true
 	}
 	return false

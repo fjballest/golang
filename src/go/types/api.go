@@ -14,8 +14,8 @@
 // language object (Object) it denotes.
 // Use Info.{Defs,Uses,Implicits} for the results of name resolution.
 //
-// Constant folding computes the exact constant value (exact.Value) for
-// every expression (ast.Expr) that is a compile-time constant.
+// Constant folding computes the exact constant value (constant.Value)
+// for every expression (ast.Expr) that is a compile-time constant.
 // Use Info.Types[expr].Value for the results of constant folding.
 //
 // Type inference computes the type (Type) of every expression (ast.Expr)
@@ -28,7 +28,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	exact "go/constant" // Renamed to reduce diffs from x/tools.  TODO: remove
+	"go/constant"
 	"go/token"
 )
 
@@ -142,7 +142,7 @@ type Info struct {
 	//
 	//	*ast.ImportSpec    *PkgName for dot-imports and imports without renames
 	//	*ast.CaseClause    type-specific *Var for each type switch case clause (incl. default)
-	//      *ast.Field         anonymous struct field or parameter *Var
+	//      *ast.Field         anonymous parameter *Var
 	//
 	Implicits map[ast.Node]Object
 
@@ -218,7 +218,7 @@ func (info *Info) ObjectOf(id *ast.Ident) Object {
 type TypeAndValue struct {
 	mode  operandMode
 	Type  Type
-	Value exact.Value
+	Value constant.Value
 }
 
 // TODO(gri) Consider eliminating the IsVoid predicate. Instead, report
@@ -246,7 +246,7 @@ func (tv TypeAndValue) IsBuiltin() bool {
 // nil Value.
 func (tv TypeAndValue) IsValue() bool {
 	switch tv.mode {
-	case constant, variable, mapindex, value, commaok:
+	case constant_, variable, mapindex, value, commaok:
 		return true
 	}
 	return false
@@ -259,7 +259,7 @@ func (tv TypeAndValue) IsNil() bool {
 }
 
 // Addressable reports whether the corresponding expression
-// is addressable (http://golang.org/ref/spec#Address_operators).
+// is addressable (https://golang.org/ref/spec#Address_operators).
 func (tv TypeAndValue) Addressable() bool {
 	return tv.mode == variable
 }
@@ -297,8 +297,10 @@ func (init *Initializer) String() string {
 	return buf.String()
 }
 
-// Check type-checks a package and returns the resulting package object,
-// the first error if any, and if info != nil, additional type information.
+// Check type-checks a package and returns the resulting package object and
+// the first error if any. Additionally, if info != nil, Check populates each
+// of the non-nil maps in the Info struct.
+//
 // The package is marked as complete if no errors occurred, otherwise it is
 // incomplete. See Config.Error for controlling behavior in the presence of
 // errors.
@@ -320,7 +322,7 @@ func AssertableTo(V *Interface, T Type) bool {
 // AssignableTo reports whether a value of type V is assignable to a variable of type T.
 func AssignableTo(V, T Type) bool {
 	x := operand{mode: value, typ: V}
-	return x.assignableTo(nil, T) // config not needed for non-constant x
+	return x.assignableTo(nil, T, nil) // config not needed for non-constant x
 }
 
 // ConvertibleTo reports whether a value of type V is convertible to a value of type T.

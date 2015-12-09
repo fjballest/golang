@@ -6,7 +6,7 @@ package net
 
 import (
 	"reflect"
-	"sort"
+	"strings"
 	"testing"
 )
 
@@ -49,6 +49,13 @@ var lookupStaticHostTests = []struct {
 			{"localhost.localdomain", []string{"fe80::3%lo0"}},
 		},
 	},
+	{
+		"testdata/case-hosts", // see golang.org/issue/12806
+		[]staticHostEntry{
+			{"PreserveMe", []string{"127.0.0.1", "::1"}},
+			{"PreserveMe.local", []string{"127.0.0.1", "::1"}},
+		},
+	},
 }
 
 func TestLookupStaticHost(t *testing.T) {
@@ -57,9 +64,12 @@ func TestLookupStaticHost(t *testing.T) {
 	for _, tt := range lookupStaticHostTests {
 		testHookHostsPath = tt.name
 		for _, ent := range tt.ents {
-			addrs := lookupStaticHost(ent.in)
-			if !reflect.DeepEqual(addrs, ent.out) {
-				t.Errorf("%s, lookupStaticHost(%s) = %v; want %v", tt.name, ent.in, addrs, ent.out)
+			ins := []string{ent.in, absDomainName([]byte(ent.in)), strings.ToLower(ent.in), strings.ToUpper(ent.in)}
+			for _, in := range ins {
+				addrs := lookupStaticHost(in)
+				if !reflect.DeepEqual(addrs, ent.out) {
+					t.Errorf("%s, lookupStaticHost(%s) = %v; want %v", tt.name, in, addrs, ent.out)
+				}
 			}
 		}
 	}
@@ -104,6 +114,13 @@ var lookupStaticAddrTests = []struct {
 			{"fe80::3%lo0", []string{"localhost", "localhost.localdomain"}},
 		},
 	},
+	{
+		"testdata/case-hosts", // see golang.org/issue/12806
+		[]staticHostEntry{
+			{"127.0.0.1", []string{"PreserveMe", "PreserveMe.local"}},
+			{"::1", []string{"PreserveMe", "PreserveMe.local"}},
+		},
+	},
 }
 
 func TestLookupStaticAddr(t *testing.T) {
@@ -113,23 +130,12 @@ func TestLookupStaticAddr(t *testing.T) {
 		testHookHostsPath = tt.name
 		for _, ent := range tt.ents {
 			hosts := lookupStaticAddr(ent.in)
+			for i := range ent.out {
+				ent.out[i] = absDomainName([]byte(ent.out[i]))
+			}
 			if !reflect.DeepEqual(hosts, ent.out) {
 				t.Errorf("%s, lookupStaticAddr(%s) = %v; want %v", tt.name, ent.in, hosts, ent.out)
 			}
-		}
-	}
-}
-
-func TestLookupHost(t *testing.T) {
-	// Can't depend on this to return anything in particular,
-	// but if it does return something, make sure it doesn't
-	// duplicate addresses (a common bug due to the way
-	// getaddrinfo works).
-	addrs, _ := LookupHost("localhost")
-	sort.Strings(addrs)
-	for i := 0; i+1 < len(addrs); i++ {
-		if addrs[i] == addrs[i+1] {
-			t.Fatalf("LookupHost(\"localhost\") = %v, has duplicate addresses", addrs)
 		}
 	}
 }

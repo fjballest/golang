@@ -545,10 +545,6 @@ func initdynimport() *Dll {
 				r.Off = 0
 				r.Siz = uint8(Thearch.Ptrsize)
 				r.Type = obj.R_ADDR
-
-				// pre-allocate symtab entries for those symbols
-				dynSym.Dynid = int32(ncoffsym)
-				ncoffsym++
 			}
 		}
 	} else {
@@ -688,21 +684,11 @@ func addimports(datsect *IMAGE_SECTION_HEADER) {
 	Cseek(endoff)
 }
 
-type pescmp []*LSym
+type byExtname []*LSym
 
-func (x pescmp) Len() int {
-	return len(x)
-}
-
-func (x pescmp) Swap(i, j int) {
-	x[i], x[j] = x[j], x[i]
-}
-
-func (x pescmp) Less(i, j int) bool {
-	s1 := x[i]
-	s2 := x[j]
-	return stringsCompare(s1.Extname, s2.Extname) < 0
-}
+func (s byExtname) Len() int           { return len(s) }
+func (s byExtname) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s byExtname) Less(i, j int) bool { return s[i].Extname < s[j].Extname }
 
 func initdynexport() {
 	nexport = 0
@@ -719,7 +705,7 @@ func initdynexport() {
 		nexport++
 	}
 
-	sort.Sort(pescmp(dexport[:nexport]))
+	sort.Sort(byExtname(dexport[:nexport]))
 }
 
 func addexports() {
@@ -988,20 +974,25 @@ func addpesym(s *LSym, name string, type_ int, addr int64, size int64, ver int, 
 	ncoffsym++
 }
 
-func addpesymtable() {
-	if Debug['s'] == 0 {
-		genasmsym(addpesym)
-		coffsym = make([]COFFSym, ncoffsym)
-		ncoffsym = 0
-		if Linkmode == LinkExternal {
-			for d := dr; d != nil; d = d.next {
-				for m := d.ms; m != nil; m = m.next {
-					s := m.s.R[0].Xsym
-					addpesym(s, s.Name, 'U', 0, int64(Thearch.Ptrsize), 0, nil)
-				}
+func pegenasmsym(put func(*LSym, string, int, int64, int64, int, *LSym)) {
+	if Linkmode == LinkExternal {
+		for d := dr; d != nil; d = d.next {
+			for m := d.ms; m != nil; m = m.next {
+				s := m.s.R[0].Xsym
+				put(s, s.Name, 'U', 0, int64(Thearch.Ptrsize), 0, nil)
 			}
 		}
-		genasmsym(addpesym)
+	}
+	genasmsym(put)
+}
+
+func addpesymtable() {
+	if Debug['s'] == 0 || Linkmode == LinkExternal {
+		ncoffsym = 0
+		pegenasmsym(addpesym)
+		coffsym = make([]COFFSym, ncoffsym)
+		ncoffsym = 0
+		pegenasmsym(addpesym)
 	}
 	size := len(strtbl) + 4 + 18*ncoffsym
 
@@ -1106,6 +1097,11 @@ func Asmbpe() {
 
 	t := addpesection(".text", int(Segtext.Length), int(Segtext.Length))
 	t.Characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
+	if Linkmode == LinkExternal {
+		// some data symbols (e.g. masks) end up in the .text section, and they normally
+		// expect larger alignment requirement than the default text section alignment.
+		t.Characteristics |= IMAGE_SCN_ALIGN_32BYTES
+	}
 	chksectseg(t, &Segtext)
 	textsect = pensect
 

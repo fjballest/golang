@@ -9,12 +9,19 @@ import (
 	"strings"
 )
 
-// The racewalk pass modifies the code tree for the function as follows:
+// The instrument pass modifies the code tree for instrumentation.
+//
+// For flag_race it modifies the function as follows:
 //
 // 1. It inserts a call to racefuncenter at the beginning of each function.
 // 2. It inserts a call to racefuncexit at the end of each function.
 // 3. It inserts a call to raceread before each memory read.
 // 4. It inserts a call to racewrite before each memory write.
+//
+// For flag_msan:
+//
+// 1. It inserts a call to msanread before each memory read.
+// 2. It inserts a call to msanwrite before each memory write.
 //
 // The rewriting is not yet complete. Certain nodes are not rewritten
 // but should be.
@@ -24,16 +31,16 @@ import (
 
 // Do not instrument the following packages at all,
 // at best instrumentation would cause infinite recursion.
-var omit_pkgs = []string{"runtime", "runtime/race"}
+var omit_pkgs = []string{"runtime/internal/atomic", "runtime/internal/sys", "runtime", "runtime/race", "runtime/msan"}
 
 // Only insert racefuncenter/racefuncexit into the following packages.
 // Memory accesses in the packages are either uninteresting or will cause false positives.
-var noinst_pkgs = []string{"sync", "sync/atomic"}
+var norace_inst_pkgs = []string{"sync", "sync/atomic"}
 
 func ispkgin(pkgs []string) bool {
 	if myimportpath != "" {
-		for i := 0; i < len(pkgs); i++ {
-			if myimportpath == pkgs[i] {
+		for _, p := range pkgs {
+			if myimportpath == p {
 				return true
 			}
 		}
@@ -42,56 +49,49 @@ func ispkgin(pkgs []string) bool {
 	return false
 }
 
-func isforkfunc(fn *Node) bool {
-	// Special case for syscall.forkAndExecInChild.
-	// In the child, this function must not acquire any locks, because
-	// they might have been locked at the time of the fork.  This means
-	// no rescheduling, no malloc calls, and no new stack segments.
-	// Race instrumentation does all of the above.
-	return myimportpath != "" && myimportpath == "syscall" && fn.Nname.Sym.Name == "forkAndExecInChild"
-}
-
-func racewalk(fn *Node) {
-	if ispkgin(omit_pkgs) || isforkfunc(fn) {
+func instrument(fn *Node) {
+	if ispkgin(omit_pkgs) || fn.Func.Norace {
 		return
 	}
 
-	if !ispkgin(noinst_pkgs) {
-		racewalklist(fn.Nbody, nil)
+	if flag_race == 0 || !ispkgin(norace_inst_pkgs) {
+		instrumentlist(fn.Nbody, nil)
 
 		// nothing interesting for race detector in fn->enter
-		racewalklist(fn.Func.Exit, nil)
+		instrumentlist(fn.Func.Exit, nil)
 	}
 
-	// nodpc is the PC of the caller as extracted by
-	// getcallerpc. We use -widthptr(FP) for x86.
-	// BUG: this will not work on arm.
-	nodpc := Nod(OXXX, nil, nil)
+	if flag_race != 0 {
+		// nodpc is the PC of the caller as extracted by
+		// getcallerpc. We use -widthptr(FP) for x86.
+		// BUG: this will not work on arm.
+		nodpc := Nod(OXXX, nil, nil)
 
-	*nodpc = *nodfp
-	nodpc.Type = Types[TUINTPTR]
-	nodpc.Xoffset = int64(-Widthptr)
-	nd := mkcall("racefuncenter", nil, nil, nodpc)
-	fn.Func.Enter = concat(list1(nd), fn.Func.Enter)
-	nd = mkcall("racefuncexit", nil, nil)
-	fn.Func.Exit = list(fn.Func.Exit, nd)
+		*nodpc = *nodfp
+		nodpc.Type = Types[TUINTPTR]
+		nodpc.Xoffset = int64(-Widthptr)
+		nd := mkcall("racefuncenter", nil, nil, nodpc)
+		fn.Func.Enter = concat(list1(nd), fn.Func.Enter)
+		nd = mkcall("racefuncexit", nil, nil)
+		fn.Func.Exit = list(fn.Func.Exit, nd)
+	}
 
 	if Debug['W'] != 0 {
-		s := fmt.Sprintf("after racewalk %v", fn.Nname.Sym)
+		s := fmt.Sprintf("after instrument %v", fn.Func.Nname.Sym)
 		dumplist(s, fn.Nbody)
-		s = fmt.Sprintf("enter %v", fn.Nname.Sym)
+		s = fmt.Sprintf("enter %v", fn.Func.Nname.Sym)
 		dumplist(s, fn.Func.Enter)
-		s = fmt.Sprintf("exit %v", fn.Nname.Sym)
+		s = fmt.Sprintf("exit %v", fn.Func.Nname.Sym)
 		dumplist(s, fn.Func.Exit)
 	}
 }
 
-func racewalklist(l *NodeList, init **NodeList) {
+func instrumentlist(l *NodeList, init **NodeList) {
 	var instr *NodeList
 
 	for ; l != nil; l = l.Next {
 		instr = nil
-		racewalknode(&l.N, &instr, 0, 0)
+		instrumentnode(&l.N, &instr, 0, 0)
 		if init == nil {
 			l.N.Ninit = concat(l.N.Ninit, instr)
 		} else {
@@ -103,7 +103,7 @@ func racewalklist(l *NodeList, init **NodeList) {
 // walkexpr and walkstmt combined
 // walks the tree and adds calls to the
 // instrumentation code to top-level (statement) nodes' init
-func racewalknode(np **Node, init **NodeList, wr int, skip int) {
+func instrumentnode(np **Node, init **NodeList, wr int, skip int) {
 	n := *np
 
 	if n == nil {
@@ -111,35 +111,35 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 	}
 
 	if Debug['w'] > 1 {
-		Dump("racewalk-before", n)
+		Dump("instrument-before", n)
 	}
 	setlineno(n)
 	if init == nil {
-		Fatal("racewalk: bad init list")
+		Fatalf("instrument: bad init list")
 	}
 	if init == &n.Ninit {
 		// If init == &n->ninit and n->ninit is non-nil,
-		// racewalknode might append it to itself.
+		// instrumentnode might append it to itself.
 		// nil it out and handle it separately before putting it back.
 		l := n.Ninit
 
 		n.Ninit = nil
-		racewalklist(l, nil)
-		racewalknode(&n, &l, wr, skip) // recurse with nil n->ninit
+		instrumentlist(l, nil)
+		instrumentnode(&n, &l, wr, skip) // recurse with nil n->ninit
 		appendinit(&n, l)
 		*np = n
 		return
 	}
 
-	racewalklist(n.Ninit, nil)
+	instrumentlist(n.Ninit, nil)
 
 	switch n.Op {
 	default:
-		Fatal("racewalk: unknown node type %v", Oconv(int(n.Op), 0))
+		Fatalf("instrument: unknown node type %v", Oconv(int(n.Op), 0))
 
 	case OAS, OASWB, OAS2FUNC:
-		racewalknode(&n.Left, init, 1, 0)
-		racewalknode(&n.Right, init, 0, 0)
+		instrumentnode(&n.Left, init, 1, 0)
+		instrumentnode(&n.Right, init, 0, 0)
 		goto ret
 
 		// can't matter
@@ -147,46 +147,46 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 		goto ret
 
 	case OBLOCK:
-		if n.List == nil {
-			goto ret
+		var out *NodeList
+		for l := n.List; l != nil; l = l.Next {
+			switch l.N.Op {
+			case OCALLFUNC, OCALLMETH, OCALLINTER:
+				instrumentnode(&l.N, &out, 0, 0)
+				out = list(out, l.N)
+				// Scan past OAS nodes copying results off stack.
+				// Those must not be instrumented, because the
+				// instrumentation calls will smash the results.
+				// The assignments are to temporaries, so they cannot
+				// be involved in races and need not be instrumented.
+				for l.Next != nil && l.Next.N.Op == OAS && iscallret(l.Next.N.Right) {
+					l = l.Next
+					out = list(out, l.N)
+				}
+			default:
+				instrumentnode(&l.N, &out, 0, 0)
+				out = list(out, l.N)
+			}
 		}
-
-		switch n.List.N.Op {
-		// Blocks are used for multiple return function calls.
-		// x, y := f() becomes BLOCK{CALL f, AS x [SP+0], AS y [SP+n]}
-		// We don't want to instrument between the statements because it will
-		// smash the results.
-		case OCALLFUNC, OCALLMETH, OCALLINTER:
-			racewalknode(&n.List.N, &n.List.N.Ninit, 0, 0)
-
-			var fini *NodeList
-			racewalklist(n.List.Next, &fini)
-			n.List = concat(n.List, fini)
-
-			// Ordinary block, for loop initialization or inlined bodies.
-		default:
-			racewalklist(n.List, nil)
-		}
-
+		n.List = out
 		goto ret
 
 	case ODEFER:
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 		goto ret
 
 	case OPROC:
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 		goto ret
 
 	case OCALLINTER:
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 		goto ret
 
 		// Instrument dst argument of runtime.writebarrier* calls
 	// as we do not instrument runtime code.
 	// typedslicecopy is instrumented in runtime.
 	case OCALLFUNC:
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 		goto ret
 
 	case ONOT,
@@ -196,32 +196,32 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 		OIMAG,
 		OCOM,
 		OSQRT:
-		racewalknode(&n.Left, init, wr, 0)
+		instrumentnode(&n.Left, init, wr, 0)
 		goto ret
 
 	case ODOTINTER:
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 		goto ret
 
 	case ODOT:
-		racewalknode(&n.Left, init, 0, 1)
+		instrumentnode(&n.Left, init, 0, 1)
 		callinstr(&n, init, wr, skip)
 		goto ret
 
 	case ODOTPTR: // dst = (*x).f with implicit *; otherwise it's ODOT+OIND
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 
 		callinstr(&n, init, wr, skip)
 		goto ret
 
 	case OIND: // *p
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 
 		callinstr(&n, init, wr, skip)
 		goto ret
 
 	case OSPTR, OLEN, OCAP:
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 		if Istype(n.Left.Type, TMAP) {
 			n1 := Nod(OCONVNOP, n.Left, nil)
 			n1.Type = Ptrto(Types[TUINT8])
@@ -250,18 +250,18 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 		OGT,
 		OADD,
 		OCOMPLEX:
-		racewalknode(&n.Left, init, wr, 0)
-		racewalknode(&n.Right, init, wr, 0)
+		instrumentnode(&n.Left, init, wr, 0)
+		instrumentnode(&n.Right, init, wr, 0)
 		goto ret
 
 	case OANDAND, OOROR:
-		racewalknode(&n.Left, init, wr, 0)
+		instrumentnode(&n.Left, init, wr, 0)
 
 		// walk has ensured the node has moved to a location where
 		// side effects are safe.
 		// n->right may not be executed,
 		// so instrumentation goes to n->right->ninit, not init.
-		racewalknode(&n.Right, &n.Right.Ninit, wr, 0)
+		instrumentnode(&n.Right, &n.Right.Ninit, wr, 0)
 
 		goto ret
 
@@ -270,51 +270,57 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 		goto ret
 
 	case OCONV:
-		racewalknode(&n.Left, init, wr, 0)
+		instrumentnode(&n.Left, init, wr, 0)
 		goto ret
 
 	case OCONVNOP:
-		racewalknode(&n.Left, init, wr, 0)
+		instrumentnode(&n.Left, init, wr, 0)
 		goto ret
 
 	case ODIV, OMOD:
-		racewalknode(&n.Left, init, wr, 0)
-		racewalknode(&n.Right, init, wr, 0)
+		instrumentnode(&n.Left, init, wr, 0)
+		instrumentnode(&n.Right, init, wr, 0)
 		goto ret
 
 	case OINDEX:
 		if !Isfixedarray(n.Left.Type) {
-			racewalknode(&n.Left, init, 0, 0)
+			instrumentnode(&n.Left, init, 0, 0)
 		} else if !islvalue(n.Left) {
 			// index of unaddressable array, like Map[k][i].
-			racewalknode(&n.Left, init, wr, 0)
+			instrumentnode(&n.Left, init, wr, 0)
 
-			racewalknode(&n.Right, init, 0, 0)
+			instrumentnode(&n.Right, init, 0, 0)
 			goto ret
 		}
 
-		racewalknode(&n.Right, init, 0, 0)
+		instrumentnode(&n.Right, init, 0, 0)
 		if n.Left.Type.Etype != TSTRING {
 			callinstr(&n, init, wr, skip)
 		}
 		goto ret
 
-	case OSLICE, OSLICEARR, OSLICE3, OSLICE3ARR:
-		racewalknode(&n.Left, init, 0, 0)
+	case OSLICE, OSLICEARR, OSLICE3, OSLICE3ARR, OSLICESTR:
+		instrumentnode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Right, init, 0, 0)
+		goto ret
+
+	case OKEY:
+		instrumentnode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Right, init, 0, 0)
 		goto ret
 
 	case OADDR:
-		racewalknode(&n.Left, init, 0, 1)
+		instrumentnode(&n.Left, init, 0, 1)
 		goto ret
 
 		// n->left is Type* which is not interesting.
 	case OEFACE:
-		racewalknode(&n.Right, init, 0, 0)
+		instrumentnode(&n.Right, init, 0, 0)
 
 		goto ret
 
 	case OITAB:
-		racewalknode(&n.Left, init, 0, 0)
+		instrumentnode(&n.Left, init, 0, 0)
 		goto ret
 
 		// should not appear in AST by now
@@ -358,26 +364,38 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 		OAS2RECV,
 		OAS2MAPR,
 		OASOP:
-		Yyerror("racewalk: %v must be lowered by now", Oconv(int(n.Op), 0))
+		Yyerror("instrument: %v must be lowered by now", Oconv(int(n.Op), 0))
 
 		goto ret
 
 		// impossible nodes: only appear in backend.
 	case ORROTC, OEXTEND:
-		Yyerror("racewalk: %v cannot exist now", Oconv(int(n.Op), 0))
+		Yyerror("instrument: %v cannot exist now", Oconv(int(n.Op), 0))
 		goto ret
 
 	case OGETG:
-		Yyerror("racewalk: OGETG can happen only in runtime which we don't instrument")
+		Yyerror("instrument: OGETG can happen only in runtime which we don't instrument")
+		goto ret
+
+	case OFOR:
+		if n.Left != nil {
+			instrumentnode(&n.Left, &n.Left.Ninit, 0, 0)
+		}
+		if n.Right != nil {
+			instrumentnode(&n.Right, &n.Right.Ninit, 0, 0)
+		}
+		goto ret
+
+	case OIF, OSWITCH:
+		if n.Left != nil {
+			instrumentnode(&n.Left, &n.Left.Ninit, 0, 0)
+		}
 		goto ret
 
 		// just do generic traversal
-	case OFOR,
-		OIF,
-		OCALLMETH,
+	case OCALLMETH,
 		ORETURN,
 		ORETJMP,
-		OSWITCH,
 		OSELECT,
 		OEMPTY,
 		OBREAK,
@@ -401,30 +419,23 @@ func racewalknode(np **Node, init **NodeList, wr int, skip int) {
 		OTYPE,
 		ONONAME,
 		OLITERAL,
-		OSLICESTR, // always preceded by bounds checking, avoid double instrumentation.
-		OTYPESW:   // ignored by code generation, do not instrument.
+		OTYPESW: // ignored by code generation, do not instrument.
 		goto ret
 	}
 
 ret:
 	if n.Op != OBLOCK { // OBLOCK is handled above in a special way.
-		racewalklist(n.List, init)
+		instrumentlist(n.List, init)
 	}
-	if n.Ntest != nil {
-		racewalknode(&n.Ntest, &n.Ntest.Ninit, 0, 0)
-	}
-	if n.Nincr != nil {
-		racewalknode(&n.Nincr, &n.Nincr.Ninit, 0, 0)
-	}
-	racewalklist(n.Nbody, nil)
-	racewalklist(n.Nelse, nil)
-	racewalklist(n.Rlist, nil)
+	instrumentlist(n.Nbody, nil)
+	instrumentlist(n.Rlist, nil)
 	*np = n
 }
 
 func isartificial(n *Node) bool {
 	// compiler-emitted artificial things that we do not want to instrument,
-	// cant' possibly participate in a data race.
+	// can't possibly participate in a data race.
+	// can't be seen by C/C++ and therefore irrelevant for msan.
 	if n.Op == ONAME && n.Sym != nil && n.Sym.Name != "" {
 		if n.Sym.Name == "_" {
 			return true
@@ -486,13 +497,31 @@ func callinstr(np **Node, init **NodeList, wr int, skip int) bool {
 		n = treecopy(n, 0)
 		makeaddable(n)
 		var f *Node
-		if t.Etype == TSTRUCT || Isfixedarray(t) {
+		if flag_msan != 0 {
+			name := "msanread"
+			if wr != 0 {
+				name = "msanwrite"
+			}
+			// dowidth may not have been called for PEXTERN.
+			dowidth(t)
+			w := t.Width
+			if w == BADWIDTH {
+				Fatalf("instrument: %v badwidth", t)
+			}
+			f = mkcall(name, nil, init, uintptraddr(n), Nodintconst(w))
+		} else if flag_race != 0 && (t.Etype == TSTRUCT || Isfixedarray(t)) {
 			name := "racereadrange"
 			if wr != 0 {
 				name = "racewriterange"
 			}
-			f = mkcall(name, nil, init, uintptraddr(n), Nodintconst(t.Width))
-		} else {
+			// dowidth may not have been called for PEXTERN.
+			dowidth(t)
+			w := t.Width
+			if w == BADWIDTH {
+				Fatalf("instrument: %v badwidth", t)
+			}
+			f = mkcall(name, nil, init, uintptraddr(n), Nodintconst(w))
+		} else if flag_race != 0 {
 			name := "raceread"
 			if wr != 0 {
 				name = "racewrite"
@@ -576,10 +605,7 @@ func foreach(n *Node, f func(*Node, interface{}), c interface{}) {
 	foreachnode(n.Left, f, c)
 	foreachnode(n.Right, f, c)
 	foreachlist(n.List, f, c)
-	foreachnode(n.Ntest, f, c)
-	foreachnode(n.Nincr, f, c)
 	foreachlist(n.Nbody, f, c)
-	foreachlist(n.Nelse, f, c)
 	foreachlist(n.Rlist, f, c)
 }
 

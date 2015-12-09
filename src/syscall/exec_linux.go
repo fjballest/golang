@@ -33,6 +33,11 @@ type SysProcAttr struct {
 	Cloneflags  uintptr        // Flags for clone calls (Linux only)
 	UidMappings []SysProcIDMap // User ID mappings for user namespaces.
 	GidMappings []SysProcIDMap // Group ID mappings for user namespaces.
+	// GidMappingsEnableSetgroups enabling setgroups syscall.
+	// If false, then setgroups syscall will be disabled for the child process.
+	// This parameter is no-op if GidMappings == nil. Otherwise for unprivileged
+	// users this should be set to false for mappings work.
+	GidMappingsEnableSetgroups bool
 }
 
 // Implemented in runtime package.
@@ -48,6 +53,7 @@ func runtime_AfterFork()
 // For the same reason compiler does not race instrument it.
 // The calls to RawSyscall are okay because they are assembly
 // functions that do not grow the stack.
+//go:norace
 func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr *ProcAttr, sys *SysProcAttr, pipe int) (pid int, err Errno) {
 	// Declare all variables at top in case any
 	// declarations require heap allocation (e.g., err1).
@@ -186,13 +192,12 @@ func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr
 	// User and groups
 	if cred := sys.Credential; cred != nil {
 		ngroups := uintptr(len(cred.Groups))
-		var groups unsafe.Pointer
 		if ngroups > 0 {
-			groups = unsafe.Pointer(&cred.Groups[0])
-		}
-		_, _, err1 = RawSyscall(SYS_SETGROUPS, ngroups, uintptr(groups), 0)
-		if err1 != 0 {
-			goto childerror
+			groups := unsafe.Pointer(&cred.Groups[0])
+			_, _, err1 = RawSyscall(SYS_SETGROUPS, ngroups, uintptr(groups), 0)
+			if err1 != 0 {
+				goto childerror
+			}
 		}
 		_, _, err1 = RawSyscall(SYS_SETGID, uintptr(cred.Gid), 0, 0)
 		if err1 != 0 {
@@ -366,6 +371,32 @@ func writeIDMappings(path string, idMap []SysProcIDMap) error {
 	return nil
 }
 
+// writeSetgroups writes to /proc/PID/setgroups "deny" if enable is false
+// and "allow" if enable is true.
+// This is needed since kernel 3.19, because you can't write gid_map without
+// disabling setgroups() system call.
+func writeSetgroups(pid int, enable bool) error {
+	sgf := "/proc/" + itoa(pid) + "/setgroups"
+	fd, err := Open(sgf, O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+
+	var data []byte
+	if enable {
+		data = []byte("allow")
+	} else {
+		data = []byte("deny")
+	}
+
+	if _, err := Write(fd, data); err != nil {
+		Close(fd)
+		return err
+	}
+
+	return Close(fd)
+}
+
 // writeUidGidMappings writes User ID and Group ID mappings for user namespaces
 // for a process and it is called from the parent process.
 func writeUidGidMappings(pid int, sys *SysProcAttr) error {
@@ -377,6 +408,10 @@ func writeUidGidMappings(pid int, sys *SysProcAttr) error {
 	}
 
 	if sys.GidMappings != nil {
+		// If the kernel is too old to support /proc/PID/setgroups, writeSetGroups will return ENOENT; this is OK.
+		if err := writeSetgroups(pid, sys.GidMappingsEnableSetgroups); err != nil && err != ENOENT {
+			return err
+		}
 		gidf := "/proc/" + itoa(pid) + "/gid_map"
 		if err := writeIDMappings(gidf, sys.GidMappings); err != nil {
 			return err

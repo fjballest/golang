@@ -159,10 +159,10 @@ func DialTCP(net string, laddr, raddr *TCPAddr) (*TCPConn, error) {
 	switch net {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, &OpError{Op: "dial", Net: net, Source: laddr, Addr: raddr, Err: UnknownNetworkError(net)}
+		return nil, &OpError{Op: "dial", Net: net, Source: laddr.opAddr(), Addr: raddr.opAddr(), Err: UnknownNetworkError(net)}
 	}
 	if raddr == nil {
-		return nil, &OpError{Op: "dial", Net: net, Source: laddr, Addr: raddr, Err: errMissingAddress}
+		return nil, &OpError{Op: "dial", Net: net, Source: laddr.opAddr(), Addr: nil, Err: errMissingAddress}
 	}
 	return dialTCP(net, laddr, raddr, noDeadline)
 }
@@ -185,7 +185,7 @@ func dialTCP(net string, laddr, raddr *TCPAddr, deadline time.Time) (*TCPConn, e
 	// see this happen, rather than expose the buggy effect to users, we
 	// close the fd and try again.  If it happens twice more, we relent and
 	// use the result.  See also:
-	//	http://golang.org/issue/2690
+	//	https://golang.org/issue/2690
 	//	http://stackoverflow.com/questions/4949858/
 	//
 	// The opposite can also happen: if we ask the kernel to pick an appropriate
@@ -202,7 +202,7 @@ func dialTCP(net string, laddr, raddr *TCPAddr, deadline time.Time) (*TCPConn, e
 	}
 
 	if err != nil {
-		return nil, &OpError{Op: "dial", Net: net, Source: laddr, Addr: raddr, Err: err}
+		return nil, &OpError{Op: "dial", Net: net, Source: laddr.opAddr(), Addr: raddr.opAddr(), Err: err}
 	}
 	return newTCPConn(fd), nil
 }
@@ -230,8 +230,13 @@ func selfConnect(fd *netFD, err error) bool {
 }
 
 func spuriousENOTAVAIL(err error) bool {
-	e, ok := err.(*OpError)
-	return ok && e.Err == syscall.EADDRNOTAVAIL
+	if op, ok := err.(*OpError); ok {
+		err = op.Err
+	}
+	if sys, ok := err.(*os.SyscallError); ok {
+		err = sys.Err
+	}
+	return err == syscall.EADDRNOTAVAIL
 }
 
 // TCPListener is a TCP network listener.  Clients should typically
@@ -316,7 +321,7 @@ func ListenTCP(net string, laddr *TCPAddr) (*TCPListener, error) {
 	switch net {
 	case "tcp", "tcp4", "tcp6":
 	default:
-		return nil, &OpError{Op: "listen", Net: net, Source: nil, Addr: laddr, Err: UnknownNetworkError(net)}
+		return nil, &OpError{Op: "listen", Net: net, Source: nil, Addr: laddr.opAddr(), Err: UnknownNetworkError(net)}
 	}
 	if laddr == nil {
 		laddr = &TCPAddr{}

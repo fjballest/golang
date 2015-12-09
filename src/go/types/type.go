@@ -4,9 +4,10 @@
 
 package types
 
-import "sort"
-
-// TODO(gri) Revisit factory functions - make sure they have all relevant parameters.
+import (
+	"sort"
+	"sync"
+)
 
 // A Type represents a type of Go.
 // All types implement the Type interface.
@@ -120,10 +121,10 @@ func (s *Slice) Elem() Type { return s.elem }
 
 // A Struct represents a struct type.
 type Struct struct {
-	fields []*Var
-	tags   []string // field tags; nil if there are no tags
-	// TODO(gri) access to offsets is not threadsafe - fix this
-	offsets []int64 // field offsets in bytes, lazily initialized
+	fields      []*Var
+	tags        []string  // field tags; nil if there are no tags
+	offsets     []int64   // field offsets in bytes, lazily initialized
+	offsetsOnce sync.Once // for threadsafe lazy initialization of offsets
 }
 
 // NewStruct returns a new struct with the given fields and corresponding field tags.
@@ -196,7 +197,11 @@ func (t *Tuple) At(i int) *Var { return t.vars[i] }
 
 // A Signature represents a (non-builtin) function or method type.
 type Signature struct {
-	scope    *Scope // function scope, always present
+	// We need to keep the scope in Signature (rather than passing it around
+	// and store it in the Func Object) because when type-checking a function
+	// literal we call the general type checker which returns a general Type.
+	// We then unpack the *Signature and use the scope for the literal body.
+	scope    *Scope // function scope, present for package-local signatures
 	recv     *Var   // nil if not a method
 	params   *Tuple // (incoming) parameters from left to right; or nil
 	results  *Tuple // (outgoing) results from left to right; or nil
@@ -207,9 +212,7 @@ type Signature struct {
 // and results, either of which may be nil. If variadic is set, the function
 // is variadic, it must have at least one parameter, and the last parameter
 // must be of unnamed slice type.
-func NewSignature(scope *Scope, recv *Var, params, results *Tuple, variadic bool) *Signature {
-	// TODO(gri) Should we rely on the correct (non-nil) incoming scope
-	//           or should this function allocate and populate a scope?
+func NewSignature(recv *Var, params, results *Tuple, variadic bool) *Signature {
 	if variadic {
 		n := params.Len()
 		if n == 0 {
@@ -219,7 +222,7 @@ func NewSignature(scope *Scope, recv *Var, params, results *Tuple, variadic bool
 			panic("types.NewSignature: variadic parameter must be of unnamed slice type")
 		}
 	}
-	return &Signature{scope, recv, params, results, variadic}
+	return &Signature{nil, recv, params, results, variadic}
 }
 
 // Recv returns the receiver of signature s (if a method), or nil if a
@@ -358,7 +361,7 @@ type Chan struct {
 // A ChanDir value indicates a channel direction.
 type ChanDir int
 
-// The direction of a channel is indicated by one of the following constants.
+// The direction of a channel is indicated by one of these constants.
 const (
 	SendRecv ChanDir = iota
 	SendOnly
@@ -439,14 +442,14 @@ func (t *Map) Underlying() Type       { return t }
 func (t *Chan) Underlying() Type      { return t }
 func (t *Named) Underlying() Type     { return t.underlying }
 
-func (t *Basic) String() string     { return TypeString(nil, t) }
-func (t *Array) String() string     { return TypeString(nil, t) }
-func (t *Slice) String() string     { return TypeString(nil, t) }
-func (t *Struct) String() string    { return TypeString(nil, t) }
-func (t *Pointer) String() string   { return TypeString(nil, t) }
-func (t *Tuple) String() string     { return TypeString(nil, t) }
-func (t *Signature) String() string { return TypeString(nil, t) }
-func (t *Interface) String() string { return TypeString(nil, t) }
-func (t *Map) String() string       { return TypeString(nil, t) }
-func (t *Chan) String() string      { return TypeString(nil, t) }
-func (t *Named) String() string     { return TypeString(nil, t) }
+func (t *Basic) String() string     { return TypeString(t, nil) }
+func (t *Array) String() string     { return TypeString(t, nil) }
+func (t *Slice) String() string     { return TypeString(t, nil) }
+func (t *Struct) String() string    { return TypeString(t, nil) }
+func (t *Pointer) String() string   { return TypeString(t, nil) }
+func (t *Tuple) String() string     { return TypeString(t, nil) }
+func (t *Signature) String() string { return TypeString(t, nil) }
+func (t *Interface) String() string { return TypeString(t, nil) }
+func (t *Map) String() string       { return TypeString(t, nil) }
+func (t *Chan) String() string      { return TypeString(t, nil) }
+func (t *Named) String() string     { return TypeString(t, nil) }

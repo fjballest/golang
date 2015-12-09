@@ -218,7 +218,7 @@ var dualStackTCPListenerTests = []struct {
 // listening address and same port.
 func TestDualStackTCPListener(t *testing.T) {
 	switch runtime.GOOS {
-	case "nacl", "plan9":
+	case "dragonfly", "nacl", "plan9": // re-enable on dragonfly once the new IP control block management has landed
 		t.Skipf("not supported on %s", runtime.GOOS)
 	}
 	if !supportsIPv4 || !supportsIPv6 {
@@ -305,7 +305,7 @@ var dualStackUDPListenerTests = []struct {
 // listening address and same port.
 func TestDualStackUDPListener(t *testing.T) {
 	switch runtime.GOOS {
-	case "nacl", "plan9":
+	case "dragonfly", "nacl", "plan9": // re-enable on dragonfly once the new IP control block management has landed
 		t.Skipf("not supported on %s", runtime.GOOS)
 	}
 	if !supportsIPv4 || !supportsIPv6 {
@@ -542,7 +542,7 @@ func TestIPv4MulticastListener(t *testing.T) {
 		// routing stuff for finding out an appropriate
 		// nexthop containing both network and link layer
 		// adjacencies.
-		if ifi == nil && !*testExternal {
+		if ifi == nil && (testing.Short() || !*testExternal) {
 			continue
 		}
 		for _, tt := range ipv4MulticastListenerTests {
@@ -618,7 +618,7 @@ func TestIPv6MulticastListener(t *testing.T) {
 		// routing stuff for finding out an appropriate
 		// nexthop containing both network and link layer
 		// adjacencies.
-		if ifi == nil && (!*testExternal || !*testIPv6) {
+		if ifi == nil && (testing.Short() || !*testExternal || !*testIPv6) {
 			continue
 		}
 		for _, tt := range ipv6MulticastListenerTests {
