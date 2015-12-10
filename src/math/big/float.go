@@ -16,7 +16,7 @@ import (
 	"math"
 )
 
-const debugFloat = true // enable for debugging
+const debugFloat = false // enable for debugging
 
 // A nonzero finite Float represents a multi-precision floating point number
 //
@@ -124,7 +124,7 @@ const (
 // rounding error is described by the Float's Accuracy.
 type RoundingMode byte
 
-// The following rounding modes are supported.
+// These constants define supported rounding modes.
 const (
 	ToNearestEven RoundingMode = iota // == IEEE 754-2008 roundTiesToEven
 	ToNearestAway                     // == IEEE 754-2008 roundTiesToAway
@@ -298,7 +298,7 @@ func (z *Float) setExpAndRound(exp int64, sbit uint) {
 // not require 0.5 <= |mant| < 1.0. Specifically:
 //
 //	mant := new(Float)
-//	new(Float).SetMantExp(mant, x.SetMantExp(mant)).Cmp(x).Eql() is true
+//	new(Float).SetMantExp(mant, x.MantExp(mant)).Cmp(x) == 0
 //
 // Special cases are:
 //
@@ -1272,7 +1272,7 @@ func (z *Float) usub(x, y *Float) {
 		ex = ey
 	}
 
-	// operands may have cancelled each other out
+	// operands may have canceled each other out
 	if len(z.mant) == 0 {
 		z.acc = Exact
 		z.form = zero
@@ -1406,7 +1406,7 @@ func (x *Float) ucmp(y *Float) int {
 // sum (or difference) shall be −0. However, x+x = x−(−x) retains the same
 // sign as x even when x is zero.
 //
-// See also: http://play.golang.org/p/RtH3UCt5IH
+// See also: https://play.golang.org/p/RtH3UCt5IH
 
 // Add sets z to the rounded sum x+y and returns z. If z's precision is 0,
 // it is changed to the larger of x's or y's precision before the operation.

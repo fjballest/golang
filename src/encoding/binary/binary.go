@@ -13,7 +13,7 @@
 // The varint functions encode and decode single integer values using
 // a variable-length encoding; smaller values require fewer bytes.
 // For a specification, see
-// http://code.google.com/apis/protocolbuffers/docs/encoding.html.
+// https://developers.google.com/protocol-buffers/docs/encoding.
 //
 // This package favors simplicity over efficiency. Clients that require
 // high-performance serialization, especially for large data structures,
@@ -135,6 +135,10 @@ func (bigEndian) GoString() string { return "binary.BigEndian" }
 // blank (_) field names is skipped; i.e., blank field names
 // may be used for padding.
 // When reading into a struct, all non-blank fields must be exported.
+//
+// The error is EOF only if no bytes were read.
+// If an EOF happens after reading some but not all the bytes,
+// Read returns ErrUnexpectedEOF.
 func Read(r io.Reader, order ByteOrder, data interface{}) error {
 	// Fast path for basic types and slices.
 	if n := intDataSize(data); n != 0 {

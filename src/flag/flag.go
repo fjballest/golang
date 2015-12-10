@@ -235,6 +235,8 @@ func (d *durationValue) String() string { return (*time.Duration)(d).String() }
 // If a Value has an IsBoolFlag() bool method returning true,
 // the command-line parser makes -name equivalent to -name=true
 // rather than using the next command-line argument.
+//
+// Set is called once, in command line order, for each flag present.
 type Value interface {
 	String() string
 	Set(string) error
@@ -249,13 +251,14 @@ type Getter interface {
 	Get() interface{}
 }
 
-// ErrorHandling defines how to handle flag parsing errors.
+// ErrorHandling defines how FlagSet.Parse behaves if the parse fails.
 type ErrorHandling int
 
+// These constants cause FlagSet.Parse to behave as described if the parse fails.
 const (
-	ContinueOnError ErrorHandling = iota
-	ExitOnError
-	PanicOnError
+	ContinueOnError ErrorHandling = iota // Return a descriptive error.
+	ExitOnError                          // Call os.Exit(2).
+	PanicOnError                         // Call panic with a descriptive error.
 )
 
 // A FlagSet represents a set of defined flags.  The zero value of a FlagSet
@@ -512,7 +515,8 @@ func (f *FlagSet) NFlag() int { return len(f.actual) }
 func NFlag() int { return len(CommandLine.actual) }
 
 // Arg returns the i'th argument.  Arg(0) is the first remaining argument
-// after flags have been processed.
+// after flags have been processed. Arg returns an empty string if the
+// requested element does not exist.
 func (f *FlagSet) Arg(i int) string {
 	if i < 0 || i >= len(f.args) {
 		return ""
@@ -521,7 +525,8 @@ func (f *FlagSet) Arg(i int) string {
 }
 
 // Arg returns the i'th command-line argument.  Arg(0) is the first remaining argument
-// after flags have been processed.
+// after flags have been processed. Arg returns an empty string if the
+// requested element does not exist.
 func Arg(i int) string {
 	return CommandLine.Arg(i)
 }

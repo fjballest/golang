@@ -256,6 +256,7 @@ func (ctxt *Context) SrcDirs() []string {
 // if set, or else the compiled code's GOARCH, GOOS, and GOROOT.
 var Default Context = defaultContext()
 
+// Also known to cmd/dist/build.go.
 var cgoEnabled = map[string]bool{
 	"darwin/386":      true,
 	"darwin/amd64":    true,
@@ -264,6 +265,7 @@ var cgoEnabled = map[string]bool{
 	"dragonfly/amd64": true,
 	"freebsd/386":     true,
 	"freebsd/amd64":   true,
+	"freebsd/arm":     true,
 	"linux/386":       true,
 	"linux/amd64":     true,
 	"linux/arm":       true,
@@ -287,7 +289,7 @@ func defaultContext() Context {
 
 	c.GOARCH = envOr("GOARCH", runtime.GOARCH)
 	c.GOOS = envOr("GOOS", runtime.GOOS)
-	c.GOROOT = runtime.GOROOT()
+	c.GOROOT = pathpkg.Clean(runtime.GOROOT())
 	c.GOPATH = envOr("GOPATH", "")
 	c.Compiler = runtime.Compiler
 
@@ -296,7 +298,7 @@ func defaultContext() Context {
 	// in all releases >= Go 1.x. Code that requires Go 1.x or later should
 	// say "+build go1.x", and code that should only be built before Go 1.x
 	// (perhaps it is the stub to use in that case) should say "+build !go1.x".
-	c.ReleaseTags = []string{"go1.1", "go1.2", "go1.3", "go1.4", "go1.5"}
+	c.ReleaseTags = []string{"go1.1", "go1.2", "go1.3", "go1.4", "go1.5", "go1.6"}
 
 	switch os.Getenv("CGO_ENABLED") {
 	case "1":
@@ -494,9 +496,13 @@ func (ctxt *Context) Import(path string, srcDir string, mode ImportMode) (*Packa
 			p.Dir = ctxt.joinPath(srcDir, path)
 		}
 		// Determine canonical import path, if any.
+		// Exclude results where the import path would include /testdata/.
+		inTestdata := func(sub string) bool {
+			return strings.Contains(sub, "/testdata/") || strings.HasSuffix(sub, "/testdata") || strings.HasPrefix(sub, "testdata/") || sub == "testdata"
+		}
 		if ctxt.GOROOT != "" {
 			root := ctxt.joinPath(ctxt.GOROOT, "src")
-			if sub, ok := ctxt.hasSubdir(root, p.Dir); ok {
+			if sub, ok := ctxt.hasSubdir(root, p.Dir); ok && !inTestdata(sub) {
 				p.Goroot = true
 				p.ImportPath = sub
 				p.Root = ctxt.GOROOT
@@ -506,7 +512,7 @@ func (ctxt *Context) Import(path string, srcDir string, mode ImportMode) (*Packa
 		all := ctxt.gopath()
 		for i, root := range all {
 			rootsrc := ctxt.joinPath(root, "src")
-			if sub, ok := ctxt.hasSubdir(rootsrc, p.Dir); ok {
+			if sub, ok := ctxt.hasSubdir(rootsrc, p.Dir); ok && !inTestdata(sub) {
 				// We found a potential import path for dir,
 				// but check that using it wouldn't find something
 				// else first.
@@ -985,7 +991,7 @@ func (ctxt *Context) matchFile(dir, name string, returnImports bool, allTags map
 	}
 
 	if strings.HasSuffix(filename, ".go") {
-		data, err = readImports(f, false)
+		data, err = readImports(f, false, nil)
 	} else {
 		data, err = readComments(f)
 	}
@@ -1143,9 +1149,9 @@ func (ctxt *Context) saveCgo(filename string, di *Package, cg *ast.CommentGroup)
 		if err != nil {
 			return fmt.Errorf("%s: invalid #cgo line: %s", filename, orig)
 		}
+		var ok bool
 		for i, arg := range args {
-			arg = expandSrcDir(arg, di.Dir)
-			if !safeCgoName(arg) {
+			if arg, ok = expandSrcDir(arg, di.Dir); !ok {
 				return fmt.Errorf("%s: malformed #cgo argument: %s", filename, arg)
 			}
 			args[i] = arg
@@ -1169,25 +1175,46 @@ func (ctxt *Context) saveCgo(filename string, di *Package, cg *ast.CommentGroup)
 	return nil
 }
 
-func expandSrcDir(str string, srcdir string) string {
+// expandSrcDir expands any occurrence of ${SRCDIR}, making sure
+// the result is safe for the shell.
+func expandSrcDir(str string, srcdir string) (string, bool) {
 	// "\" delimited paths cause safeCgoName to fail
 	// so convert native paths with a different delimeter
-	// to "/" before starting (eg: on windows)
+	// to "/" before starting (eg: on windows).
 	srcdir = filepath.ToSlash(srcdir)
-	return strings.Replace(str, "${SRCDIR}", srcdir, -1)
+
+	// Spaces are tolerated in ${SRCDIR}, but not anywhere else.
+	chunks := strings.Split(str, "${SRCDIR}")
+	if len(chunks) < 2 {
+		return str, safeCgoName(str, false)
+	}
+	ok := true
+	for _, chunk := range chunks {
+		ok = ok && (chunk == "" || safeCgoName(chunk, false))
+	}
+	ok = ok && (srcdir == "" || safeCgoName(srcdir, true))
+	res := strings.Join(chunks, srcdir)
+	return res, ok && res != ""
 }
 
 // NOTE: $ is not safe for the shell, but it is allowed here because of linker options like -Wl,$ORIGIN.
 // We never pass these arguments to a shell (just to programs we construct argv for), so this should be okay.
 // See golang.org/issue/6038.
-var safeBytes = []byte("+-.,/0123456789=ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz:$")
+const safeString = "+-.,/0123456789=ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz:$"
+const safeSpaces = " "
 
-func safeCgoName(s string) bool {
+var safeBytes = []byte(safeSpaces + safeString)
+
+func safeCgoName(s string, spaces bool) bool {
 	if s == "" {
 		return false
 	}
+	safe := safeBytes
+	if !spaces {
+		safe = safe[len(safeSpaces):]
+	}
 	for i := 0; i < len(s); i++ {
-		if c := s[i]; c < 0x80 && bytes.IndexByte(safeBytes, c) < 0 {
+		if c := s[i]; c < 0x80 && bytes.IndexByte(safe, c) < 0 {
 			return false
 		}
 	}

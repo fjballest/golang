@@ -34,7 +34,7 @@
 // its -bench flag is provided. Benchmarks are run sequentially.
 //
 // For a description of the testing flags, see
-// http://golang.org/cmd/go/#hdr-Description_of_testing_flags.
+// https://golang.org/cmd/go/#hdr-Description_of_testing_flags.
 //
 // A sample benchmark function looks like this:
 //     func BenchmarkHello(b *testing.B) {
@@ -150,6 +150,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"runtime/trace"
 	"strconv"
 	"strings"
 	"sync"
@@ -172,6 +173,7 @@ var (
 
 	// Report as tests are run; default is silent for success.
 	chatty           = flag.Bool("test.v", false, "verbose: print additional output")
+	count            = flag.Uint("test.count", 1, "run tests and benchmarks `n` times")
 	coverProfile     = flag.String("test.coverprofile", "", "write a coverage profile to the named file after execution")
 	match            = flag.String("test.run", "", "regular expression to select tests and examples to run")
 	memProfile       = flag.String("test.memprofile", "", "write a memory profile to the named file after execution")
@@ -179,7 +181,7 @@ var (
 	cpuProfile       = flag.String("test.cpuprofile", "", "write a cpu profile to the named file during execution")
 	blockProfile     = flag.String("test.blockprofile", "", "write a goroutine blocking profile to the named file after execution")
 	blockProfileRate = flag.Int("test.blockprofilerate", 1, "if >= 0, calls runtime.SetBlockProfileRate()")
-	trace            = flag.String("test.trace", "", "write an execution trace to the named file after execution")
+	traceFile        = flag.String("test.trace", "", "write an execution trace to the named file after execution")
 	timeout          = flag.Duration("test.timeout", 0, "if positive, sets an aggregate time limit for all tests")
 	cpuListStr       = flag.String("test.cpu", "", "comma-separated list of number of CPUs to use for each test")
 	parallel         = flag.Int("test.parallel", runtime.GOMAXPROCS(0), "maximum test parallelism")
@@ -280,6 +282,14 @@ var _ TB = (*B)(nil)
 
 // T is a type passed to Test functions to manage test state and support formatted test logs.
 // Logs are accumulated during execution and dumped to standard error when done.
+//
+// A test ends when its Test function returns or calls any of the methods
+// FailNow, Fatal, Fatalf, SkipNow, Skip, or Skipf. Those methods, as well as
+// the Parallel method, must be called only from the goroutine running the
+// Test function.
+//
+// The other reporting methods, such as the variations of Log and Error,
+// may be called simultaneously from multiple goroutines.
 type T struct {
 	common
 	name          string    // Name of test.
@@ -416,10 +426,12 @@ func (c *common) Skipped() bool {
 // Parallel signals that this test is to be run in parallel with (and only with)
 // other parallel tests.
 func (t *T) Parallel() {
+	// We don't want to include the time we spend waiting for serial tests
+	// in the test duration. Record the elapsed time thus far and reset the
+	// timer afterwards.
+	t.duration += time.Since(t.start)
 	t.signal <- (*T)(nil) // Release main testing loop
 	<-t.startParallel     // Wait for serial tests to finish
-	// Assuming Parallel is the first thing a test does, which is reasonable,
-	// reinitialize the test's start time because it's actually starting now.
 	t.start = time.Now()
 }
 
@@ -436,7 +448,7 @@ func tRunner(t *T, test *InternalTest) {
 	// a call to runtime.Goexit, record the duration and send
 	// a signal saying that the test is done.
 	defer func() {
-		t.duration = time.Now().Sub(t.start)
+		t.duration += time.Now().Sub(t.start)
 		// If the test panicked, print any test output before dying.
 		err := recover()
 		if !t.finished && err == nil {
@@ -483,7 +495,11 @@ func MainStart(matchString func(pat, str string) (bool, error), tests []Internal
 
 // Run runs the tests. It returns an exit code to pass to os.Exit.
 func (m *M) Run() int {
-	flag.Parse()
+	// TestMain may have already called flag.Parse.
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+
 	parseCpuList()
 
 	before()
@@ -545,9 +561,6 @@ func RunTests(matchString func(pat, str string) (bool, error), tests []InternalT
 				continue
 			}
 			testName := tests[i].Name
-			if procs != 1 {
-				testName = fmt.Sprintf("%s-%d", tests[i].Name, procs)
-			}
 			t := &T{
 				common: common{
 					signal: make(chan interface{}),
@@ -607,13 +620,13 @@ func before() {
 		}
 		// Could save f so after can call f.Close; not worth the effort.
 	}
-	if *trace != "" {
-		f, err := os.Create(toOutputDir(*trace))
+	if *traceFile != "" {
+		f, err := os.Create(toOutputDir(*traceFile))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "testing: %s", err)
 			return
 		}
-		if err := pprof.StartTrace(f); err != nil {
+		if err := trace.Start(f); err != nil {
 			fmt.Fprintf(os.Stderr, "testing: can't start tracing: %s", err)
 			f.Close()
 			return
@@ -634,8 +647,8 @@ func after() {
 	if *cpuProfile != "" {
 		pprof.StopCPUProfile() // flushes profile to disk
 	}
-	if *trace != "" {
-		pprof.StopTrace() // flushes trace to disk
+	if *traceFile != "" {
+		trace.Stop() // flushes trace to disk
 	}
 	if *memProfile != "" {
 		f, err := os.Create(toOutputDir(*memProfile))
@@ -724,9 +737,13 @@ func parseCpuList() {
 			fmt.Fprintf(os.Stderr, "testing: invalid value %q for -test.cpu\n", val)
 			os.Exit(1)
 		}
-		cpuList = append(cpuList, cpu)
+		for i := uint(0); i < *count; i++ {
+			cpuList = append(cpuList, cpu)
+		}
 	}
 	if cpuList == nil {
-		cpuList = append(cpuList, runtime.GOMAXPROCS(-1))
+		for i := uint(0); i < *count; i++ {
+			cpuList = append(cpuList, runtime.GOMAXPROCS(-1))
+		}
 	}
 }

@@ -234,6 +234,18 @@ var expm1 = []float64{
 	1.842068661871398836913874273e-02,
 	-8.3193870863553801814961137573e-02,
 }
+var expm1Large = []float64{
+	4.2031418113550844e+21,
+	4.0690789717473863e+33,
+	-0.9372627915981363e+00,
+	-1.0,
+	7.077694784145933e+41,
+	5.117936223839153e+12,
+	5.124137759001189e+22,
+	7.03546003972584e+11,
+	8.456921800389698e+07,
+	-1.0,
+}
 var exp2 = []float64{
 	3.1537839463286288034313104e+01,
 	2.1361549283756232296144849e+02,
@@ -447,7 +459,7 @@ var log2 = []float64{
 var modf = [][2]float64{
 	{4.0000000000000000e+00, 9.7901192488367350108546816e-01},
 	{7.0000000000000000e+00, 7.3887247457810456552351752e-01},
-	{0.0000000000000000e+00, -2.7688005719200159404635997e-01},
+	{Copysign(0, -1), -2.7688005719200159404635997e-01},
 	{-5.0000000000000000e+00, -1.060361827107492160848778e-02},
 	{9.0000000000000000e+00, 6.3629370719841737980004837e-01},
 	{2.0000000000000000e+00, 9.2637723924396464525443662e-01},
@@ -946,15 +958,19 @@ var expSC = []float64{
 
 var vfexpm1SC = []float64{
 	Inf(-1),
+	-710,
 	Copysign(0, -1),
 	0,
+	710,
 	Inf(1),
 	NaN(),
 }
 var expm1SC = []float64{
 	-1,
+	-1,
 	Copysign(0, -1),
 	0,
+	Inf(1),
 	Inf(1),
 	NaN(),
 }
@@ -1352,12 +1368,14 @@ var log1pSC = []float64{
 
 var vfmodfSC = []float64{
 	Inf(-1),
+	Copysign(0, -1),
 	Inf(1),
 	NaN(),
 }
 var modfSC = [][2]float64{
 	{Inf(-1), NaN()}, // [2]float64{Copysign(0, -1), Inf(-1)},
-	{Inf(1), NaN()},  // [2]float64{0, Inf(1)},
+	{Copysign(0, -1), Copysign(0, -1)},
+	{Inf(1), NaN()}, // [2]float64{0, Inf(1)},
 	{NaN(), NaN()},
 }
 
@@ -1605,6 +1623,7 @@ var vfsqrtSC = []float64{
 	0,
 	Inf(1),
 	NaN(),
+	Float64frombits(2), // subnormal; see https://golang.org/issue/13013
 }
 var sqrtSC = []float64{
 	NaN(),
@@ -1613,6 +1632,7 @@ var sqrtSC = []float64{
 	0,
 	Inf(1),
 	NaN(),
+	3.1434555694052576e-162,
 }
 
 var vftanhSC = []float64{
@@ -1726,8 +1746,10 @@ func tolerance(a, b, e float64) bool {
 		d = -d
 	}
 
-	if a != 0 {
-		e = e * a
+	// note: b is correct (expected) value, a is actual value.
+	// make error tolerance a fraction of b, not a.
+	if b != 0 {
+		e = e * b
 		if e < 0 {
 			e = -e
 		}
@@ -1975,6 +1997,12 @@ func TestExpm1(t *testing.T) {
 		a := vf[i] / 100
 		if f := Expm1(a); !veryclose(expm1[i], f) {
 			t.Errorf("Expm1(%g) = %g, want %g", a, f, expm1[i])
+		}
+	}
+	for i := 0; i < len(vf); i++ {
+		a := vf[i] * 10
+		if f := Expm1(a); !close(expm1Large[i], f) {
+			t.Errorf("Expm1(%g) = %g, want %g", a, f, expm1Large[i])
 		}
 	}
 	for i := 0; i < len(vfexpm1SC); i++ {
@@ -2639,7 +2667,7 @@ func TestLargeTan(t *testing.T) {
 
 // Check that math constants are accepted by compiler
 // and have right value (assumes strconv.ParseFloat works).
-// http://golang.org/issue/201
+// https://golang.org/issue/201
 
 type floatTest struct {
 	val  interface{}

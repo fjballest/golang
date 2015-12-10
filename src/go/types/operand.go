@@ -9,7 +9,7 @@ package types
 import (
 	"bytes"
 	"go/ast"
-	exact "go/constant" // Renamed to reduce diffs from x/tools.  TODO: remove
+	"go/constant"
 	"go/token"
 )
 
@@ -17,27 +17,27 @@ import (
 type operandMode byte
 
 const (
-	invalid  operandMode = iota // operand is invalid
-	novalue                     // operand represents no value (result of a function call w/o result)
-	builtin                     // operand is a built-in function
-	typexpr                     // operand is a type
-	constant                    // operand is a constant; the operand's typ is a Basic type
-	variable                    // operand is an addressable variable
-	mapindex                    // operand is a map index expression (acts like a variable on lhs, commaok on rhs of an assignment)
-	value                       // operand is a computed value
-	commaok                     // like value, but operand may be used in a comma,ok expression
+	invalid   operandMode = iota // operand is invalid
+	novalue                      // operand represents no value (result of a function call w/o result)
+	builtin                      // operand is a built-in function
+	typexpr                      // operand is a type
+	constant_                    // operand is a constant; the operand's typ is a Basic type
+	variable                     // operand is an addressable variable
+	mapindex                     // operand is a map index expression (acts like a variable on lhs, commaok on rhs of an assignment)
+	value                        // operand is a computed value
+	commaok                      // like value, but operand may be used in a comma,ok expression
 )
 
 var operandModeString = [...]string{
-	invalid:  "invalid operand",
-	novalue:  "no value",
-	builtin:  "built-in",
-	typexpr:  "type",
-	constant: "constant",
-	variable: "variable",
-	mapindex: "map index expression",
-	value:    "value",
-	commaok:  "comma, ok expression",
+	invalid:   "invalid operand",
+	novalue:   "no value",
+	builtin:   "built-in",
+	typexpr:   "type",
+	constant_: "constant",
+	variable:  "variable",
+	mapindex:  "map index expression",
+	value:     "value",
+	commaok:   "comma, ok expression",
 }
 
 // An operand represents an intermediate value during type checking.
@@ -50,7 +50,7 @@ type operand struct {
 	mode operandMode
 	expr ast.Expr
 	typ  Type
-	val  exact.Value
+	val  constant.Value
 	id   builtinId
 }
 
@@ -93,7 +93,7 @@ func (x *operand) pos() token.Pos {
 // commaok    <expr> (<untyped kind> <mode>                    )
 // commaok    <expr> (               <mode>       of type <typ>)
 //
-func operandString(this *Package, x *operand) string {
+func operandString(x *operand, qf Qualifier) string {
 	var buf bytes.Buffer
 
 	var expr string
@@ -104,8 +104,8 @@ func operandString(this *Package, x *operand) string {
 		case builtin:
 			expr = predeclaredFuncs[x.id].name
 		case typexpr:
-			expr = TypeString(this, x.typ)
-		case constant:
+			expr = TypeString(x.typ, qf)
+		case constant_:
 			expr = x.val.String()
 		}
 	}
@@ -135,7 +135,7 @@ func operandString(this *Package, x *operand) string {
 	buf.WriteString(operandModeString[x.mode])
 
 	// <val>
-	if x.mode == constant {
+	if x.mode == constant_ {
 		if s := x.val.String(); s != expr {
 			buf.WriteByte(' ')
 			buf.WriteString(s)
@@ -146,7 +146,7 @@ func operandString(this *Package, x *operand) string {
 	if hasType {
 		if x.typ != Typ[Invalid] {
 			buf.WriteString(" of type ")
-			WriteType(&buf, this, x.typ)
+			WriteType(&buf, x.typ, qf)
 		} else {
 			buf.WriteString(" with invalid type")
 		}
@@ -161,12 +161,12 @@ func operandString(this *Package, x *operand) string {
 }
 
 func (x *operand) String() string {
-	return operandString(nil, x)
+	return operandString(x, nil)
 }
 
 // setConst sets x to the untyped constant for literal lit.
 func (x *operand) setConst(tok token.Token, lit string) {
-	val := exact.MakeFromLiteral(lit, tok, 0)
+	val := constant.MakeFromLiteral(lit, tok, 0)
 	if val == nil {
 		// TODO(gri) Should we make it an unknown constant instead?
 		x.mode = invalid
@@ -187,7 +187,7 @@ func (x *operand) setConst(tok token.Token, lit string) {
 		kind = UntypedString
 	}
 
-	x.mode = constant
+	x.mode = constant_
 	x.typ = Typ[kind]
 	x.val = val
 }
@@ -202,7 +202,9 @@ func (x *operand) isNil() bool {
 //           overlapping in functionality. Need to simplify and clean up.
 
 // assignableTo reports whether x is assignable to a variable of type T.
-func (x *operand) assignableTo(conf *Config, T Type) bool {
+// If the result is false and a non-nil reason is provided, it may be set
+// to a more detailed explanation of the failure (result != "").
+func (x *operand) assignableTo(conf *Config, T Type, reason *string) bool {
 	if x.mode == invalid || T == Typ[Invalid] {
 		return true // avoid spurious errors
 	}
@@ -217,50 +219,16 @@ func (x *operand) assignableTo(conf *Config, T Type) bool {
 	Vu := V.Underlying()
 	Tu := T.Underlying()
 
-	// T is an interface type and x implements T
-	// (Do this check first as it might succeed early.)
-	if Ti, ok := Tu.(*Interface); ok {
-		if Implements(x.typ, Ti) {
-			return true
-		}
-	}
-
-	// x's type V and T have identical underlying types
-	// and at least one of V or T is not a named type
-	if Identical(Vu, Tu) && (!isNamed(V) || !isNamed(T)) {
-		return true
-	}
-
-	// x is a bidirectional channel value, T is a channel
-	// type, x's type V and T have identical element types,
-	// and at least one of V or T is not a named type
-	if Vc, ok := Vu.(*Chan); ok && Vc.dir == SendRecv {
-		if Tc, ok := Tu.(*Chan); ok && Identical(Vc.elem, Tc.elem) {
-			return !isNamed(V) || !isNamed(T)
-		}
-	}
-
-	// x is the predeclared identifier nil and T is a pointer,
-	// function, slice, map, channel, or interface type
-	if x.isNil() {
-		switch t := Tu.(type) {
-		case *Basic:
-			if t.kind == UnsafePointer {
-				return true
-			}
-		case *Pointer, *Signature, *Slice, *Map, *Chan, *Interface:
-			return true
-		}
-		return false
-	}
-
-	// x is an untyped constant representable by a value of type T
+	// x is an untyped value representable by a value of type T
 	// TODO(gri) This is borrowing from checker.convertUntyped and
 	//           checker.representable. Need to clean up.
 	if isUntyped(Vu) {
 		switch t := Tu.(type) {
 		case *Basic:
-			if x.mode == constant {
+			if x.isNil() && t.kind == UnsafePointer {
+				return true
+			}
+			if x.mode == constant_ {
 				return representableConst(x.val, conf, t.kind, nil)
 			}
 			// The result of a comparison is an untyped boolean,
@@ -274,13 +242,45 @@ func (x *operand) assignableTo(conf *Config, T Type) bool {
 			return x.isNil()
 		}
 	}
+	// Vu is typed
+
+	// x's type V and T have identical underlying types
+	// and at least one of V or T is not a named type
+	if Identical(Vu, Tu) && (!isNamed(V) || !isNamed(T)) {
+		return true
+	}
+
+	// T is an interface type and x implements T
+	if Ti, ok := Tu.(*Interface); ok {
+		if m, wrongType := MissingMethod(x.typ, Ti, true); m != nil /* Implements(x.typ, Ti) */ {
+			if reason != nil {
+				if wrongType {
+					*reason = "wrong type for method " + m.Name()
+				} else {
+					*reason = "missing method " + m.Name()
+				}
+			}
+			return false
+		}
+		return true
+	}
+
+	// x is a bidirectional channel value, T is a channel
+	// type, x's type V and T have identical element types,
+	// and at least one of V or T is not a named type
+	if Vc, ok := Vu.(*Chan); ok && Vc.dir == SendRecv {
+		if Tc, ok := Tu.(*Chan); ok && Identical(Vc.elem, Tc.elem) {
+			return !isNamed(V) || !isNamed(T)
+		}
+	}
 
 	return false
 }
 
-// isInteger reports whether x is a (typed or untyped) integer value.
+// isInteger reports whether x is value of integer type
+// or an untyped constant representable as an integer.
 func (x *operand) isInteger() bool {
 	return x.mode == invalid ||
 		isInteger(x.typ) ||
-		x.mode == constant && representableConst(x.val, nil, UntypedInt, nil) // no *Config required for UntypedInt
+		isUntyped(x.typ) && x.mode == constant_ && representableConst(x.val, nil, UntypedInt, nil) // no *Config required for UntypedInt
 }

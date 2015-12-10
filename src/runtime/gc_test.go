@@ -5,6 +5,7 @@
 package runtime_test
 
 import (
+	"io"
 	"os"
 	"reflect"
 	"runtime"
@@ -195,6 +196,37 @@ func TestHugeGCInfo(t *testing.T) {
 			y [n]uintptr
 			z []string
 		})
+	}
+}
+
+func TestPeriodicGC(t *testing.T) {
+	// Make sure we're not in the middle of a GC.
+	runtime.GC()
+
+	var ms1, ms2 runtime.MemStats
+	runtime.ReadMemStats(&ms1)
+
+	// Make periodic GC run continuously.
+	orig := *runtime.ForceGCPeriod
+	*runtime.ForceGCPeriod = 0
+
+	// Let some periodic GCs happen. In a heavily loaded system,
+	// it's possible these will be delayed, so this is designed to
+	// succeed quickly if things are working, but to give it some
+	// slack if things are slow.
+	var numGCs uint32
+	const want = 2
+	for i := 0; i < 20 && numGCs < want; i++ {
+		time.Sleep(5 * time.Millisecond)
+
+		// Test that periodic GC actually happened.
+		runtime.ReadMemStats(&ms2)
+		numGCs = ms2.NumGC - ms1.NumGC
+	}
+	*runtime.ForceGCPeriod = orig
+
+	if numGCs < want {
+		t.Fatalf("no periodic GC: got %v GCs, want >= 2", numGCs)
 	}
 }
 
@@ -411,4 +443,79 @@ func TestPrintGC(t *testing.T) {
 		}()
 	}
 	close(done)
+}
+
+// The implicit y, ok := x.(error) for the case error
+// in testTypeSwitch used to not initialize the result y
+// before passing &y to assertE2I2GC.
+// Catch this by making assertE2I2 call runtime.GC,
+// which will force a stack scan and failure if there are
+// bad pointers, and then fill the stack with bad pointers
+// and run the type switch.
+func TestAssertE2I2Liveness(t *testing.T) {
+	// Note that this flag is defined in export_test.go
+	// and is not available to ordinary imports of runtime.
+	*runtime.TestingAssertE2I2GC = true
+	defer func() {
+		*runtime.TestingAssertE2I2GC = false
+	}()
+
+	poisonStack()
+	testTypeSwitch(io.EOF)
+	poisonStack()
+	testAssert(io.EOF)
+	poisonStack()
+	testAssertVar(io.EOF)
+}
+
+func poisonStack() uintptr {
+	var x [1000]uintptr
+	for i := range x {
+		x[i] = 0xff
+	}
+	return x[123]
+}
+
+func testTypeSwitch(x interface{}) error {
+	switch y := x.(type) {
+	case nil:
+		// ok
+	case error:
+		return y
+	}
+	return nil
+}
+
+func testAssert(x interface{}) error {
+	if y, ok := x.(error); ok {
+		return y
+	}
+	return nil
+}
+
+func testAssertVar(x interface{}) error {
+	var y, ok = x.(error)
+	if ok {
+		return y
+	}
+	return nil
+}
+
+func TestAssertE2T2Liveness(t *testing.T) {
+	*runtime.TestingAssertE2T2GC = true
+	defer func() {
+		*runtime.TestingAssertE2T2GC = false
+	}()
+
+	poisonStack()
+	testIfaceEqual(io.EOF)
+}
+
+var a bool
+
+//go:noinline
+func testIfaceEqual(x interface{}) {
+	if x == "abc" {
+		a = true
+	}
 }

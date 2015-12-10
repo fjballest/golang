@@ -5,7 +5,8 @@
 package gcimporter
 
 import (
-	"go/build"
+	"fmt"
+	"internal/testenv"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -32,41 +33,42 @@ func skipSpecialPlatforms(t *testing.T) {
 	}
 }
 
-var gcPath string // Go compiler path
-
-func init() {
-	if char, err := build.ArchChar(runtime.GOARCH); err == nil {
-		gcPath = filepath.Join(build.ToolDir, char+"g")
-		return
-	}
-	gcPath = "unknown-GOARCH-compiler"
-}
-
 func compile(t *testing.T, dirname, filename string) string {
-	cmd := exec.Command(gcPath, filename)
+	testenv.MustHaveGoBuild(t)
+	cmd := exec.Command("go", "tool", "compile", filename)
 	cmd.Dir = dirname
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Logf("%s", out)
-		t.Fatalf("%s %s failed: %s", gcPath, filename, err)
+		t.Fatalf("go tool compile %s failed: %s", filename, err)
 	}
 	// filename should end with ".go"
 	return filepath.Join(dirname, filename[:len(filename)-2]+"o")
 }
 
-// Use the same global imports map for all tests. The effect is
-// as if all tested packages were imported into a single package.
-var imports = make(map[string]*types.Package)
+// TODO(gri) Remove this function once we switched to new export format by default.
+func compileNewExport(t *testing.T, dirname, filename string) string {
+	testenv.MustHaveGoBuild(t)
+	cmd := exec.Command("go", "tool", "compile", "-newexport", filename)
+	cmd.Dir = dirname
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("%s", out)
+		t.Fatalf("go tool compile %s failed: %s", filename, err)
+	}
+	// filename should end with ".go"
+	return filepath.Join(dirname, filename[:len(filename)-2]+"o")
+}
 
-func testPath(t *testing.T, path string) bool {
+func testPath(t *testing.T, path string) *types.Package {
 	t0 := time.Now()
-	_, err := Import(imports, path)
+	pkg, err := Import(make(map[string]*types.Package), path)
 	if err != nil {
 		t.Errorf("testPath(%s): %s", path, err)
-		return false
+		return nil
 	}
 	t.Logf("testPath(%s): %v", path, time.Since(t0))
-	return true
+	return pkg
 }
 
 const maxTime = 30 * time.Second
@@ -88,7 +90,7 @@ func testDir(t *testing.T, dir string, endTime time.Time) (nimports int) {
 			for _, ext := range pkgExts {
 				if strings.HasSuffix(f.Name(), ext) {
 					name := f.Name()[0 : len(f.Name())-len(ext)] // remove extension
-					if testPath(t, filepath.Join(dir, name)) {
+					if testPath(t, filepath.Join(dir, name)) != nil {
 						nimports++
 					}
 				}
@@ -100,28 +102,69 @@ func testDir(t *testing.T, dir string, endTime time.Time) (nimports int) {
 	return
 }
 
-func TestImport(t *testing.T) {
+func TestImportTestdata(t *testing.T) {
 	// This package only handles gc export data.
 	if runtime.Compiler != "gc" {
 		t.Skipf("gc-built packages not available (compiler = %s)", runtime.Compiler)
 		return
 	}
 
-	// On cross-compile builds, the path will not exist.
-	// Need to use GOHOSTOS, which is not available.
-	if _, err := os.Stat(gcPath); err != nil {
-		t.Skipf("skipping test: %v", err)
-	}
-
 	if outFn := compile(t, "testdata", "exports.go"); outFn != "" {
 		defer os.Remove(outFn)
 	}
 
-	nimports := 0
-	if testPath(t, "./testdata/exports") {
-		nimports++
+	if pkg := testPath(t, "./testdata/exports"); pkg != nil {
+		// The package's Imports list must include all packages
+		// explicitly imported by exports.go, plus all packages
+		// referenced indirectly via exported objects in exports.go.
+		// With the textual export format, the list may also include
+		// additional packages that are not strictly required for
+		// import processing alone (they are exported to err "on
+		// the safe side").
+		got := fmt.Sprint(pkg.Imports())
+		for _, want := range []string{"go/ast", "go/token"} {
+			if !strings.Contains(got, want) {
+				t.Errorf(`Package("exports").Imports() = %s, does not contain %s`, got, want)
+			}
+		}
 	}
-	nimports += testDir(t, "", time.Now().Add(maxTime)) // installed packages
+}
+
+// TODO(gri) Remove this function once we switched to new export format by default
+//           (and update the comment and want list in TestImportTestdata).
+func TestImportTestdataNewExport(t *testing.T) {
+	// This package only handles gc export data.
+	if runtime.Compiler != "gc" {
+		t.Skipf("gc-built packages not available (compiler = %s)", runtime.Compiler)
+		return
+	}
+
+	if outFn := compileNewExport(t, "testdata", "exports.go"); outFn != "" {
+		defer os.Remove(outFn)
+	}
+
+	if pkg := testPath(t, "./testdata/exports"); pkg != nil {
+		// The package's Imports list must include all packages
+		// explicitly imported by exports.go, plus all packages
+		// referenced indirectly via exported objects in exports.go.
+		want := `[package ast ("go/ast") package token ("go/token")]`
+		got := fmt.Sprint(pkg.Imports())
+		if got != want {
+			t.Errorf(`Package("exports").Imports() = %s, want %s`, got, want)
+		}
+	}
+}
+
+func TestImportStdLib(t *testing.T) {
+	skipSpecialPlatforms(t)
+
+	// This package only handles gc export data.
+	if runtime.Compiler != "gc" {
+		t.Skipf("gc-built packages not available (compiler = %s)", runtime.Compiler)
+		return
+	}
+
+	nimports := testDir(t, "", time.Now().Add(maxTime)) // installed packages
 	t.Logf("tested %d imports", nimports)
 }
 
@@ -153,7 +196,7 @@ func TestImportedTypes(t *testing.T) {
 		importPath := s[0]
 		objName := s[1]
 
-		pkg, err := Import(imports, importPath)
+		pkg, err := Import(make(map[string]*types.Package), importPath)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -165,7 +208,7 @@ func TestImportedTypes(t *testing.T) {
 			continue
 		}
 
-		got := types.ObjectString(pkg, obj)
+		got := types.ObjectString(obj, types.RelativeTo(pkg))
 		if got != test.want {
 			t.Errorf("%s: got %q; want %q", test.name, got, test.want)
 		}

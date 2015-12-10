@@ -40,8 +40,6 @@ const (
 	NREGVAR = 32
 )
 
-var reg [x86.MAXREG]uint8
-
 var regname = []string{
 	".AX",
 	".CX",
@@ -109,6 +107,7 @@ const (
 	DI  = 1 << (x86.REG_DI - x86.REG_AX)
 	SI  = 1 << (x86.REG_SI - x86.REG_AX)
 	R15 = 1 << (x86.REG_R15 - x86.REG_AX)
+	X0  = 1 << 16
 )
 
 func RtoB(r int) uint64 {

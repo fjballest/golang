@@ -92,18 +92,10 @@ type Liveness struct {
 	livepointers     []Bvec
 }
 
-func xmalloc(size uint32) interface{} {
-	result := (interface{})(make([]byte, size))
-	if result == nil {
-		Fatal("malloc failed")
-	}
-	return result
-}
-
 // Constructs a new basic block containing a single instruction.
 func newblock(prog *obj.Prog) *BasicBlock {
 	if prog == nil {
-		Fatal("newblock: prog cannot be nil")
+		Fatalf("newblock: prog cannot be nil")
 	}
 	result := new(BasicBlock)
 	result.rpo = -1
@@ -115,21 +107,14 @@ func newblock(prog *obj.Prog) *BasicBlock {
 	return result
 }
 
-// Frees a basic block and all of its leaf data structures.
-func freeblock(bb *BasicBlock) {
-	if bb == nil {
-		Fatal("freeblock: cannot free nil")
-	}
-}
-
 // Adds an edge between two basic blocks by making from a predecessor of to and
 // to a successor of from.
 func addedge(from *BasicBlock, to *BasicBlock) {
 	if from == nil {
-		Fatal("addedge: from is nil")
+		Fatalf("addedge: from is nil")
 	}
 	if to == nil {
-		Fatal("addedge: to is nil")
+		Fatalf("addedge: to is nil")
 	}
 	from.succ = append(from.succ, to)
 	to.pred = append(to.pred, from)
@@ -233,23 +218,23 @@ func getvariables(fn *Node) []*Node {
 			// Later, when we want to find the index of a node in the variables list,
 			// we will check that n->curfn == curfn and n->opt > 0. Then n->opt - 1
 			// is the index in the variables list.
-			ll.N.Opt = nil
+			ll.N.SetOpt(nil)
 
 			// The compiler doesn't emit initializations for zero-width parameters or results.
 			if ll.N.Type.Width == 0 {
 				continue
 			}
 
-			ll.N.Curfn = Curfn
+			ll.N.Name.Curfn = Curfn
 			switch ll.N.Class {
 			case PAUTO:
 				if haspointers(ll.N.Type) {
-					ll.N.Opt = int32(len(result))
+					ll.N.SetOpt(int32(len(result)))
 					result = append(result, ll.N)
 				}
 
 			case PPARAM, PPARAMOUT:
-				ll.N.Opt = int32(len(result))
+				ll.N.SetOpt(int32(len(result)))
 				result = append(result, ll.N)
 			}
 		}
@@ -290,10 +275,10 @@ func (x blockrpocmp) Less(i, j int) bool { return x[i].rpo < x[j].rpo }
 // is a call to a specific package qualified function name.
 func iscall(prog *obj.Prog, name *obj.LSym) bool {
 	if prog == nil {
-		Fatal("iscall: prog is nil")
+		Fatalf("iscall: prog is nil")
 	}
 	if name == nil {
-		Fatal("iscall: function name is nil")
+		Fatalf("iscall: function name is nil")
 	}
 	if prog.As != obj.ACALL {
 		return false
@@ -363,14 +348,14 @@ func addselectgosucc(selectgo *BasicBlock) {
 	pred := selectgo
 	for {
 		if len(pred.pred) == 0 {
-			Fatal("selectgo does not have a newselect")
+			Fatalf("selectgo does not have a newselect")
 		}
 		pred = pred.pred[0]
 		if blockany(pred, isselectcommcasecall) {
 			// A select comm case block should have exactly one
 			// successor.
 			if len(pred.succ) != 1 {
-				Fatal("select comm case has too many successors")
+				Fatalf("select comm case has too many successors")
 			}
 			succ = pred.succ[0]
 
@@ -379,7 +364,7 @@ func addselectgosucc(selectgo *BasicBlock) {
 			// and the branch should lead to the select case
 			// statements block.
 			if len(succ.succ) != 2 {
-				Fatal("select comm case successor has too many successors")
+				Fatalf("select comm case successor has too many successors")
 			}
 
 			// Add the block as a successor of the selectgo block.
@@ -429,7 +414,7 @@ func newcfg(firstp *obj.Prog) []*BasicBlock {
 		Thearch.Proginfo(p)
 		if p.To.Type == obj.TYPE_BRANCH {
 			if p.To.Val == nil {
-				Fatal("prog branch to nil")
+				Fatalf("prog branch to nil")
 			}
 			if p.To.Val.(*obj.Prog).Opt == nil {
 				p.To.Val.(*obj.Prog).Opt = newblock(p.To.Val.(*obj.Prog))
@@ -524,7 +509,7 @@ func newcfg(firstp *obj.Prog) []*BasicBlock {
 	if bb.rpo == -1 {
 		fmt.Printf("newcfg: unreachable basic block for %v\n", bb.last)
 		printcfg(cfg)
-		Fatal("newcfg: invalid control flow graph")
+		Fatalf("newcfg: invalid control flow graph")
 	}
 
 	return cfg
@@ -585,7 +570,7 @@ func progeffects(prog *obj.Prog, vars []*Node, uevar Bvec, varkill Bvec, avarini
 				// If the result had its address taken, it is being tracked
 			// by the avarinit code, which does not use uevar.
 			// If we added it to uevar too, we'd not see any kill
-			// and decide that the varible was live entry, which it is not.
+			// and decide that the variable was live entry, which it is not.
 			// So only use uevar in the non-addrtaken case.
 			// The p->to.type == thearch.D_NONE limits the bvset to
 			// non-tail-call return instructions; see note above
@@ -618,15 +603,15 @@ func progeffects(prog *obj.Prog, vars []*Node, uevar Bvec, varkill Bvec, avarini
 
 	if prog.Info.Flags&(LeftRead|LeftWrite|LeftAddr) != 0 {
 		from := &prog.From
-		if from.Node != nil && from.Sym != nil && ((from.Node).(*Node)).Curfn == Curfn {
+		if from.Node != nil && from.Sym != nil && ((from.Node).(*Node)).Name.Curfn == Curfn {
 			switch ((from.Node).(*Node)).Class &^ PHEAP {
 			case PAUTO, PPARAM, PPARAMOUT:
-				pos, ok := from.Node.(*Node).Opt.(int32) // index in vars
+				pos, ok := from.Node.(*Node).Opt().(int32) // index in vars
 				if !ok {
 					goto Next
 				}
 				if pos >= int32(len(vars)) || vars[pos] != from.Node {
-					Fatal("bad bookkeeping in liveness %v %d", Nconv(from.Node.(*Node), 0), pos)
+					Fatalf("bad bookkeeping in liveness %v %d", Nconv(from.Node.(*Node), 0), pos)
 				}
 				if ((from.Node).(*Node)).Addrtaken {
 					bvset(avarinit, pos)
@@ -647,15 +632,15 @@ func progeffects(prog *obj.Prog, vars []*Node, uevar Bvec, varkill Bvec, avarini
 Next:
 	if prog.Info.Flags&(RightRead|RightWrite|RightAddr) != 0 {
 		to := &prog.To
-		if to.Node != nil && to.Sym != nil && ((to.Node).(*Node)).Curfn == Curfn {
+		if to.Node != nil && to.Sym != nil && ((to.Node).(*Node)).Name.Curfn == Curfn {
 			switch ((to.Node).(*Node)).Class &^ PHEAP {
 			case PAUTO, PPARAM, PPARAMOUT:
-				pos, ok := to.Node.(*Node).Opt.(int32) // index in vars
+				pos, ok := to.Node.(*Node).Opt().(int32) // index in vars
 				if !ok {
 					return
 				}
 				if pos >= int32(len(vars)) || vars[pos] != to.Node {
-					Fatal("bad bookkeeping in liveness %v %d", Nconv(to.Node.(*Node), 0), pos)
+					Fatalf("bad bookkeeping in liveness %v %d", Nconv(to.Node.(*Node), 0), pos)
 				}
 				if ((to.Node).(*Node)).Addrtaken {
 					if prog.As != obj.AVARKILL {
@@ -718,7 +703,7 @@ func newliveness(fn *Node, ptxt *obj.Prog, cfg []*BasicBlock, vars []*Node) *Liv
 // Frees the liveness structure and all of its leaf data structures.
 func freeliveness(lv *Liveness) {
 	if lv == nil {
-		Fatal("freeliveness: cannot free nil")
+		Fatalf("freeliveness: cannot free nil")
 	}
 }
 
@@ -833,7 +818,7 @@ func checkparam(fn *Node, p *obj.Prog, n *Node) {
 		return
 	}
 	var a *Node
-	var class uint8
+	var class Class
 	for l := fn.Func.Dcl; l != nil; l = l.Next {
 		a = l.N
 		class = a.Class &^ PHEAP
@@ -890,7 +875,7 @@ func checkptxt(fn *Node, firstp *obj.Prog) {
 // accounts for 40% of the 6g execution time.
 func onebitwalktype1(t *Type, xoffset *int64, bv Bvec) {
 	if t.Align > 0 && *xoffset&int64(t.Align-1) != 0 {
-		Fatal("onebitwalktype1: invalid initial alignment, %v", t)
+		Fatalf("onebitwalktype1: invalid initial alignment, %v", t)
 	}
 
 	switch t.Etype {
@@ -919,7 +904,7 @@ func onebitwalktype1(t *Type, xoffset *int64, bv Bvec) {
 		TCHAN,
 		TMAP:
 		if *xoffset&int64(Widthptr-1) != 0 {
-			Fatal("onebitwalktype1: invalid alignment, %v", t)
+			Fatalf("onebitwalktype1: invalid alignment, %v", t)
 		}
 		bvset(bv, int32(*xoffset/int64(Widthptr))) // pointer
 		*xoffset += t.Width
@@ -927,7 +912,7 @@ func onebitwalktype1(t *Type, xoffset *int64, bv Bvec) {
 	case TSTRING:
 		// struct { byte *str; intgo len; }
 		if *xoffset&int64(Widthptr-1) != 0 {
-			Fatal("onebitwalktype1: invalid alignment, %v", t)
+			Fatalf("onebitwalktype1: invalid alignment, %v", t)
 		}
 		bvset(bv, int32(*xoffset/int64(Widthptr))) //pointer in first slot
 		*xoffset += t.Width
@@ -937,7 +922,7 @@ func onebitwalktype1(t *Type, xoffset *int64, bv Bvec) {
 		// or, when isnilinter(t)==true:
 		// struct { Type *type; void *data; }
 		if *xoffset&int64(Widthptr-1) != 0 {
-			Fatal("onebitwalktype1: invalid alignment, %v", t)
+			Fatalf("onebitwalktype1: invalid alignment, %v", t)
 		}
 		bvset(bv, int32(*xoffset/int64(Widthptr)))   // pointer in first slot
 		bvset(bv, int32(*xoffset/int64(Widthptr)+1)) // pointer in second slot
@@ -947,12 +932,12 @@ func onebitwalktype1(t *Type, xoffset *int64, bv Bvec) {
 		// The value of t->bound is -1 for slices types and >=0 for
 		// for fixed array types.  All other values are invalid.
 		if t.Bound < -1 {
-			Fatal("onebitwalktype1: invalid bound, %v", t)
+			Fatalf("onebitwalktype1: invalid bound, %v", t)
 		}
 		if Isslice(t) {
 			// struct { byte *array; uintgo len; uintgo cap; }
 			if *xoffset&int64(Widthptr-1) != 0 {
-				Fatal("onebitwalktype1: invalid TARRAY alignment, %v", t)
+				Fatalf("onebitwalktype1: invalid TARRAY alignment, %v", t)
 			}
 			bvset(bv, int32(*xoffset/int64(Widthptr))) // pointer in first slot (BitsPointer)
 			*xoffset += t.Width
@@ -975,7 +960,7 @@ func onebitwalktype1(t *Type, xoffset *int64, bv Bvec) {
 		*xoffset += t.Width - o
 
 	default:
-		Fatal("onebitwalktype1: unexpected type, %v", t)
+		Fatalf("onebitwalktype1: unexpected type, %v", t)
 	}
 }
 
@@ -1284,7 +1269,7 @@ func livenessepilogue(lv *Liveness) {
 						if !n.Name.Needzero {
 							n.Name.Needzero = true
 							if debuglive >= 1 {
-								Warnl(int(p.Lineno), "%v: %v is ambiguously live", Curfn.Nname, Nconv(n, obj.FmtLong))
+								Warnl(int(p.Lineno), "%v: %v is ambiguously live", Curfn.Func.Nname, Nconv(n, obj.FmtLong))
 							}
 
 							// Record in 'ambiguous' bitmap.
@@ -1331,7 +1316,7 @@ func livenessepilogue(lv *Liveness) {
 	var numlive int32
 	var msg []string
 	for _, bb := range lv.cfg {
-		if debuglive >= 1 && Curfn.Nname.Sym.Name != "init" && Curfn.Nname.Sym.Name[0] != '.' {
+		if debuglive >= 1 && Curfn.Func.Nname.Sym.Name != "init" && Curfn.Func.Nname.Sym.Name[0] != '.' {
 			nmsg = int32(len(lv.livepointers))
 			startmsg = nmsg
 			msg = make([]string, nmsg)
@@ -1346,7 +1331,7 @@ func livenessepilogue(lv *Liveness) {
 		if pos < 0 {
 			// the first block we encounter should have the ATEXT so
 			// at no point should pos ever be less than zero.
-			Fatal("livenessepilogue")
+			Fatalf("livenessepilogue")
 		}
 
 		bvcopy(livein, bb.liveout)
@@ -1381,7 +1366,7 @@ func livenessepilogue(lv *Liveness) {
 						}
 						n = lv.vars[j]
 						if n.Class != PPARAM {
-							yyerrorl(int(p.Lineno), "internal error: %v %v recorded as live on entry", Curfn.Nname, Nconv(n, obj.FmtLong))
+							yyerrorl(int(p.Lineno), "internal error: %v %v recorded as live on entry", Curfn.Func.Nname, Nconv(n, obj.FmtLong))
 						}
 					}
 				}
@@ -1441,7 +1426,14 @@ func livenessepilogue(lv *Liveness) {
 						// the PCDATA must begin one instruction early too.
 						// The instruction before a call to deferreturn is always a
 						// no-op, to keep PC-specific data unambiguous.
-						splicebefore(lv, bb, newpcdataprog(p.Opt.(*obj.Prog), pos), p.Opt.(*obj.Prog))
+						prev := p.Opt.(*obj.Prog)
+						if Ctxt.Arch.Thechar == '9' {
+							// On ppc64 there is an additional instruction
+							// (another no-op or reload of toc pointer) before
+							// the call.
+							prev = prev.Opt.(*obj.Prog)
+						}
+						splicebefore(lv, bb, newpcdataprog(prev, pos), prev)
 					} else {
 						splicebefore(lv, bb, newpcdataprog(p, pos), p)
 					}
@@ -1622,7 +1614,7 @@ func livenessprintdebug(lv *Liveness) {
 	var locals Bvec
 	var n *Node
 
-	fmt.Printf("liveness: %s\n", Curfn.Nname.Sym.Name)
+	fmt.Printf("liveness: %s\n", Curfn.Func.Nname.Sym.Name)
 
 	uevar := bvalloc(int32(len(lv.vars)))
 	varkill := bvalloc(int32(len(lv.vars)))
@@ -1685,15 +1677,13 @@ func livenessprintdebug(lv *Liveness) {
 				for j = 0; j < len(lv.vars); j++ {
 					n = lv.vars[j]
 					if islive(n, args, locals) {
-						tmp9 := printed
-						printed++
-						if tmp9 != 0 {
+						if printed != 0 {
 							fmt.Printf(",")
 						}
 						fmt.Printf("%v", n)
+						printed++
 					}
 				}
-
 				fmt.Printf("\n")
 			}
 
@@ -1770,13 +1760,13 @@ func liveness(fn *Node, firstp *obj.Prog, argssym *Sym, livesym *Sym) {
 	// Change name to dump debugging information only for a specific function.
 	debugdelta := 0
 
-	if Curfn.Nname.Sym.Name == "!" {
+	if Curfn.Func.Nname.Sym.Name == "!" {
 		debugdelta = 2
 	}
 
 	debuglive += debugdelta
 	if debuglive >= 3 {
-		fmt.Printf("liveness: %s\n", Curfn.Nname.Sym.Name)
+		fmt.Printf("liveness: %s\n", Curfn.Func.Nname.Sym.Name)
 		printprog(firstp)
 	}
 
@@ -1819,7 +1809,7 @@ func liveness(fn *Node, firstp *obj.Prog, argssym *Sym, livesym *Sym) {
 	// Free everything.
 	for l := fn.Func.Dcl; l != nil; l = l.Next {
 		if l.N != nil {
-			l.N.Opt = nil
+			l.N.SetOpt(nil)
 		}
 	}
 	freeliveness(lv)

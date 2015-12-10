@@ -121,6 +121,12 @@ TEXT runtime·exit1(SB),NOSPLIT,$-4
 	MOVW	$1003, R1
 	MOVW	R0, (R1)	// fail hard
 
+TEXT runtime·gettid(SB),NOSPLIT,$0-4
+	MOVW	$SYS_gettid, R7
+	SWI	$0
+	MOVW	R0, ret+0(FP)
+	RET
+
 TEXT	runtime·raise(SB),NOSPLIT,$-4
 	MOVW	$SYS_gettid, R7
 	SWI	$0
@@ -372,10 +378,7 @@ TEXT runtime·rt_sigaction(SB),NOSPLIT,$0
 
 TEXT runtime·usleep(SB),NOSPLIT,$12
 	MOVW	usec+0(FP), R0
-	MOVW	R0, R1
-	MOVW	$1000000, R2
-	DIV	R2, R0
-	MOD	R2, R1
+	CALL	runtime·usplitR0(SB)
 	MOVW	R0, 4(R13)
 	MOVW	R1, 8(R13)
 	MOVW	$0, R0
@@ -387,34 +390,21 @@ TEXT runtime·usleep(SB),NOSPLIT,$12
 	SWI	$0
 	RET
 
-// Use kernel version instead of native armcas in asm_arm.s.
-// See ../sync/atomic/asm_linux_arm.s for details.
-TEXT cas<>(SB),NOSPLIT,$0
-	MOVW	$0xffff0fc0, R15 // R15 is hardware PC.
+// As for cas, memory barriers are complicated on ARM, but the kernel
+// provides a user helper. ARMv5 does not support SMP and has no
+// memory barrier instruction at all. ARMv6 added SMP support and has
+// a memory barrier, but it requires writing to a coprocessor
+// register. ARMv7 introduced the DMB instruction, but it's expensive
+// even on single-core devices. The kernel helper takes care of all of
+// this for us.
 
-TEXT runtime·cas(SB),NOSPLIT,$0
-	MOVW	ptr+0(FP), R2
-	MOVW	old+4(FP), R0
-loop:
-	MOVW	new+8(FP), R1
-	BL	cas<>(SB)
-	BCC	check
-	MOVW	$1, R0
-	MOVB	R0, ret+12(FP)
-	RET
-check:
-	// Kernel lies; double-check.
-	MOVW	ptr+0(FP), R2
-	MOVW	old+4(FP), R0
-	MOVW	0(R2), R3
-	CMP	R0, R3
-	BEQ	loop
-	MOVW	$0, R0
-	MOVB	R0, ret+12(FP)
-	RET
+TEXT publicationBarrier<>(SB),NOSPLIT,$0
+	// void __kuser_memory_barrier(void);
+	MOVW	$0xffff0fa0, R15 // R15 is hardware PC.
 
-TEXT runtime·casp1(SB),NOSPLIT,$0
-	B	runtime·cas(SB)
+TEXT ·publicationBarrier(SB),NOSPLIT,$0
+	BL	publicationBarrier<>(SB)
+	RET
 
 TEXT runtime·osyield(SB),NOSPLIT,$0
 	MOVW	$SYS_sched_yield, R7

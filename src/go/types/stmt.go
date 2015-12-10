@@ -9,7 +9,7 @@ package types
 import (
 	"fmt"
 	"go/ast"
-	exact "go/constant" // Renamed to reduce diffs from x/tools.  TODO: remove
+	"go/constant"
 	"go/token"
 )
 
@@ -21,6 +21,10 @@ func (check *Checker) funcBody(decl *declInfo, name string, sig *Signature, body
 		fmt.Printf("--- %s: %s {\n", name, sig)
 		defer fmt.Println("--- <end>")
 	}
+
+	// set function scope extent
+	sig.scope.pos = body.Pos()
+	sig.scope.end = body.End()
 
 	// save/restore current context and setup function context
 	// (and use 0 indentation at function start)
@@ -118,7 +122,7 @@ func (check *Checker) multipleDefaults(list []ast.Stmt) {
 }
 
 func (check *Checker) openScope(s ast.Stmt, comment string) {
-	scope := NewScope(check.scope, comment)
+	scope := NewScope(check.scope, s.Pos(), s.End(), comment)
 	check.recordScope(s, scope)
 	check.scope = scope
 }
@@ -151,25 +155,84 @@ func (check *Checker) suspendedCall(keyword string, call *ast.CallExpr) {
 	check.errorf(x.pos(), "%s %s %s", keyword, msg, &x)
 }
 
-func (check *Checker) caseValues(x operand /* copy argument (not *operand!) */, values []ast.Expr) {
-	// No duplicate checking for now. See issue 4524.
+// goVal returns the Go value for val, or nil.
+func goVal(val constant.Value) interface{} {
+	// val should exist, but be conservative and check
+	if val == nil {
+		return nil
+	}
+	// Match implementation restriction of other compilers.
+	// gc only checks duplicates for integer, floating-point
+	// and string values, so only create Go values for these
+	// types.
+	switch val.Kind() {
+	case constant.Int:
+		if x, ok := constant.Int64Val(val); ok {
+			return x
+		}
+		if x, ok := constant.Uint64Val(val); ok {
+			return x
+		}
+	case constant.Float:
+		if x, ok := constant.Float64Val(val); ok {
+			return x
+		}
+	case constant.String:
+		return constant.StringVal(val)
+	}
+	return nil
+}
+
+// A valueMap maps a case value (of a basic Go type) to a list of positions
+// where the same case value appeared, together with the corresponding case
+// types.
+// Since two case values may have the same "underlying" value but different
+// types we need to also check the value's types (e.g., byte(1) vs myByte(1))
+// when the switch expression is of interface type.
+type (
+	valueMap  map[interface{}][]valueType // underlying Go value -> valueType
+	valueType struct {
+		pos token.Pos
+		typ Type
+	}
+)
+
+func (check *Checker) caseValues(x *operand, values []ast.Expr, seen valueMap) {
+L:
 	for _, e := range values {
-		var y operand
-		check.expr(&y, e)
-		if y.mode == invalid {
-			return
+		var v operand
+		check.expr(&v, e)
+		if x.mode == invalid || v.mode == invalid {
+			continue L
 		}
-		// TODO(gri) The convertUntyped call pair below appears in other places. Factor!
-		// Order matters: By comparing y against x, error positions are at the case values.
-		check.convertUntyped(&y, x.typ)
-		if y.mode == invalid {
-			return
+		check.convertUntyped(&v, x.typ)
+		if v.mode == invalid {
+			continue L
 		}
-		check.convertUntyped(&x, y.typ)
-		if x.mode == invalid {
-			return
+		// Order matters: By comparing v against x, error positions are at the case values.
+		res := v // keep original v unchanged
+		check.comparison(&res, x, token.EQL)
+		if res.mode == invalid {
+			continue L
 		}
-		check.comparison(&y, &x, token.EQL)
+		if v.mode != constant_ {
+			continue L // we're done
+		}
+		// look for duplicate values
+		if val := goVal(v.val); val != nil {
+			if list := seen[val]; list != nil {
+				// look for duplicate types for a given value
+				// (quadratic algorithm, but these lists tend to be very short)
+				for _, vt := range list {
+					if Identical(v.typ, vt.typ) {
+						check.errorf(v.pos(), "duplicate case %s in expression switch", &v)
+						check.error(vt.pos, "\tprevious case") // secondary error, \t indented
+						continue L
+					}
+				}
+			}
+			seen[val] = append(seen[val], valueType{v.pos(), v.typ})
+		}
 	}
 }
 
@@ -178,15 +241,19 @@ L:
 	for _, e := range types {
 		T = check.typOrNil(e)
 		if T == Typ[Invalid] {
-			continue
+			continue L
 		}
-		// complain about duplicate types
-		// TODO(gri) use a type hash to avoid quadratic algorithm
+		// look for duplicate types
+		// (quadratic algorithm, but type switches tend to be reasonably small)
 		for t, pos := range seen {
 			if T == nil && t == nil || T != nil && t != nil && Identical(T, t) {
 				// talk about "case" rather than "type" because of nil case
-				check.error(e.Pos(), "duplicate case in type switch")
-				check.errorf(pos, "\tprevious case %s", T) // secondary error, \t indented
+				Ts := "nil"
+				if T != nil {
+					Ts = T.String()
+				}
+				check.errorf(e.Pos(), "duplicate case %s in type switch", Ts)
+				check.error(pos, "\tprevious case") // secondary error, \t indented
 				continue L
 			}
 		}
@@ -254,11 +321,19 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		if ch.mode == invalid || x.mode == invalid {
 			return
 		}
-		if tch, ok := ch.typ.Underlying().(*Chan); !ok || tch.dir == RecvOnly || !check.assignment(&x, tch.elem) {
-			if x.mode != invalid {
-				check.invalidOp(ch.pos(), "cannot send %s to channel %s", &x, &ch)
-			}
+
+		tch, ok := ch.typ.Underlying().(*Chan)
+		if !ok {
+			check.invalidOp(s.Arrow, "cannot send to non-chan type %s", ch.typ)
+			return
 		}
+
+		if tch.dir == RecvOnly {
+			check.invalidOp(s.Arrow, "cannot send to receive-only type %s", tch)
+			return
+		}
+
+		check.assignment(&x, tch.elem, "send")
 
 	case *ast.IncDecStmt:
 		var op token.Token
@@ -273,7 +348,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		}
 		var x operand
 		Y := &ast.BasicLit{ValuePos: s.X.Pos(), Kind: token.INT, Value: "1"} // use x's position
-		check.binary(&x, s.X, Y, op)
+		check.binary(&x, nil, s.X, Y, op)
 		if x.mode == invalid {
 			return
 		}
@@ -305,7 +380,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 				return
 			}
 			var x operand
-			check.binary(&x, s.Lhs[0], s.Rhs[0], op)
+			check.binary(&x, nil, s.Lhs[0], s.Rhs[0], op)
 			if x.mode == invalid {
 				return
 			}
@@ -328,7 +403,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 				// list in a "return" statement if a different entity (constant, type, or variable)
 				// with the same name as a result parameter is in scope at the place of the return."
 				for _, obj := range res.vars {
-					if _, alt := check.scope.LookupParent(obj.name); alt != nil && alt != obj {
+					if _, alt := check.scope.LookupParent(obj.name, check.pos); alt != nil && alt != obj {
 						check.errorf(s.Pos(), "result parameter %s not in scope at return", obj.name)
 						check.errorf(alt.Pos(), "\tinner declaration of %s", obj)
 						// ok to continue
@@ -382,8 +457,15 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 			check.error(s.Cond.Pos(), "non-boolean condition in if statement")
 		}
 		check.stmt(inner, s.Body)
-		if s.Else != nil {
+		// The parser produces a correct AST but if it was modified
+		// elsewhere the else branch may be invalid. Check again.
+		switch s.Else.(type) {
+		case nil, *ast.BadStmt:
+			// valid or error already reported
+		case *ast.IfStmt, *ast.BlockStmt:
 			check.stmt(inner, s.Else)
+		default:
+			check.error(s.Else.Pos(), "invalid else branch in if statement")
 		}
 
 	case *ast.SwitchStmt:
@@ -395,26 +477,28 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		var x operand
 		if s.Tag != nil {
 			check.expr(&x, s.Tag)
+			// By checking assignment of x to an invisible temporary
+			// (as a compiler would), we get all the relevant checks.
+			check.assignment(&x, nil, "switch expression")
 		} else {
 			// spec: "A missing switch expression is
 			// equivalent to the boolean value true."
-			x.mode = constant
+			x.mode = constant_
 			x.typ = Typ[Bool]
-			x.val = exact.MakeBool(true)
+			x.val = constant.MakeBool(true)
 			x.expr = &ast.Ident{NamePos: s.Body.Lbrace, Name: "true"}
 		}
 
 		check.multipleDefaults(s.Body.List)
 
+		seen := make(valueMap) // map of seen case values to positions and types
 		for i, c := range s.Body.List {
 			clause, _ := c.(*ast.CaseClause)
 			if clause == nil {
 				check.invalidAST(c.Pos(), "incorrect expression switch case")
 				continue
 			}
-			if x.mode != invalid {
-				check.caseValues(x, clause.List)
-			}
+			check.caseValues(&x, clause.List, seen)
 			check.openScope(clause, "case")
 			inner := inner
 			if i+1 < len(s.Body.List) {
@@ -512,7 +596,11 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 					T = x.typ
 				}
 				obj := NewVar(lhs.Pos(), check.pkg, lhs.Name, T)
-				check.declare(check.scope, nil, obj)
+				scopePos := clause.End()
+				if len(clause.Body) > 0 {
+					scopePos = clause.Body[0].Pos()
+				}
+				check.declare(check.scope, nil, obj, scopePos)
 				check.recordImplicit(clause, obj)
 				// For the "declared but not used" error, all lhs variables act as
 				// one; i.e., if any one of them is 'used', all of them are 'used'.
@@ -620,7 +708,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 			case *Basic:
 				if isString(typ) {
 					key = Typ[Int]
-					val = UniverseRune // use 'rune' name
+					val = universeRune // use 'rune' name
 				}
 			case *Array:
 				key = Typ[Int]
@@ -693,7 +781,7 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 					x.mode = value
 					x.expr = lhs // we don't have a better rhs expression to use here
 					x.typ = typ
-					check.initVar(obj, &x, false)
+					check.initVar(obj, &x, "range clause")
 				} else {
 					obj.typ = Typ[Invalid]
 					obj.used = true // don't complain about unused variable
@@ -703,7 +791,12 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 			// declare variables
 			if len(vars) > 0 {
 				for _, obj := range vars {
-					check.declare(check.scope, nil /* recordDef already called */, obj)
+					// spec: "The scope of a constant or variable identifier declared inside
+					// a function begins at the end of the ConstSpec or VarSpec (ShortVarDecl
+					// for short variable declarations) and ends at the end of the innermost
+					// containing block."
+					scopePos := s.End()
+					check.declare(check.scope, nil /* recordDef already called */, obj, scopePos)
 				}
 			} else {
 				check.error(s.TokPos, "no new variables on left side of :=")

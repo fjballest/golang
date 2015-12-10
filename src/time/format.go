@@ -34,11 +34,16 @@ import "errors"
 // Numeric time zone offsets format as follows:
 //	-0700  ±hhmm
 //	-07:00 ±hh:mm
+//	-07    ±hh
 // Replacing the sign in the format with a Z triggers
 // the ISO 8601 behavior of printing Z instead of an
 // offset for the UTC zone.  Thus:
 //	Z0700  Z or ±hhmm
 //	Z07:00 Z or ±hh:mm
+//	Z07    Z or ±hh
+//
+// The executable example for time.Format demonstrates the working
+// of the layout string in detail and is a good reference.
 const (
 	ANSIC       = "Mon Jan _2 15:04:05 2006"
 	UnixDate    = "Mon Jan _2 15:04:05 MST 2006"
@@ -83,6 +88,7 @@ const (
 	stdTZ                    = iota                // "MST"
 	stdISO8601TZ                                   // "Z0700"  // prints Z for UTC
 	stdISO8601SecondsTZ                            // "Z070000"
+	stdISO8601ShortTZ                              // "Z07"
 	stdISO8601ColonTZ                              // "Z07:00" // prints Z for UTC
 	stdISO8601ColonSecondsTZ                       // "Z07:00:00"
 	stdNumTZ                                       // "-0700"  // always numeric
@@ -159,8 +165,12 @@ func nextStdChunk(layout string) (prefix string, std int, suffix string) {
 			}
 			return layout[0:i], stdDay, layout[i+1:]
 
-		case '_': // _2
+		case '_': // _2, _2006
 			if len(layout) >= i+2 && layout[i+1] == '2' {
+				//_2006 is really a literal _, followed by stdLongYear
+				if len(layout) >= i+5 && layout[i+1:i+5] == "2006" {
+					return layout[0 : i+1], stdLongYear, layout[i+5:]
+				}
 				return layout[0:i], stdUnderDay, layout[i+2:]
 			}
 
@@ -212,6 +222,9 @@ func nextStdChunk(layout string) (prefix string, std int, suffix string) {
 			}
 			if len(layout) >= i+6 && layout[i:i+6] == "Z07:00" {
 				return layout[0:i], stdISO8601ColonTZ, layout[i+6:]
+			}
+			if len(layout) >= i+3 && layout[i:i+3] == "Z07" {
+				return layout[0:i], stdISO8601ShortTZ, layout[i+3:]
 			}
 
 		case '.': // .000 or .999 - repeated digits for fractional seconds.
@@ -405,6 +418,11 @@ func (t Time) String() string {
 // would be displayed if it were the value; it serves as an example of the
 // desired output. The same display rules will then be applied to the time
 // value.
+//
+// A fractional second is represented by adding a period and zeros
+// to the end of the seconds section of layout string, as in "15:04:05.000"
+// to format a time stamp with millisecond precision.
+//
 // Predefined layouts ANSIC, UnixDate, RFC3339 and others describe standard
 // and convenient representations of the reference time. For more information
 // about the formats and the definition of the reference time, see the
@@ -510,7 +528,7 @@ func (t Time) AppendFormat(b []byte, layout string) []byte {
 		case stdZeroMinute:
 			b = appendInt(b, min, 2)
 		case stdSecond:
-			b = appendInt(b, sec, 2)
+			b = appendInt(b, sec, 0)
 		case stdZeroSecond:
 			b = appendInt(b, sec, 2)
 		case stdPM:
@@ -525,10 +543,10 @@ func (t Time) AppendFormat(b []byte, layout string) []byte {
 			} else {
 				b = append(b, "am"...)
 			}
-		case stdISO8601TZ, stdISO8601ColonTZ, stdISO8601SecondsTZ, stdISO8601ColonSecondsTZ, stdNumTZ, stdNumColonTZ, stdNumSecondsTz, stdNumColonSecondsTZ:
+		case stdISO8601TZ, stdISO8601ColonTZ, stdISO8601SecondsTZ, stdISO8601ShortTZ, stdISO8601ColonSecondsTZ, stdNumTZ, stdNumColonTZ, stdNumSecondsTz, stdNumShortTZ, stdNumColonSecondsTZ:
 			// Ugly special case.  We cheat and take the "Z" variants
 			// to mean "the time zone as formatted for ISO 8601".
-			if offset == 0 && (std == stdISO8601TZ || std == stdISO8601ColonTZ || std == stdISO8601SecondsTZ || std == stdISO8601ColonSecondsTZ) {
+			if offset == 0 && (std == stdISO8601TZ || std == stdISO8601ColonTZ || std == stdISO8601SecondsTZ || std == stdISO8601ShortTZ || std == stdISO8601ColonSecondsTZ) {
 				b = append(b, 'Z')
 				break
 			}
@@ -545,7 +563,9 @@ func (t Time) AppendFormat(b []byte, layout string) []byte {
 			if std == stdISO8601ColonTZ || std == stdNumColonTZ || std == stdISO8601ColonSecondsTZ || std == stdNumColonSecondsTZ {
 				b = append(b, ':')
 			}
-			b = appendInt(b, zone%60, 2)
+			if std != stdNumShortTZ && std != stdISO8601ShortTZ {
+				b = appendInt(b, zone%60, 2)
+			}
 
 			// append seconds if appropriate
 			if std == stdISO8601SecondsTZ || std == stdNumSecondsTz || std == stdNumColonSecondsTZ || std == stdISO8601ColonSecondsTZ {
@@ -671,7 +691,7 @@ func skip(value, prefix string) (string, error) {
 // and convenient representations of the reference time. For more information
 // about the formats and the definition of the reference time, see the
 // documentation for ANSIC and the other constants defined by this package.
-// Also, the executable Example for time.Format demonstrates the working
+// Also, the executable example for time.Format demonstrates the working
 // of the layout string in detail and is a good reference.
 //
 // Elements omitted from the value are assumed to be zero or, when
@@ -687,6 +707,11 @@ func skip(value, prefix string) (string, error) {
 // to a time zone used by the current location (Local), then Parse uses that
 // location and zone in the returned time. Otherwise it records the time as
 // being in a fabricated location with time fixed at the given zone offset.
+//
+// No checking is done that the day of the month is within the month's
+// valid dates; any one- or two-digit value is accepted. For example
+// February 31 and even February 99 are valid dates, specifying dates
+// in March and May. This behavior is consistent with time.Date.
 //
 // When parsing a time with a zone abbreviation like MST, if the zone abbreviation
 // has a defined offset in the current location, then that offset is used.
@@ -786,7 +811,8 @@ func parse(layout, value string, defaultLocation, local *Location) (Time, error)
 				value = value[1:]
 			}
 			day, value, err = getnum(value, std == stdZeroDay)
-			if day < 0 || 31 < day {
+			if day < 0 {
+				// Note that we allow any one- or two-digit day here.
 				rangeErrString = "day"
 			}
 		case stdHour:
@@ -853,8 +879,8 @@ func parse(layout, value string, defaultLocation, local *Location) (Time, error)
 			default:
 				err = errBad
 			}
-		case stdISO8601TZ, stdISO8601ColonTZ, stdISO8601SecondsTZ, stdISO8601ColonSecondsTZ, stdNumTZ, stdNumShortTZ, stdNumColonTZ, stdNumSecondsTz, stdNumColonSecondsTZ:
-			if (std == stdISO8601TZ || std == stdISO8601ColonTZ) && len(value) >= 1 && value[0] == 'Z' {
+		case stdISO8601TZ, stdISO8601ColonTZ, stdISO8601SecondsTZ, stdISO8601ShortTZ, stdISO8601ColonSecondsTZ, stdNumTZ, stdNumShortTZ, stdNumColonTZ, stdNumSecondsTz, stdNumColonSecondsTZ:
+			if (std == stdISO8601TZ || std == stdISO8601ShortTZ || std == stdISO8601ColonTZ) && len(value) >= 1 && value[0] == 'Z' {
 				value = value[1:]
 				z = UTC
 				break
@@ -870,7 +896,7 @@ func parse(layout, value string, defaultLocation, local *Location) (Time, error)
 					break
 				}
 				sign, hour, min, seconds, value = value[0:1], value[1:3], value[4:6], "00", value[6:]
-			} else if std == stdNumShortTZ {
+			} else if std == stdNumShortTZ || std == stdISO8601ShortTZ {
 				if len(value) < 3 {
 					err = errBad
 					break

@@ -83,12 +83,15 @@ func TestClient(t *testing.T) {
 	}
 }
 
-func TestClientHead(t *testing.T) {
-	defer afterTest(t)
-	ts := httptest.NewServer(robotsTxtHandler)
-	defer ts.Close()
+func TestClientHead_h1(t *testing.T) { testClientHead(t, false) }
+func TestClientHead_h2(t *testing.T) { testClientHead(t, true) }
 
-	r, err := Head(ts.URL)
+func testClientHead(t *testing.T, h2 bool) {
+	defer afterTest(t)
+	cst := newClientServerTest(t, h2, robotsTxtHandler)
+	defer cst.close()
+
+	r, err := cst.c.Head(cst.ts.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,6 +233,13 @@ func TestClientRedirects(t *testing.T) {
 		t.Errorf("with default client Do, expected error %q, got %q", e, g)
 	}
 
+	// Requests with an empty Method should also redirect (Issue 12705)
+	greq.Method = ""
+	_, err = c.Do(greq)
+	if e, g := "Get /?n=10: stopped after 10 redirects", fmt.Sprintf("%v", err); e != g {
+		t.Errorf("with default client Do and empty Method, expected error %q, got %q", e, g)
+	}
+
 	var checkErr error
 	var lastVia []*Request
 	c = &Client{CheckRedirect: func(_ *Request, via []*Request) error {
@@ -258,7 +268,7 @@ func TestClientRedirects(t *testing.T) {
 		t.Errorf("with redirects forbidden, expected a *url.Error with our 'no redirects allowed' error inside; got %#v (%q)", err, err)
 	}
 	if res == nil {
-		t.Fatalf("Expected a non-nil Response on CheckRedirect failure (http://golang.org/issue/3795)")
+		t.Fatalf("Expected a non-nil Response on CheckRedirect failure (https://golang.org/issue/3795)")
 	}
 	res.Body.Close()
 	if res.Header.Get("Location") == "" {
@@ -427,7 +437,7 @@ func TestJarCalls(t *testing.T) {
 	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
 		pathSuffix := r.RequestURI[1:]
 		if r.RequestURI == "/nosetcookie" {
-			return // dont set cookies for this path
+			return // don't set cookies for this path
 		}
 		SetCookie(w, &Cookie{Name: "name" + pathSuffix, Value: "val" + pathSuffix})
 		if r.RequestURI == "/" {
@@ -486,20 +496,23 @@ func (j *RecordingJar) logf(format string, args ...interface{}) {
 	fmt.Fprintf(&j.log, format, args...)
 }
 
-func TestStreamingGet(t *testing.T) {
+func TestStreamingGet_h1(t *testing.T) { testStreamingGet(t, false) }
+func TestStreamingGet_h2(t *testing.T) { testStreamingGet(t, true) }
+
+func testStreamingGet(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	say := make(chan string)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {
 		w.(Flusher).Flush()
 		for str := range say {
 			w.Write([]byte(str))
 			w.(Flusher).Flush()
 		}
 	}))
-	defer ts.Close()
+	defer cst.close()
 
-	c := &Client{}
-	res, err := c.Get(ts.URL)
+	c := cst.c
+	res, err := c.Get(cst.ts.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -642,14 +655,18 @@ func newTLSTransport(t *testing.T, ts *httptest.Server) *Transport {
 
 func TestClientWithCorrectTLSServerName(t *testing.T) {
 	defer afterTest(t)
+
+	const serverName = "example.com"
 	ts := httptest.NewTLSServer(HandlerFunc(func(w ResponseWriter, r *Request) {
-		if r.TLS.ServerName != "127.0.0.1" {
-			t.Errorf("expected client to set ServerName 127.0.0.1, got: %q", r.TLS.ServerName)
+		if r.TLS.ServerName != serverName {
+			t.Errorf("expected client to set ServerName %q, got: %q", serverName, r.TLS.ServerName)
 		}
 	}))
 	defer ts.Close()
 
-	c := &Client{Transport: newTLSTransport(t, ts)}
+	trans := newTLSTransport(t, ts)
+	trans.TLSClientConfig.ServerName = serverName
+	c := &Client{Transport: trans}
 	if _, err := c.Get(ts.URL); err != nil {
 		t.Fatalf("expected successful TLS connection, got error: %v", err)
 	}
@@ -739,15 +756,37 @@ func TestResponseSetsTLSConnectionState(t *testing.T) {
 	}
 }
 
-// Verify Response.ContentLength is populated. http://golang.org/issue/4126
-func TestClientHeadContentLength(t *testing.T) {
+// Check that an HTTPS client can interpret a particular TLS error
+// to determine that the server is speaking HTTP.
+// See golang.org/issue/11111.
+func TestHTTPSClientDetectsHTTPServer(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {}))
+	defer ts.Close()
+
+	_, err := Get(strings.Replace(ts.URL, "http", "https", 1))
+	if got := err.Error(); !strings.Contains(got, "HTTP response to HTTPS client") {
+		t.Fatalf("error = %q; want error indicating HTTP response to HTTPS request", got)
+	}
+}
+
+// Verify Response.ContentLength is populated. https://golang.org/issue/4126
+func TestClientHeadContentLength_h1(t *testing.T) {
+	testClientHeadContentLength(t, false)
+}
+
+func TestClientHeadContentLength_h2(t *testing.T) {
+	testClientHeadContentLength(t, true)
+}
+
+func testClientHeadContentLength(t *testing.T, h2 bool) {
+	defer afterTest(t)
+	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {
 		if v := r.FormValue("cl"); v != "" {
 			w.Header().Set("Content-Length", v)
 		}
 	}))
-	defer ts.Close()
+	defer cst.close()
 	tests := []struct {
 		suffix string
 		want   int64
@@ -757,8 +796,8 @@ func TestClientHeadContentLength(t *testing.T) {
 		{"", -1},
 	}
 	for _, tt := range tests {
-		req, _ := NewRequest("HEAD", ts.URL+tt.suffix, nil)
-		res, err := DefaultClient.Do(req)
+		req, _ := NewRequest("HEAD", cst.ts.URL+tt.suffix, nil)
+		res, err := cst.c.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -841,6 +880,47 @@ func TestBasicAuth(t *testing.T) {
 	} else {
 		t.Errorf("Invalid auth %q", auth)
 	}
+}
+
+func TestBasicAuthHeadersPreserved(t *testing.T) {
+	defer afterTest(t)
+	tr := &recordingTransport{}
+	client := &Client{Transport: tr}
+
+	// If Authorization header is provided, username in URL should not override it
+	url := "http://My%20User@dummy.faketld/"
+	req, err := NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.SetBasicAuth("My User", "My Pass")
+	expected := "My User:My Pass"
+	client.Do(req)
+
+	if tr.req.Method != "GET" {
+		t.Errorf("got method %q, want %q", tr.req.Method, "GET")
+	}
+	if tr.req.URL.String() != url {
+		t.Errorf("got URL %q, want %q", tr.req.URL.String(), url)
+	}
+	if tr.req.Header == nil {
+		t.Fatalf("expected non-nil request Header")
+	}
+	auth := tr.req.Header.Get("Authorization")
+	if strings.HasPrefix(auth, "Basic ") {
+		encoded := auth[6:]
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := string(decoded)
+		if expected != s {
+			t.Errorf("Invalid Authorization header. Got %q, wanted %q", s, expected)
+		}
+	} else {
+		t.Errorf("Invalid auth %q", auth)
+	}
+
 }
 
 func TestClientTimeout(t *testing.T) {
@@ -942,13 +1022,12 @@ func TestClientTimeout_Headers(t *testing.T) {
 	if err == nil {
 		t.Fatal("got response from Get; expected error")
 	}
-	ue, ok := err.(*url.Error)
-	if !ok {
+	if _, ok := err.(*url.Error); !ok {
 		t.Fatalf("Got error of type %T; want *url.Error", err)
 	}
-	ne, ok := ue.Err.(net.Error)
+	ne, ok := err.(net.Error)
 	if !ok {
-		t.Fatalf("Got url.Error.Err of type %T; want some net.Error", err)
+		t.Fatalf("Got error of type %T; want some net.Error", err)
 	}
 	if !ne.Timeout() {
 		t.Error("net.Error.Timeout = false; want true")
@@ -958,18 +1037,26 @@ func TestClientTimeout_Headers(t *testing.T) {
 	}
 }
 
-func TestClientRedirectEatsBody(t *testing.T) {
+func TestClientRedirectEatsBody_h1(t *testing.T) {
+	testClientRedirectEatsBody(t, false)
+}
+
+func TestClientRedirectEatsBody_h2(t *testing.T) {
+	testClientRedirectEatsBody(t, true)
+}
+
+func testClientRedirectEatsBody(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	saw := make(chan string, 2)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {
 		saw <- r.RemoteAddr
 		if r.URL.Path == "/" {
 			Redirect(w, r, "/foo", StatusFound) // which includes a body
 		}
 	}))
-	defer ts.Close()
+	defer cst.close()
 
-	res, err := Get(ts.URL)
+	res, err := cst.c.Get(cst.ts.URL)
 	if err != nil {
 		t.Fatal(err)
 	}

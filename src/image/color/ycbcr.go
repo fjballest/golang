@@ -11,9 +11,10 @@ func RGBToYCbCr(r, g, b uint8) (uint8, uint8, uint8) {
 	//	Cb = -0.1687*R - 0.3313*G + 0.5000*B + 128
 	//	Cr =  0.5000*R - 0.4187*G - 0.0813*B + 128
 	// http://www.w3.org/Graphics/JPEG/jfif3.pdf says Y but means Y'.
-	r1 := int(r)
-	g1 := int(g)
-	b1 := int(b)
+
+	r1 := int32(r)
+	g1 := int32(g)
+	b1 := int32(b)
 	yy := (19595*r1 + 38470*g1 + 7471*b1 + 1<<15) >> 16
 	cb := (-11056*r1 - 21712*g1 + 32768*b1 + 257<<15) >> 16
 	cr := (32768*r1 - 27440*g1 - 5328*b1 + 257<<15) >> 16
@@ -42,9 +43,10 @@ func YCbCrToRGB(y, cb, cr uint8) (uint8, uint8, uint8) {
 	//	G = Y' - 0.34414*(Cb-128) - 0.71414*(Cr-128)
 	//	B = Y' + 1.77200*(Cb-128)
 	// http://www.w3.org/Graphics/JPEG/jfif3.pdf says Y but means Y'.
-	yy1 := int(y)<<16 + 1<<15
-	cb1 := int(cb) - 128
-	cr1 := int(cr) - 128
+
+	yy1 := int32(y) * 0x10100 // Convert 0x12 to 0x121200.
+	cb1 := int32(cb) - 128
+	cr1 := int32(cr) - 128
 	r := (yy1 + 91881*cr1) >> 16
 	g := (yy1 - 22554*cb1 - 46802*cr1) >> 16
 	b := (yy1 + 116130*cb1) >> 16
@@ -96,12 +98,12 @@ func (c YCbCr) RGBA() (uint32, uint32, uint32, uint32) {
 	//	fmt.Printf("0x%04x 0x%04x 0x%04x\n", r0, g0, b0)
 	//	fmt.Printf("0x%04x 0x%04x 0x%04x\n", r1, g1, b1)
 	// prints:
-	//	0x7e19 0x808e 0x7dba
+	//	0x7e18 0x808e 0x7db9
 	//	0x7e7e 0x8080 0x7d7d
 
-	yy1 := int(c.Y)<<16 + 1<<15
-	cb1 := int(c.Cb) - 128
-	cr1 := int(c.Cr) - 128
+	yy1 := int32(c.Y) * 0x10100 // Convert 0x12 to 0x121200.
+	cb1 := int32(c.Cb) - 128
+	cr1 := int32(c.Cr) - 128
 	r := (yy1 + 91881*cr1) >> 8
 	g := (yy1 - 22554*cb1 - 46802*cr1) >> 8
 	b := (yy1 + 116130*cb1) >> 8
@@ -133,6 +135,46 @@ func yCbCrModel(c Color) Color {
 	r, g, b, _ := c.RGBA()
 	y, u, v := RGBToYCbCr(uint8(r>>8), uint8(g>>8), uint8(b>>8))
 	return YCbCr{y, u, v}
+}
+
+// NYCbCrA represents a non-alpha-premultiplied Y'CbCr-with-alpha color, having
+// 8 bits each for one luma, two chroma and one alpha component.
+type NYCbCrA struct {
+	YCbCr
+	A uint8
+}
+
+func (c NYCbCrA) RGBA() (r, g, b, a uint32) {
+	r8, g8, b8 := YCbCrToRGB(c.Y, c.Cb, c.Cr)
+	a = uint32(c.A) * 0x101
+	r = uint32(r8) * 0x101 * a / 0xffff
+	g = uint32(g8) * 0x101 * a / 0xffff
+	b = uint32(b8) * 0x101 * a / 0xffff
+	return
+}
+
+// NYCbCrAModel is the Model for non-alpha-premultiplied Y'CbCr-with-alpha
+// colors.
+var NYCbCrAModel Model = ModelFunc(nYCbCrAModel)
+
+func nYCbCrAModel(c Color) Color {
+	switch c := c.(type) {
+	case NYCbCrA:
+		return c
+	case YCbCr:
+		return NYCbCrA{c, 0xff}
+	}
+	r, g, b, a := c.RGBA()
+
+	// Convert from alpha-premultiplied to non-alpha-premultiplied.
+	if a != 0 {
+		r = (r * 0xffff) / a
+		g = (g * 0xffff) / a
+		b = (b * 0xffff) / a
+	}
+
+	y, u, v := RGBToYCbCr(uint8(r>>8), uint8(g>>8), uint8(b>>8))
+	return NYCbCrA{YCbCr{Y: y, Cb: u, Cr: v}, uint8(a >> 8)}
 }
 
 // RGBToCMYK converts an RGB triple to a CMYK quadruple.

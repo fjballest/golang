@@ -13,7 +13,6 @@ import (
 	"go/printer"
 	"go/scanner"
 	"go/token"
-	"internal/format"
 	"io"
 	"io/ioutil"
 	"os"
@@ -88,7 +87,7 @@ func processFile(filename string, in io.Reader, out io.Writer, stdin bool) error
 		return err
 	}
 
-	file, sourceAdj, indentAdj, err := format.Parse(fileSet, filename, src, stdin)
+	file, sourceAdj, indentAdj, err := parse(fileSet, filename, src, stdin)
 	if err != nil {
 		return err
 	}
@@ -108,7 +107,7 @@ func processFile(filename string, in io.Reader, out io.Writer, stdin bool) error
 	}
 
 	cfg := printer.Config{Mode: printerMode, Tabwidth: tabWidth, DontPrintImplicits: *noImpls}
-	res, err := format.Format(fileSet, file, sourceAdj, indentAdj, src, cfg)
+	res, err := format(fileSet, file, sourceAdj, indentAdj, src, cfg)
 	if err != nil {
 		return err
 	}

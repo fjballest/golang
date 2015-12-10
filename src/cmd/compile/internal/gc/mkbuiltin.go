@@ -4,8 +4,9 @@
 
 // +build ignore
 
-// Generate builtin.go from $* (runtime.go and unsafe.go).
-// Run this after changing runtime.go and unsafe.go
+// Generate builtin.go from builtin/runtime.go and builtin/unsafe.go
+// (passed as arguments on the command line by a go:generate comment).
+// Run this after changing builtin/runtime.go and builtin/unsafe.go
 // or after changing the export metadata format in the compiler.
 // Either way, you need to have a working compiler binary first.
 package main
@@ -46,7 +47,7 @@ func mkbuiltin(w io.Writer, name string) {
 	if err := exec.Command("go", "tool", "compile", "-A", "builtin/"+name+".go").Run(); err != nil {
 		log.Fatal(err)
 	}
-	obj := "name.o"
+	obj := name + ".o"
 	defer os.Remove(obj)
 
 	r, err := os.Open(obj)

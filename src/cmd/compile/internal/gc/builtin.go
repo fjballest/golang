@@ -4,7 +4,6 @@ package gc
 
 const runtimeimport = "" +
 	"package runtime\n" +
-	"import runtime \"runtime\"\n" +
 	"func @\"\".newobject (@\"\".typ·2 *byte) (? *any)\n" +
 	"func @\"\".panicindex ()\n" +
 	"func @\"\".panicslice ()\n" +
@@ -93,7 +92,7 @@ const runtimeimport = "" +
 	"func @\"\".closechan2 (@\"\".hchan·1 any, @\"\".err·2 interface {})\n" + 
 	"func @\"\".cerror (@\"\".hchan·2 any) (? error)\n" +
 	"func @\"\".cclosed (@\"\".hchan·2 any) (? bool)\n" + 
-	"var @\"\".writeBarrierEnabled bool\n" +
+	"var @\"\".writeBarrier struct { @\"\".enabled bool; @\"\".needed bool; @\"\".cgo bool }\n" +
 	"func @\"\".writebarrierptr (@\"\".dst·1 *any, @\"\".src·2 any)\n" +
 	"func @\"\".writebarrierstring (@\"\".dst·1 *any, @\"\".src·2 any)\n" +
 	"func @\"\".writebarrierslice (@\"\".dst·1 *any, @\"\".src·2 any)\n" +
@@ -136,7 +135,8 @@ const runtimeimport = "" +
 	"func @\"\".selectgo (@\"\".sel·1 *byte)\n" +
 	"func @\"\".block ()\n" +
 	"func @\"\".makeslice (@\"\".typ·2 *byte, @\"\".nel·3 int64, @\"\".cap·4 int64) (@\"\".ary·1 []any)\n" +
-	"func @\"\".growslice (@\"\".typ·2 *byte, @\"\".old·3 []any, @\"\".n·4 int) (@\"\".ary·1 []any)\n" +
+	"func @\"\".growslice (@\"\".typ·2 *byte, @\"\".old·3 []any, @\"\".cap·4 int) (@\"\".ary·1 []any)\n" +
+	"func @\"\".growslice_n (@\"\".typ·2 *byte, @\"\".old·3 []any, @\"\".n·4 int) (@\"\".ary·1 []any)\n" +
 	"func @\"\".memmove (@\"\".to·1 *any, @\"\".frm·2 *any, @\"\".length·3 uintptr)\n" +
 	"func @\"\".memclr (@\"\".ptr·1 *byte, @\"\".length·2 uintptr)\n" +
 	"func @\"\".memequal (@\"\".x·2 *any, @\"\".y·3 *any, @\"\".size·4 uintptr) (? bool)\n" +
@@ -160,12 +160,13 @@ const runtimeimport = "" +
 	"func @\"\".racewrite (? uintptr)\n" +
 	"func @\"\".racereadrange (@\"\".addr·1 uintptr, @\"\".size·2 uintptr)\n" +
 	"func @\"\".racewriterange (@\"\".addr·1 uintptr, @\"\".size·2 uintptr)\n" +
+	"func @\"\".msanread (@\"\".addr·1 uintptr, @\"\".size·2 uintptr)\n" +
+	"func @\"\".msanwrite (@\"\".addr·1 uintptr, @\"\".size·2 uintptr)\n" +
 	"\n" +
 	"$$\n"
 
 const unsafeimport = "" +
 	"package unsafe\n" +
-	"import runtime \"runtime\"\n" +
 	"type @\"\".Pointer uintptr\n" +
 	"func @\"\".Offsetof (? any) (? uintptr)\n" +
 	"func @\"\".Sizeof (? any) (? uintptr)\n" +

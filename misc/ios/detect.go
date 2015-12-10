@@ -7,6 +7,9 @@
 // detect attempts to autodetect the correct
 // values of the environment variables
 // used by go_darwin_arm_exec.
+// detect shells out to ideviceinfo, a third party program that can
+// be obtained by following the instructions at
+// https://github.com/libimobiledevice/libimobiledevice.
 package main
 
 import (
@@ -50,6 +53,9 @@ func detectDevID() string {
 
 	for _, line := range lines {
 		if !bytes.Contains(line, []byte("iPhone Developer")) {
+			continue
+		}
+		if bytes.Contains(line, []byte("REVOKED")) {
 			continue
 		}
 		fields := bytes.Fields(line)

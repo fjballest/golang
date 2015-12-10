@@ -5,7 +5,9 @@
 package net
 
 import (
+	"bytes"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -36,21 +38,21 @@ var lookupGoogleSRVTests = []struct {
 }{
 	{
 		"xmpp-server", "tcp", "google.com",
-		"google.com", "google.com",
+		"google.com.", "google.com.",
 	},
 	{
 		"xmpp-server", "tcp", "google.com.",
-		"google.com", "google.com",
+		"google.com.", "google.com.",
 	},
 
 	// non-standard back door
 	{
 		"", "", "_xmpp-server._tcp.google.com",
-		"google.com", "google.com",
+		"google.com.", "google.com.",
 	},
 	{
 		"", "", "_xmpp-server._tcp.google.com.",
-		"google.com", "google.com",
+		"google.com.", "google.com.",
 	},
 }
 
@@ -70,11 +72,11 @@ func TestLookupGoogleSRV(t *testing.T) {
 		if len(srvs) == 0 {
 			t.Error("got no record")
 		}
-		if !strings.HasSuffix(cname, tt.cname) && !strings.HasSuffix(cname, tt.cname+".") {
+		if !strings.HasSuffix(cname, tt.cname) {
 			t.Errorf("got %s; want %s", cname, tt.cname)
 		}
 		for _, srv := range srvs {
-			if !strings.HasSuffix(srv.Target, tt.target) && !strings.HasSuffix(srv.Target, tt.target+".") {
+			if !strings.HasSuffix(srv.Target, tt.target) {
 				t.Errorf("got %v; want a record containing %s", srv, tt.target)
 			}
 		}
@@ -84,8 +86,8 @@ func TestLookupGoogleSRV(t *testing.T) {
 var lookupGmailMXTests = []struct {
 	name, host string
 }{
-	{"gmail.com", "google.com"},
-	{"gmail.com.", "google.com"},
+	{"gmail.com", "google.com."},
+	{"gmail.com.", "google.com."},
 }
 
 func TestLookupGmailMX(t *testing.T) {
@@ -105,7 +107,7 @@ func TestLookupGmailMX(t *testing.T) {
 			t.Error("got no record")
 		}
 		for _, mx := range mxs {
-			if !strings.HasSuffix(mx.Host, tt.host) && !strings.HasSuffix(mx.Host, tt.host+".") {
+			if !strings.HasSuffix(mx.Host, tt.host) {
 				t.Errorf("got %v; want a record containing %s", mx, tt.host)
 			}
 		}
@@ -115,8 +117,8 @@ func TestLookupGmailMX(t *testing.T) {
 var lookupGmailNSTests = []struct {
 	name, host string
 }{
-	{"gmail.com", "google.com"},
-	{"gmail.com.", "google.com"},
+	{"gmail.com", "google.com."},
+	{"gmail.com.", "google.com."},
 }
 
 func TestLookupGmailNS(t *testing.T) {
@@ -136,7 +138,7 @@ func TestLookupGmailNS(t *testing.T) {
 			t.Error("got no record")
 		}
 		for _, ns := range nss {
-			if !strings.HasSuffix(ns.Host, tt.host) && !strings.HasSuffix(ns.Host, tt.host+".") {
+			if !strings.HasSuffix(ns.Host, tt.host) {
 				t.Errorf("got %v; want a record containing %s", ns, tt.host)
 			}
 		}
@@ -174,13 +176,14 @@ func TestLookupGmailTXT(t *testing.T) {
 	}
 }
 
-var lookupGooglePublicDNSAddrs = []struct {
+var lookupGooglePublicDNSAddrTests = []struct {
 	addr, name string
 }{
-	{"8.8.8.8", ".google.com"},
-	{"8.8.4.4", ".google.com"},
-	{"2001:4860:4860::8888", ".google.com"},
-	{"2001:4860:4860::8844", ".google.com"},
+	{"8.8.8.8", ".google.com."},
+	{"8.8.4.4", ".google.com."},
+
+	{"2001:4860:4860::8888", ".google.com."},
+	{"2001:4860:4860::8844", ".google.com."},
 }
 
 func TestLookupGooglePublicDNSAddr(t *testing.T) {
@@ -191,7 +194,7 @@ func TestLookupGooglePublicDNSAddr(t *testing.T) {
 		t.Skip("both IPv4 and IPv6 are required")
 	}
 
-	for _, tt := range lookupGooglePublicDNSAddrs {
+	for _, tt := range lookupGooglePublicDNSAddrTests {
 		names, err := LookupAddr(tt.addr)
 		if err != nil {
 			t.Fatal(err)
@@ -200,18 +203,42 @@ func TestLookupGooglePublicDNSAddr(t *testing.T) {
 			t.Error("got no record")
 		}
 		for _, name := range names {
-			if !strings.HasSuffix(name, tt.name) && !strings.HasSuffix(name, tt.name+".") {
+			if !strings.HasSuffix(name, tt.name) {
 				t.Errorf("got %s; want a record containing %s", name, tt.name)
 			}
 		}
 	}
 }
 
+func TestLookupIPv6LinkLocalAddr(t *testing.T) {
+	if !supportsIPv6 {
+		t.Skip("IPv6 is required")
+	}
+
+	addrs, err := LookupHost("localhost")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, addr := range addrs {
+		if addr == "fe80::1%lo0" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Skipf("not supported on %s", runtime.GOOS)
+	}
+	if _, err := LookupAddr("fe80::1%lo0"); err != nil {
+		t.Error(err)
+	}
+}
+
 var lookupIANACNAMETests = []struct {
 	name, cname string
 }{
-	{"www.iana.org", "icann.org"},
-	{"www.iana.org.", "icann.org"},
+	{"www.iana.org", "icann.org."},
+	{"www.iana.org.", "icann.org."},
 }
 
 func TestLookupIANACNAME(t *testing.T) {
@@ -227,7 +254,7 @@ func TestLookupIANACNAME(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.HasSuffix(cname, tt.cname) && !strings.HasSuffix(cname, tt.cname+".") {
+		if !strings.HasSuffix(cname, tt.cname) {
 			t.Errorf("got %s; want a record containing %s", cname, tt.cname)
 		}
 	}
@@ -391,4 +418,190 @@ func TestLookupIPDeadline(t *testing.T) {
 	// As a rule, unknown must not be shown but it might possibly
 	// happen due to issue 4856 for now.
 	t.Logf("%v succeeded, %v failed (%v timeout, %v temporary, %v other, %v unknown)", qstats.succeeded, qstats.failed, qstats.timeout, qstats.temporary, qstats.other, qstats.unknown)
+}
+
+func TestLookupDotsWithLocalSource(t *testing.T) {
+	if !supportsIPv4 {
+		t.Skip("IPv4 is required")
+	}
+
+	for i, fn := range []func() func(){forceGoDNS, forceCgoDNS} {
+		fixup := fn()
+		if fixup == nil {
+			continue
+		}
+		names, err := LookupAddr("127.0.0.1")
+		fixup()
+		if err != nil {
+			t.Errorf("#%d: %v", i, err)
+			continue
+		}
+		for _, name := range names {
+			if !strings.HasSuffix(name, ".") {
+				t.Errorf("#%d: got %s; want name ending with trailing dot", i, name)
+			}
+		}
+	}
+}
+
+func TestLookupDotsWithRemoteSource(t *testing.T) {
+	if testing.Short() || !*testExternal {
+		t.Skipf("skipping external network test")
+	}
+
+	if fixup := forceGoDNS(); fixup != nil {
+		testDots(t, "go")
+		fixup()
+	}
+	if fixup := forceCgoDNS(); fixup != nil {
+		testDots(t, "cgo")
+		fixup()
+	}
+}
+
+func testDots(t *testing.T, mode string) {
+	names, err := LookupAddr("8.8.8.8") // Google dns server
+	if err != nil {
+		t.Errorf("LookupAddr(8.8.8.8): %v (mode=%v)", err, mode)
+	} else {
+		for _, name := range names {
+			if !strings.HasSuffix(name, ".google.com.") {
+				t.Errorf("LookupAddr(8.8.8.8) = %v, want names ending in .google.com. with trailing dot (mode=%v)", names, mode)
+				break
+			}
+		}
+	}
+
+	cname, err := LookupCNAME("www.mit.edu")
+	if err != nil || !strings.HasSuffix(cname, ".") {
+		t.Errorf("LookupCNAME(www.mit.edu) = %v, %v, want cname ending in . with trailing dot (mode=%v)", cname, err, mode)
+	}
+
+	mxs, err := LookupMX("google.com")
+	if err != nil {
+		t.Errorf("LookupMX(google.com): %v (mode=%v)", err, mode)
+	} else {
+		for _, mx := range mxs {
+			if !strings.HasSuffix(mx.Host, ".google.com.") {
+				t.Errorf("LookupMX(google.com) = %v, want names ending in .google.com. with trailing dot (mode=%v)", mxString(mxs), mode)
+				break
+			}
+		}
+	}
+
+	nss, err := LookupNS("google.com")
+	if err != nil {
+		t.Errorf("LookupNS(google.com): %v (mode=%v)", err, mode)
+	} else {
+		for _, ns := range nss {
+			if !strings.HasSuffix(ns.Host, ".google.com.") {
+				t.Errorf("LookupNS(google.com) = %v, want names ending in .google.com. with trailing dot (mode=%v)", nsString(nss), mode)
+				break
+			}
+		}
+	}
+
+	cname, srvs, err := LookupSRV("xmpp-server", "tcp", "google.com")
+	if err != nil {
+		t.Errorf("LookupSRV(xmpp-server, tcp, google.com): %v (mode=%v)", err, mode)
+	} else {
+		if !strings.HasSuffix(cname, ".google.com.") {
+			t.Errorf("LookupSRV(xmpp-server, tcp, google.com) returned cname=%v, want name ending in .google.com. with trailing dot (mode=%v)", cname, mode)
+		}
+		for _, srv := range srvs {
+			if !strings.HasSuffix(srv.Target, ".google.com.") {
+				t.Errorf("LookupSRV(xmpp-server, tcp, google.com) returned addrs=%v, want names ending in .google.com. with trailing dot (mode=%v)", srvString(srvs), mode)
+				break
+			}
+		}
+	}
+}
+
+func mxString(mxs []*MX) string {
+	var buf bytes.Buffer
+	sep := ""
+	fmt.Fprintf(&buf, "[")
+	for _, mx := range mxs {
+		fmt.Fprintf(&buf, "%s%s:%d", sep, mx.Host, mx.Pref)
+		sep = " "
+	}
+	fmt.Fprintf(&buf, "]")
+	return buf.String()
+}
+
+func nsString(nss []*NS) string {
+	var buf bytes.Buffer
+	sep := ""
+	fmt.Fprintf(&buf, "[")
+	for _, ns := range nss {
+		fmt.Fprintf(&buf, "%s%s", sep, ns.Host)
+		sep = " "
+	}
+	fmt.Fprintf(&buf, "]")
+	return buf.String()
+}
+
+func srvString(srvs []*SRV) string {
+	var buf bytes.Buffer
+	sep := ""
+	fmt.Fprintf(&buf, "[")
+	for _, srv := range srvs {
+		fmt.Fprintf(&buf, "%s%s:%d:%d:%d", sep, srv.Target, srv.Port, srv.Priority, srv.Weight)
+		sep = " "
+	}
+	fmt.Fprintf(&buf, "]")
+	return buf.String()
+}
+
+var lookupPortTests = []struct {
+	network string
+	name    string
+	port    int
+	ok      bool
+}{
+	{"tcp", "0", 0, true},
+	{"tcp", "echo", 7, true},
+	{"tcp", "discard", 9, true},
+	{"tcp", "systat", 11, true},
+	{"tcp", "daytime", 13, true},
+	{"tcp", "chargen", 19, true},
+	{"tcp", "ftp-data", 20, true},
+	{"tcp", "ftp", 21, true},
+	{"tcp", "telnet", 23, true},
+	{"tcp", "smtp", 25, true},
+	{"tcp", "time", 37, true},
+	{"tcp", "domain", 53, true},
+	{"tcp", "finger", 79, true},
+	{"tcp", "42", 42, true},
+
+	{"udp", "0", 0, true},
+	{"udp", "echo", 7, true},
+	{"udp", "tftp", 69, true},
+	{"udp", "bootpc", 68, true},
+	{"udp", "bootps", 67, true},
+	{"udp", "domain", 53, true},
+	{"udp", "ntp", 123, true},
+	{"udp", "snmp", 161, true},
+	{"udp", "syslog", 514, true},
+	{"udp", "42", 42, true},
+
+	{"--badnet--", "zzz", 0, false},
+	{"tcp", "--badport--", 0, false},
+	{"tcp", "-1", 0, false},
+	{"tcp", "65536", 0, false},
+	{"udp", "-1", 0, false},
+	{"udp", "65536", 0, false},
+}
+
+func TestLookupPort(t *testing.T) {
+	switch runtime.GOOS {
+	case "nacl":
+		t.Skipf("not supported on %s", runtime.GOOS)
+	}
+
+	for _, tt := range lookupPortTests {
+		if port, err := LookupPort(tt.network, tt.name); port != tt.port || (err == nil) != tt.ok {
+			t.Errorf("LookupPort(%q, %q) = %d, %v; want %d", tt.network, tt.name, port, err, tt.port)
+		}
+	}
 }

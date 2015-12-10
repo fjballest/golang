@@ -10,6 +10,7 @@
 package http
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -171,7 +172,7 @@ func (c *Client) send(req *Request) (*Response, error) {
 //
 // Generally Get, Post, or PostForm will be used instead of Do.
 func (c *Client) Do(req *Request) (resp *Response, err error) {
-	if req.Method == "GET" || req.Method == "HEAD" {
+	if req.Method == "" || req.Method == "GET" || req.Method == "HEAD" {
 		return c.doFollowingRedirects(req, shouldRedirectGet)
 	}
 	if req.Method == "POST" || req.Method == "PUT" {
@@ -212,7 +213,7 @@ func send(req *Request, t RoundTripper) (resp *Response, err error) {
 		req.Header = make(Header)
 	}
 
-	if u := req.URL.User; u != nil {
+	if u := req.URL.User; u != nil && req.Header.Get("Authorization") == "" {
 		username := u.Username()
 		password, _ := u.Password()
 		req.Header.Set("Authorization", "Basic "+basicAuth(username, password))
@@ -221,6 +222,14 @@ func send(req *Request, t RoundTripper) (resp *Response, err error) {
 	if err != nil {
 		if resp != nil {
 			log.Printf("RoundTripper returned a response & error; ignoring response")
+		}
+		if tlsErr, ok := err.(tls.RecordHeaderError); ok {
+			// If we get a bad TLS record header, check to see if the
+			// response looks like HTTP and give a more helpful error.
+			// See golang.org/issue/11111.
+			if string(tlsErr.RecordHeader[:]) == "HTTP/" {
+				err = errors.New("http: server gave HTTP response to HTTPS client")
+			}
 		}
 		return nil, err
 	}
@@ -283,7 +292,7 @@ func Get(url string) (resp *Response, err error) {
 
 // Get issues a GET to the specified URL. If the response is one of the
 // following redirect codes, Get follows the redirect after calling the
-// Client's CheckRedirect function.
+// Client's CheckRedirect function:
 //
 //    301 (Moved Permanently)
 //    302 (Found)
@@ -414,6 +423,9 @@ func (c *Client) doFollowingRedirects(ireq *Request, shouldRedirect func(int) bo
 	}
 
 	method := ireq.Method
+	if method == "" {
+		method = "GET"
+	}
 	urlErr := &url.Error{
 		Op:  method[0:1] + strings.ToLower(method[1:]),
 		URL: urlStr,
@@ -423,7 +435,7 @@ func (c *Client) doFollowingRedirects(ireq *Request, shouldRedirect func(int) bo
 	if redirectFailed {
 		// Special case for Go 1 compatibility: return both the response
 		// and an error if the CheckRedirect function failed.
-		// See http://golang.org/issue/3795
+		// See https://golang.org/issue/3795
 		return resp, urlErr
 	}
 
@@ -497,9 +509,9 @@ func (c *Client) PostForm(url string, data url.Values) (resp *Response, err erro
 	return c.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
 }
 
-// Head issues a HEAD to the specified URL.  If the response is one of the
-// following redirect codes, Head follows the redirect after calling the
-// Client's CheckRedirect function.
+// Head issues a HEAD to the specified URL.  If the response is one of
+// the following redirect codes, Head follows the redirect, up to a
+// maximum of 10 redirects:
 //
 //    301 (Moved Permanently)
 //    302 (Found)
@@ -513,7 +525,7 @@ func Head(url string) (resp *Response, err error) {
 
 // Head issues a HEAD to the specified URL.  If the response is one of the
 // following redirect codes, Head follows the redirect after calling the
-// Client's CheckRedirect function.
+// Client's CheckRedirect function:
 //
 //    301 (Moved Permanently)
 //    302 (Found)

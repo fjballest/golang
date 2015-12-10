@@ -2,7 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package strings implements simple functions to manipulate strings.
+// Package strings implements simple functions to manipulate UTF-8 encoded strings.
+//
+// For information about UTF-8 strings in Go, see https://blog.golang.org/strings.
 package strings
 
 import (
@@ -139,43 +141,6 @@ func ContainsAny(s, chars string) bool {
 // ContainsRune reports whether the Unicode code point r is within s.
 func ContainsRune(s string, r rune) bool {
 	return IndexRune(s, r) >= 0
-}
-
-// Index returns the index of the first instance of sep in s, or -1 if sep is not present in s.
-func Index(s, sep string) int {
-	n := len(sep)
-	switch {
-	case n == 0:
-		return 0
-	case n == 1:
-		return IndexByte(s, sep[0])
-	case n == len(s):
-		if sep == s {
-			return 0
-		}
-		return -1
-	case n > len(s):
-		return -1
-	}
-	// Rabin-Karp search
-	hashsep, pow := hashStr(sep)
-	var h uint32
-	for i := 0; i < n; i++ {
-		h = h*primeRK + uint32(s[i])
-	}
-	if h == hashsep && s[:n] == sep {
-		return 0
-	}
-	for i := n; i < len(s); {
-		h *= primeRK
-		h += uint32(s[i])
-		h -= pow * uint32(s[i-n])
-		i++
-		if h == hashsep && s[i-n:i] == sep {
-			return i - n
-		}
-	}
-	return -1
 }
 
 // LastIndex returns the index of the last instance of sep in s, or -1 if sep is not present in s.

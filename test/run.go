@@ -15,6 +15,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"hash/fnv"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -35,8 +37,12 @@ var (
 	numParallel    = flag.Int("n", runtime.NumCPU(), "number of parallel tests to run")
 	summary        = flag.Bool("summary", false, "show summary of results")
 	showSkips      = flag.Bool("show_skips", false, "show skipped tests")
+	linkshared     = flag.Bool("linkshared", false, "")
 	updateErrors   = flag.Bool("update_errors", false, "update error messages in test file based on compiler output")
 	runoutputLimit = flag.Int("l", defaultRunOutputLimit(), "number of parallel runoutput tests to run")
+
+	shard  = flag.Int("shard", 0, "shard index to run. Only applicable if -shards is non-zero.")
+	shards = flag.Int("shards", 0, "number of shards. If 0, all tests are run. This is used by the continuous build.")
 )
 
 var (
@@ -127,9 +133,6 @@ func main() {
 			failed = true
 		}
 		resCount[status]++
-		if status == "skip" && !*verbose && !*showSkips {
-			continue
-		}
 		dt := fmt.Sprintf("%.3fs", test.dt.Seconds())
 		if status == "FAIL" {
 			fmt.Printf("# go run run.go -- %s\n%s\nFAIL\t%s\t%s\n",
@@ -162,6 +165,15 @@ func toolPath(name string) string {
 	return p
 }
 
+func shardMatch(name string) bool {
+	if *shards == 0 {
+		return true
+	}
+	h := fnv.New32()
+	io.WriteString(h, name)
+	return int(h.Sum32()%uint32(*shards)) == *shard
+}
+
 func goFiles(dir string) []string {
 	f, err := os.Open(dir)
 	check(err)
@@ -169,7 +181,7 @@ func goFiles(dir string) []string {
 	check(err)
 	names := []string{}
 	for _, name := range dirnames {
-		if !strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".go") {
+		if !strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".go") && shardMatch(name) {
 			names = append(names, name)
 		}
 	}
@@ -180,11 +192,19 @@ func goFiles(dir string) []string {
 type runCmd func(...string) ([]byte, error)
 
 func compileFile(runcmd runCmd, longname string) (out []byte, err error) {
-	return runcmd("go", "tool", "compile", "-e", longname)
+	cmd := []string{"go", "tool", "compile", "-e"}
+	if *linkshared {
+		cmd = append(cmd, "-dynlink", "-installsuffix=dynlink")
+	}
+	cmd = append(cmd, longname)
+	return runcmd(cmd...)
 }
 
 func compileInDir(runcmd runCmd, dir string, names ...string) (out []byte, err error) {
 	cmd := []string{"go", "tool", "compile", "-e", "-D", ".", "-I", "."}
+	if *linkshared {
+		cmd = append(cmd, "-dynlink", "-installsuffix=dynlink")
+	}
 	for _, name := range names {
 		cmd = append(cmd, filepath.Join(dir, name))
 	}
@@ -193,7 +213,12 @@ func compileInDir(runcmd runCmd, dir string, names ...string) (out []byte, err e
 
 func linkFile(runcmd runCmd, goname string) (err error) {
 	pfile := strings.Replace(goname, ".go", ".o", -1)
-	_, err = runcmd("go", "tool", "link", "-w", "-o", "a.exe", "-L", ".", pfile)
+	cmd := []string{"go", "tool", "link", "-w", "-o", "a.exe", "-L", "."}
+	if *linkshared {
+		cmd = append(cmd, "-linkshared", "-installsuffix=dynlink")
+	}
+	cmd = append(cmd, pfile)
+	_, err = runcmd(cmd...)
 	return
 }
 
@@ -375,6 +400,10 @@ func (ctxt *context) match(name string) bool {
 		return true
 	}
 
+	if name == "test_run" {
+		return true
+	}
+
 	return false
 }
 
@@ -398,17 +427,11 @@ func (t *test) run() {
 		t.err = skipError("starts with newline")
 		return
 	}
+
+	// Execution recipe stops at first blank line.
 	pos := strings.Index(t.src, "\n\n")
 	if pos == -1 {
 		t.err = errors.New("double newline not found")
-		return
-	}
-	// Check for build constraints only upto the first blank line.
-	if ok, why := shouldTest(t.src[:pos], goos, goarch); !ok {
-		t.action = "skip"
-		if *showSkips {
-			fmt.Printf("%-20s %-20s: %s\n", t.action, t.goFileName(), why)
-		}
 		return
 	}
 	action := t.src[:pos]
@@ -418,6 +441,19 @@ func (t *test) run() {
 	}
 	if strings.HasPrefix(action, "//") {
 		action = action[2:]
+	}
+
+	// Check for build constraints only up to the actual code.
+	pkgPos := strings.Index(t.src, "\npackage")
+	if pkgPos == -1 {
+		pkgPos = pos // some files are intentionally malformed
+	}
+	if ok, why := shouldTest(t.src[:pkgPos], goos, goarch); !ok {
+		t.action = "skip"
+		if *showSkips {
+			fmt.Printf("%-20s %-20s: %s\n", t.action, t.goFileName(), why)
+		}
+		return
 	}
 
 	var args, flags []string
@@ -495,6 +531,7 @@ func (t *test) run() {
 
 	case "errorcheck":
 		cmdline := []string{"go", "tool", "compile", "-e", "-o", "a.o"}
+		// No need to add -dynlink even if linkshared if we're just checking for errors...
 		cmdline = append(cmdline, flags...)
 		cmdline = append(cmdline, long)
 		out, err := runcmd(cmdline...)
@@ -610,7 +647,12 @@ func (t *test) run() {
 
 	case "run":
 		useTmp = false
-		out, err := runcmd(append([]string{"go", "run", t.goFileName()}, args...)...)
+		cmd := []string{"go", "run"}
+		if *linkshared {
+			cmd = append(cmd, "-linkshared")
+		}
+		cmd = append(cmd, t.goFileName())
+		out, err := runcmd(append(cmd, args...)...)
 		if err != nil {
 			t.err = err
 			return
@@ -625,7 +667,12 @@ func (t *test) run() {
 			<-rungatec
 		}()
 		useTmp = false
-		out, err := runcmd(append([]string{"go", "run", t.goFileName()}, args...)...)
+		cmd := []string{"go", "run"}
+		if *linkshared {
+			cmd = append(cmd, "-linkshared")
+		}
+		cmd = append(cmd, t.goFileName())
+		out, err := runcmd(append(cmd, args...)...)
 		if err != nil {
 			t.err = err
 			return
@@ -635,7 +682,12 @@ func (t *test) run() {
 			t.err = fmt.Errorf("write tempfile:%s", err)
 			return
 		}
-		out, err = runcmd("go", "run", tfile)
+		cmd = []string{"go", "run"}
+		if *linkshared {
+			cmd = append(cmd, "-linkshared")
+		}
+		cmd = append(cmd, tfile)
+		out, err = runcmd(cmd...)
 		if err != nil {
 			t.err = err
 			return
@@ -646,7 +698,12 @@ func (t *test) run() {
 
 	case "errorcheckoutput":
 		useTmp = false
-		out, err := runcmd(append([]string{"go", "run", t.goFileName()}, args...)...)
+		cmd := []string{"go", "run"}
+		if *linkshared {
+			cmd = append(cmd, "-linkshared")
+		}
+		cmd = append(cmd, t.goFileName())
+		out, err := runcmd(append(cmd, args...)...)
 		if err != nil {
 			t.err = err
 			return
@@ -713,8 +770,9 @@ func (t *test) expectedOutput() string {
 }
 
 func splitOutput(out string) []string {
-	// 6g error messages continue onto additional lines with leading tabs.
+	// gc error messages continue onto additional lines with leading tabs.
 	// Split the output at the beginning of each line that doesn't begin with a tab.
+	// <autogenerated> lines are impossible to match so those are filtered out.
 	var res []string
 	for _, line := range strings.Split(out, "\n") {
 		if strings.HasSuffix(line, "\r") { // remove '\r', output by compiler on windows
@@ -722,7 +780,7 @@ func splitOutput(out string) []string {
 		}
 		if strings.HasPrefix(line, "\t") {
 			res[len(res)-1] += "\n" + line
-		} else if strings.HasPrefix(line, "go tool") {
+		} else if strings.HasPrefix(line, "go tool") || strings.HasPrefix(line, "<autogenerated>") {
 			continue
 		} else if strings.TrimSpace(line) != "" {
 			res = append(res, line)

@@ -25,7 +25,7 @@ TEXT runtime·thr_start(SB),NOSPLIT,$0
 	MOVL	mm+0(FP), AX
 	MOVL	m_g0(AX), BX
 	LEAL	m_tls(AX), BP
-	MOVL	0(BP), DI
+	MOVL	m_id(AX), DI
 	ADDL	$7, DI
 	PUSHAL
 	PUSHL	$32
@@ -109,6 +109,18 @@ TEXT runtime·raise(SB),NOSPLIT,$16
 	MOVL	sig+0(FP), AX
 	MOVL	AX, 8(SP)
 	MOVL	$433, AX
+	INT	$0x80
+	RET
+
+TEXT runtime·raiseproc(SB),NOSPLIT,$16
+	// getpid
+	MOVL	$20, AX
+	INT	$0x80
+	// kill(self, sig)
+	MOVL	AX, 4(SP)
+	MOVL	sig+0(FP), AX
+	MOVL	AX, 8(SP)
+	MOVL	$37, AX
 	INT	$0x80
 	RET
 
@@ -355,10 +367,11 @@ TEXT runtime·osyield(SB),NOSPLIT,$-4
 
 TEXT runtime·sigprocmask(SB),NOSPLIT,$16
 	MOVL	$0, 0(SP)		// syscall gap
-	MOVL	$3, 4(SP)		// arg 1 - how (SIG_SETMASK)
-	MOVL	new+0(FP), AX
+	MOVL	how+0(FP), AX		// arg 1 - how
+	MOVL	AX, 4(SP)
+	MOVL	new+4(FP), AX
 	MOVL	AX, 8(SP)		// arg 2 - set
-	MOVL	old+4(FP), AX
+	MOVL	old+8(FP), AX
 	MOVL	AX, 12(SP)		// arg 3 - oset
 	MOVL	$340, AX		// sys_sigprocmask
 	INT	$0x80

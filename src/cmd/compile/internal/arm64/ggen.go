@@ -19,6 +19,13 @@ func defframe(ptxt *obj.Prog) {
 
 	ptxt.To.Val = int32(gc.Rnd(gc.Curfn.Type.Argwid, int64(gc.Widthptr)))
 	frame := uint32(gc.Rnd(gc.Stksize+gc.Maxarg, int64(gc.Widthreg)))
+
+	// arm64 requires that the frame size (not counting saved LR)
+	// be empty or be 8 mod 16. If not, pad it.
+	if frame != 0 && frame%16 != 8 {
+		frame += 8
+	}
+
 	ptxt.To.Offset = int64(frame)
 
 	// insert code to zero ambiguously live variables
@@ -36,10 +43,10 @@ func defframe(ptxt *obj.Prog) {
 			continue
 		}
 		if n.Class != gc.PAUTO {
-			gc.Fatal("needzero class %d", n.Class)
+			gc.Fatalf("needzero class %d", n.Class)
 		}
 		if n.Type.Width%int64(gc.Widthptr) != 0 || n.Xoffset%int64(gc.Widthptr) != 0 || n.Type.Width == 0 {
-			gc.Fatal("var %v has size %d offset %d", gc.Nconv(n, obj.FmtLong), int(n.Type.Width), int(n.Xoffset))
+			gc.Fatalf("var %v has size %d offset %d", gc.Nconv(n, obj.FmtLong), int(n.Type.Width), int(n.Xoffset))
 		}
 
 		if lo != hi && n.Xoffset+n.Type.Width >= lo-int64(2*gc.Widthreg) {
@@ -133,7 +140,7 @@ var panicdiv *gc.Node
  *	res = nl % nr
  * according to op.
  */
-func dodiv(op int, nl *gc.Node, nr *gc.Node, res *gc.Node) {
+func dodiv(op gc.Op, nl *gc.Node, nr *gc.Node, res *gc.Node) {
 	// Have to be careful about handling
 	// most negative int divided by -1 correctly.
 	// The hardware will generate undefined result.
@@ -144,13 +151,13 @@ func dodiv(op int, nl *gc.Node, nr *gc.Node, res *gc.Node) {
 	t := nl.Type
 
 	t0 := t
-	check := 0
+	check := false
 	if gc.Issigned[t.Etype] {
-		check = 1
+		check = true
 		if gc.Isconst(nl, gc.CTINT) && nl.Int() != -(1<<uint64(t.Width*8-1)) {
-			check = 0
+			check = false
 		} else if gc.Isconst(nr, gc.CTINT) && nr.Int() != -1 {
-			check = 0
+			check = false
 		}
 	}
 
@@ -160,7 +167,7 @@ func dodiv(op int, nl *gc.Node, nr *gc.Node, res *gc.Node) {
 		} else {
 			t = gc.Types[gc.TUINT64]
 		}
-		check = 0
+		check = false
 	}
 
 	a := optoas(gc.ODIV, t)
@@ -199,7 +206,7 @@ func dodiv(op int, nl *gc.Node, nr *gc.Node, res *gc.Node) {
 	gc.Patch(p1, gc.Pc)
 
 	var p2 *obj.Prog
-	if check != 0 {
+	if check {
 		var nm1 gc.Node
 		gc.Nodconst(&nm1, t, -1)
 		gcmp(optoas(gc.OCMP, t), &tr, &nm1)
@@ -243,7 +250,7 @@ func dodiv(op int, nl *gc.Node, nr *gc.Node, res *gc.Node) {
 	}
 
 	gc.Regfree(&tl)
-	if check != 0 {
+	if check {
 		gc.Patch(p2, gc.Pc)
 	}
 }
@@ -255,9 +262,7 @@ func dodiv(op int, nl *gc.Node, nr *gc.Node, res *gc.Node) {
 func cgen_hmul(nl *gc.Node, nr *gc.Node, res *gc.Node) {
 	// largest ullman on left.
 	if nl.Ullman < nr.Ullman {
-		tmp := (*gc.Node)(nl)
-		nl = nr
-		nr = tmp
+		nl, nr = nr, nl
 	}
 
 	t := (*gc.Type)(nl.Type)
@@ -292,7 +297,7 @@ func cgen_hmul(nl *gc.Node, nr *gc.Node, res *gc.Node) {
 		}
 
 	default:
-		gc.Fatal("cgen_hmul %v", t)
+		gc.Fatalf("cgen_hmul %v", t)
 	}
 
 	gc.Cgen(&n1, res)
@@ -305,7 +310,7 @@ func cgen_hmul(nl *gc.Node, nr *gc.Node, res *gc.Node) {
  *	res = nl << nr
  *	res = nl >> nr
  */
-func cgen_shift(op int, bounded bool, nl *gc.Node, nr *gc.Node, res *gc.Node) {
+func cgen_shift(op gc.Op, bounded bool, nl *gc.Node, nr *gc.Node, res *gc.Node) {
 	a := int(optoas(op, nl.Type))
 
 	if nr.Op == gc.OLITERAL {
@@ -411,15 +416,12 @@ func clearfat(nl *gc.Node) {
 	c := uint64(w % 8) // bytes
 	q := uint64(w / 8) // dwords
 
-	if reg[arm64.REGRT1-arm64.REG_R0] > 0 {
-		gc.Fatal("R%d in use during clearfat", arm64.REGRT1-arm64.REG_R0)
-	}
-
 	var r0 gc.Node
 	gc.Nodreg(&r0, gc.Types[gc.TUINT64], arm64.REGZERO)
 	var dst gc.Node
+
+	// REGRT1 is reserved on arm64, see arm64/gsubr.go.
 	gc.Nodreg(&dst, gc.Types[gc.Tptr], arm64.REGRT1)
-	reg[arm64.REGRT1-arm64.REG_R0]++
 	gc.Agen(nl, &dst)
 
 	var boff uint64
@@ -477,8 +479,6 @@ func clearfat(nl *gc.Node) {
 		p.To.Type = obj.TYPE_MEM
 		p.To.Offset = int64(t + boff)
 	}
-
-	reg[arm64.REGRT1-arm64.REG_R0]--
 }
 
 // Called after regopt and peep have run.
@@ -497,7 +497,7 @@ func expandchecks(firstp *obj.Prog) {
 			gc.Warnl(int(p.Lineno), "generated nil check")
 		}
 		if p.From.Type != obj.TYPE_REG {
-			gc.Fatal("invalid nil check %v\n", p)
+			gc.Fatalf("invalid nil check %v\n", p)
 		}
 
 		// check is

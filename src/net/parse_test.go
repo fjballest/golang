@@ -50,3 +50,52 @@ func TestReadLine(t *testing.T) {
 		byteno += len(line) + 1
 	}
 }
+
+func TestGoDebugString(t *testing.T) {
+	defer os.Setenv("GODEBUG", os.Getenv("GODEBUG"))
+	tests := []struct {
+		godebug string
+		key     string
+		want    string
+	}{
+		{"", "foo", ""},
+		{"foo=", "foo", ""},
+		{"foo=bar", "foo", "bar"},
+		{"foo=bar,", "foo", "bar"},
+		{"foo,foo=bar,", "foo", "bar"},
+		{"foo1=bar,foo=bar,", "foo", "bar"},
+		{"foo=bar,foo=bar,", "foo", "bar"},
+		{"foo=", "foo", ""},
+		{"foo", "foo", ""},
+		{",foo", "foo", ""},
+		{"foo=bar,baz", "loooooooong", ""},
+	}
+	for _, tt := range tests {
+		os.Setenv("GODEBUG", tt.godebug)
+		if got := goDebugString(tt.key); got != tt.want {
+			t.Errorf("for %q, goDebugString(%q) = %q; want %q", tt.godebug, tt.key, got, tt.want)
+		}
+	}
+}
+
+func TestDtoi(t *testing.T) {
+	for _, tt := range []struct {
+		in  string
+		out int
+		off int
+		ok  bool
+	}{
+		{"", 0, 0, false},
+
+		{"-123456789", -big, 9, false},
+		{"-1", -1, 2, true},
+		{"0", 0, 1, true},
+		{"65536", 65536, 5, true},
+		{"123456789", big, 8, false},
+	} {
+		n, i, ok := dtoi(tt.in, 0)
+		if n != tt.out || i != tt.off || ok != tt.ok {
+			t.Errorf("got %d, %d, %v; want %d, %d, %v", n, i, ok, tt.out, tt.off, tt.ok)
+		}
+	}
+}

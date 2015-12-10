@@ -83,6 +83,9 @@ type TestMapAlias map[int]int
 func fMapAlias(a TestMapAlias) TestMapAlias { return a }
 
 func fPtr(a *int) *int {
+	if a == nil {
+		return nil
+	}
 	b := *a
 	return &b
 }
@@ -253,5 +256,54 @@ func TestFailure(t *testing.T) {
 	}
 	if _, ok := err.(SetupError); !ok {
 		t.Errorf("#3 Error was not a SetupError: %s", err)
+	}
+}
+
+// Recursive data structures didn't terminate.
+// Issues 8818 and 11148.
+func TestRecursive(t *testing.T) {
+	type R struct {
+		Ptr      *R
+		SliceP   []*R
+		Slice    []R
+		Map      map[int]R
+		MapP     map[int]*R
+		MapR     map[*R]*R
+		SliceMap []map[int]R
+	}
+
+	f := func(r R) bool { return true }
+	Check(f, nil)
+}
+
+func TestEmptyStruct(t *testing.T) {
+	f := func(struct{}) bool { return true }
+	Check(f, nil)
+}
+
+type (
+	A struct{ B *B }
+	B struct{ A *A }
+)
+
+func TestMutuallyRecursive(t *testing.T) {
+	f := func(a A) bool { return true }
+	Check(f, nil)
+}
+
+// Some serialization formats (e.g. encoding/pem) cannot distinguish
+// between a nil and an empty map or slice, so avoid generating the
+// zero value for these.
+func TestNonZeroSliceAndMap(t *testing.T) {
+	type Q struct {
+		M map[int]int
+		S []int
+	}
+	f := func(q Q) bool {
+		return q.M != nil && q.S != nil
+	}
+	err := Check(f, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
