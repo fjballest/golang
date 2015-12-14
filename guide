@@ -80,6 +80,9 @@ to opt for the origin or the upstream version of the file
 Push resulting changes to lsub's master
 	git push
 
+NB: The lsub branch has a VERSION file, just remove it and use VERSION.cache
+to update the lsub version after each merge.
+
 LOCAL-REPOS FOR USERS
 
 You might just
