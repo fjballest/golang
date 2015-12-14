@@ -419,7 +419,7 @@ func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete, isImp
 		}
 	}
 	// hasComments || !srcIsOneLine
-	if isImpl {
+	if p.DontPrintImplicits && isImpl {
 		p.print(lbrace, token.LBRACE, indent)
 	} else {
 		p.print(blank, lbrace, token.LBRACE, indent)
