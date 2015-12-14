@@ -385,7 +385,7 @@ func (p *printer) setLineComment(text string) {
 	p.setComment(&ast.CommentGroup{List: []*ast.Comment{{Slash: token.NoPos, Text: text}}})
 }
 
-func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete bool) {
+func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete, isImpl bool) {
 	lbrace := fields.Opening
 	list := fields.List
 	rbrace := fields.Closing
@@ -419,8 +419,11 @@ func (p *printer) fieldList(fields *ast.FieldList, isStruct, isIncomplete bool) 
 		}
 	}
 	// hasComments || !srcIsOneLine
-
-	p.print(blank, lbrace, token.LBRACE, indent)
+	if isImpl {
+		p.print(lbrace, token.LBRACE, indent)
+	} else {
+		p.print(blank, lbrace, token.LBRACE, indent)
+	}
 	if hasComments || len(list) > 0 {
 		p.print(formfeed)
 	}
@@ -856,7 +859,7 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		if !p.DontPrintImplicits || !x.Implicit {
 			p.print(token.STRUCT)
 		}
-		p.fieldList(x.Fields, true, x.Incomplete)
+		p.fieldList(x.Fields, true, x.Incomplete, x.Implicit)
 
 	case *ast.FuncType:
 		p.print(token.FUNC)
@@ -870,7 +873,7 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 				p.print(token.INTERFACE)
 			}
 		}
-		p.fieldList(x.Methods, false, x.Incomplete)
+		p.fieldList(x.Methods, false, x.Incomplete, x.Implicit)
 
 	case *ast.MapType:
 		p.print(token.MAP, token.LBRACK)
@@ -1474,8 +1477,11 @@ func (p *printer) spec(spec ast.Spec, n int, doIndent bool) {
 
 func (p *printer) genDecl(d *ast.GenDecl) {
 	p.setComment(d.Doc)
-	p.print(d.Pos(), d.Tok, blank)
-
+	if !p.DontPrintImplicits {
+		p.print(d.Pos(), d.Tok, blank)
+	} else {
+		p.print(d.Pos(), d.Implicit, blank)
+	}
 	if d.Lparen.IsValid() {
 		// group of parenthesized declarations
 		p.print(d.Lparen, token.LPAREN)
