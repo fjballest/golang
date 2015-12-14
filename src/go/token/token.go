@@ -281,6 +281,8 @@ func init() {
 	for i := keyword_beg + 1; i < keyword_end; i++ {
 		keywords[tokens[i]] = i
 	}
+	keywords["face"] = INTERFACE
+	keywords["forsel"] = DOSELECT
 }
 
 // Lookup maps an identifier to its keyword token or IDENT (if not a keyword).
@@ -289,6 +291,7 @@ func Lookup(ident string) Token {
 	if tok, is_keyword := keywords[ident]; is_keyword {
 		return tok
 	}
+
 	return IDENT
 }
 

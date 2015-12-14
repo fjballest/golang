@@ -1364,7 +1364,6 @@ opswitch:
 		fn := syslook("cclosed", 1)
 		substArgTypes(fn, n.Left.Type)
 		n = mkcall1(fn, Types[TBOOL], init, n.Left)
-		goto ret
 
 	case OCERROR:
 		fn := syslook("cerror", 1)

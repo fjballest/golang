@@ -3,7 +3,8 @@ version.
 
 To see where you are
 	git branch
-	git status | sed 's/modified:/git add/'
+	git status 
+	git status | sed 's/modified:/git add/' | sed 's/deleted:/git rm -f/'
 To see branches and tags at git.lsub.org
 	git branch -r
 To make sure you are up to date

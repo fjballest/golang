@@ -932,6 +932,7 @@ type (
 		Lparen token.Pos     // position of '(', if any
 		Specs  []Spec
 		Rparen token.Pos // position of ')', if any
+		Implicit token.Token // Tok or STRUCT or INTERFACE for implicit types
 	}
 
 	// A FuncDecl node represents a function declaration.

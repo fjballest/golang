@@ -1626,7 +1626,7 @@ func packagesAndErrors(args []string) []*Package {
 		seenPkg = make(map[*Package]bool)
 	)
 
-	for _, arg := range args {
+Loop:	for _, arg := range args {
 		if seenArg[arg] {
 			continue
 		}
@@ -1635,12 +1635,12 @@ func packagesAndErrors(args []string) []*Package {
 		if seenPkg[pkg] {
 			continue
 		}
-		if p.NotToBuild {
-			skips = append(skips, p.Dir+"/")
+		if pkg.NotToBuild {
+			skips = append(skips, pkg.Dir+"/")
 			continue
 		}
 		for _, s := range skips {
-			if strings.HasPrefix(p.Dir, s) {
+			if strings.HasPrefix(pkg.Dir, s) {
 				continue Loop
 			}
 		}

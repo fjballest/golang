@@ -128,7 +128,7 @@ func walkselect(sel *Node) {
 				ch = n.Left
 			case OSELSEND:
 				ch = n.Right.Left
-				if n.Op == OSELSEND || n.Ntest == nil {
+				if n.Op == OSELSEND || n.List == nil {
 					if n.Left == nil {
 						n = n.Right
 					} else {
@@ -136,7 +136,7 @@ func walkselect(sel *Node) {
 					}
 					break
 				}
-				Fatal("walkselect OSELSEND with OAS2")
+				Fatalf("walkselect OSELSEND with OAS2")
 
 			case OSELRECV, OSELRECV2:
 				ch = n.Right.Left
@@ -245,7 +245,7 @@ func walkselect(sel *Node) {
 			r = Nod(OIF, nil, nil)
 			r.Ninit = cas.Ninit
 			ch := n.Right.Left
-			r.Ntest = mkcall1(chanfn("channbselsend", 2, ch.Type), Types[TBOOL], &r.Ninit, typename(ch.Type), ch, n.Right.Right, n.Left)
+			r.Left = mkcall1(chanfn("channbselsend", 2, ch.Type), Types[TBOOL], &r.Ninit, typename(ch.Type), ch, n.Right.Right, n.Left)
 
 			// if c != nil && selectnbrecv(&v, c) { body } else { default body }
 		case OSELRECV:
@@ -313,7 +313,7 @@ func walkselect(sel *Node) {
 
 				// chanselsend(sel *byte, hchan *chan any, elem *any, okp *bool) (selected bool);
 			case OSELSEND:
-				r.Ntest = mkcall1(chanfn("chanselsend", 2, n.Right.Left.Type),
+				r.Left = mkcall1(chanfn("chanselsend", 2, n.Right.Left.Type),
 					Types[TBOOL], &r.Ninit, var_,
 					n.Right.Left, n.Right.Right, n.Left)
 

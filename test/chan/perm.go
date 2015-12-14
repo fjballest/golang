@@ -61,5 +61,5 @@ func main() {
 
 	close(c)
 	close(cs)
-	close(cr)  // ERROR "receive"
+	close(cr) 
 }

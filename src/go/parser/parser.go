@@ -68,8 +68,6 @@ type parser struct {
 	// (maintained by open/close LabelScope)
 	labelScope  *ast.Scope     // label scope for current function
 	targetStack [][]*ast.Ident // stack of unresolved labels
-
-	implStructOk, implInterOk bool
 }
 
 func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
@@ -632,6 +630,31 @@ func (p *parser) parseType() ast.Expr {
 	return typ
 }
 
+func (p *parser) parseImplType(key token.Token) ast.Expr {
+	if p.trace {
+		defer un(trace(p, "ImplType"))
+	}
+
+	var typ ast.Expr
+	switch key {
+	case token.STRUCT:
+		typ = p.parseStructType(true)
+
+	case token.INTERFACE:
+		typ = p.parseInterfaceType(true)
+	}
+	if typ != nil {
+		p.resolve(typ)
+	} else {
+		pos := p.pos
+		p.errorExpected(pos, "{")
+		p.next() // make progress
+		return &ast.BadExpr{From: pos, To: p.pos}
+	}
+
+	return typ
+}
+
 // If the result is an identifier, it is not resolved.
 func (p *parser) parseTypeName() ast.Expr {
 	if p.trace {
@@ -743,23 +766,19 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
 	return field
 }
 
-func (p *parser) parseStructType() *ast.StructType {
+func (p *parser) parseStructType(impl bool) *ast.StructType {
 	if p.trace {
 		defer un(trace(p, "StructType"))
 	}
 
 	var pos, lbrace token.Pos
-	implicit := p.implStructOk
-	if implicit  && p.tok == token.LBRACE {
+	if impl  && p.tok == token.LBRACE {
 		pos = p.expect(token.LBRACE)
 		lbrace = pos
 	} else {
 		pos = p.expect(token.STRUCT)
 		lbrace = p.expect(token.LBRACE)
 	}
-	old := p.implStructOk
-	p.implStructOk = false
-	defer func() {p.implStructOk = old}()
 
 	scope := ast.NewScope(nil) // struct scope
 	var list []*ast.Field
@@ -778,7 +797,7 @@ func (p *parser) parseStructType() *ast.StructType {
 			List:    list,
 			Closing: rbrace,
 		},
-		Implicit: implicit,
+		Implicit: impl,
 	}
 }
 
@@ -966,29 +985,24 @@ func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
 	return spec
 }
 
-func (p *parser) parseInterfaceType() *ast.InterfaceType {
+func (p *parser) parseInterfaceType(impl bool) *ast.InterfaceType {
 	if p.trace {
 		defer un(trace(p, "InterfaceType"))
 	}
 
 	var pos, lbrace token.Pos
-	implicit := p.implInterOk
-	if implicit  && p.tok == token.LBRACE {
+	if impl  && p.tok == token.LBRACE {
 		pos = p.expect(token.LBRACE)
 		lbrace = pos
 	} else {
 		pos = p.expect(token.INTERFACE)
 		lbrace = p.expect(token.LBRACE)
 	}
-	p.implInterOk = false
 
 	scope := ast.NewScope(nil) // interface scope
 	var list []*ast.Field
 	for p.tok == token.IDENT {
 		list = append(list, p.parseMethodSpec(scope))
-	}
-	if implicit && len(list) > 0 {
-		p.error(pos, "implicit interface is ok only for empty interfaces")
 	}
 
 	rbrace := p.expect(token.RBRACE)
@@ -1000,7 +1014,7 @@ func (p *parser) parseInterfaceType() *ast.InterfaceType {
 			List:    list,
 			Closing: rbrace,
 		},
-		Implicit: implicit,
+		Implicit: impl,
 	}
 }
 
@@ -1038,9 +1052,7 @@ func (p *parser) parseChanType() *ast.ChanType {
 		p.expect(token.CHAN)
 		dir = ast.RECV
 	}
-	p.implInterOk = true
 	value := p.parseType()
-	p.implInterOk = false
 
 	return &ast.ChanType{Begin: pos, Arrow: arrow, Dir: dir, Value: value}
 }
@@ -1053,21 +1065,14 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	case token.LBRACK:
 		return p.parseArrayType()
 	case token.STRUCT:
-		return p.parseStructType()
+		return p.parseStructType(false)
 	case token.MUL:
 		return p.parsePointerType()
 	case token.FUNC:
 		typ, _ := p.parseFuncType()
 		return typ
-	case token.LBRACE:
-		if p.implStructOk {
-			return p.parseStructType()
-		}
-		if p.implInterOk {
-			return p.parseInterfaceType()
-		}
 	case token.INTERFACE:
-		return p.parseInterfaceType()
+		return p.parseInterfaceType(false)
 	case token.MAP:
 		return p.parseMapType()
 	case token.CHAN, token.ARROW:
@@ -2259,6 +2264,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 
 	switch p.tok {
 	case token.CONST, token.TYPE, token.VAR:
+		// NB: token.STRUCT, token.INTERFACE may start an expression, so no
+		// implicit struct/interface decls as stmts. [nemo]
 		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
 	case
 		// tokens that may start an expression
@@ -2415,7 +2422,7 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	return spec
 }
 
-func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
+func (p *parser) parseTypeSpec(doc *ast.CommentGroup, key token.Token, _ int) ast.Spec {
 	if p.trace {
 		defer un(trace(p, "TypeSpec"))
 	}
@@ -2429,7 +2436,12 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	spec := &ast.TypeSpec{Doc: doc, Name: ident}
 	p.declare(spec, nil, p.topScope, ast.Typ, ident)
 
-	spec.Type = p.parseType()
+	switch key {
+	case token.INTERFACE, token.STRUCT:
+		spec.Type = p.parseImplType(key)
+	default:
+		spec.Type = p.parseType()
+	}
 	p.expectSemi() // call before accessing p.linecomment
 	spec.Comment = p.lineComment
 
@@ -2445,12 +2457,11 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 	pos := p.expect(keyword)
 	var lparen, rparen token.Pos
 	var list []ast.Spec
+
 	if p.tok == token.LPAREN {
 		lparen = p.pos
 		p.next()
-		old := p.implStructOk
 		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
-			p.implStructOk = old
 			list = append(list, f(p.leadComment, keyword, iota))
 		}
 		rparen = p.expect(token.RPAREN)
@@ -2459,6 +2470,10 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 		list = append(list, f(nil, keyword, 0))
 	}
 
+	implkey := keyword
+	if keyword == token.STRUCT || keyword == token.INTERFACE {
+		keyword = token.TYPE
+	}
 	return &ast.GenDecl{
 		Doc:    doc,
 		TokPos: pos,
@@ -2466,6 +2481,7 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 		Lparen: lparen,
 		Specs:  list,
 		Rparen: rparen,
+		Implicit: implkey,
 	}
 }
 
@@ -2523,14 +2539,15 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	if p.trace {
 		defer un(trace(p, "Declaration"))
 	}
-	defer func() {p.implStructOk = false}()
 	var f parseSpecFunction
 	switch p.tok {
 	case token.CONST, token.VAR:
 		f = p.parseValueSpec
 
 	case token.TYPE:
-		p.implStructOk = true
+		f = p.parseTypeSpec
+
+	case token.STRUCT, token.INTERFACE:
 		f = p.parseTypeSpec
 
 	case token.FUNC:

@@ -874,14 +874,14 @@ func orderstmt(n *Node, order *Order) {
 
 				case OSELSEND:
 					if r.Colas {
-						t = r.Ninit
-						if t != nil && t.N.Op == ODCL && t.N.Left == r.Left {
-							t = t.Next
+						init := r.Ninit
+						if init != nil && init.N.Op == ODCL && init.N.Left == r.Left {
+							init = init.Next
 						}
-						if t != nil && t.N.Op == ODCL && t.N.Left == r.Ntest {
-							t = t.Next
+						if init != nil && init.N.Op == ODCL && r.List != nil && init.N.Left == r.List.N {
+							init = init.Next
 						}
-						if t == nil {
+						if init == nil {
 							r.Ninit = nil
 						}
 					}

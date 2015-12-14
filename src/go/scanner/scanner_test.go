@@ -168,7 +168,7 @@ var tokens = [...]elt{
 	{token.IMPORT, "import", keyword},
 
 	{token.INTERFACE, "interface", keyword},
-	{token.INTERFACE, "inter", keyword},
+	{token.INTERFACE, "face", keyword},
 	{token.MAP, "map", keyword},
 	{token.PACKAGE, "package", keyword},
 	{token.RANGE, "range", keyword},

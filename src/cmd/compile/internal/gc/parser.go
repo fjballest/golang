@@ -1312,14 +1312,14 @@ func (p *parser) doselect_stmt() *Node {
 	// for
 	markdcl();
 	dostmt := p.for_header();
-	if (hdr != nil && hdr.Op == ORANGE {
+	if dostmt != nil && dostmt.Op == ORANGE {
 		Yyerror("range not allowed in "+tokstrings[LDOSELECT]+" header")
 	}
 
 	sstmt := Nod(ODOSELECT, nil, nil)
 	sstmt.List = p.caseblock_list(nil)
 
-	dostmt.Nbody = concat(dostmt.Nbody, sstmt)
+	dostmt.Nbody = list(dostmt.Nbody, sstmt)
 	popdcl();
 	return dostmt
 }
@@ -2338,7 +2338,7 @@ func (p *parser) xdcl_list() (l *NodeList) {
 loop:
 	for p.tok != EOF {
 		switch p.tok {
-		case LVAR, LCONST, LTYPE:
+		case LVAR, LCONST, LTYPE, LSTRUCT, LINTERFACE:
 			l = concat(l, p.common_dcl())
 
 		case LFUNC:

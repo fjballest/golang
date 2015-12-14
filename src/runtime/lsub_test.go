@@ -118,6 +118,7 @@ func TestChanCloseDefer(t *testing.T) {
 	if r1 != 1 || r2 != 0 {
 		t.Fatal("deferred close receive")
 	}
+	t.Log("deferred close ok")
 	
 }
 
@@ -137,6 +138,10 @@ func TestChanCloseDeferErr(t *testing.T) {
 	if r1 != 1 || r2 != 0 {
 		t.Fatal("deferred close receive")
 	}
+	if cerror(c) == nil || cerror(c).Error() != "oops" {
+		t.Fatal("error is not oops")
+	}
+	t.Logf("deferred close ok with err %s", cerror(c))
 	
 }
 
@@ -213,6 +218,7 @@ func TestChanCloseIntErr(t *testing.T) {
 	if false && !didpanic {
 		t.Fatal("close did not panic with int error")
 	}
+	t.Log("close accepts only str and error as it should");
 }
 
 

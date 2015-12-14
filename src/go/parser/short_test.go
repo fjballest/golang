@@ -46,6 +46,14 @@ var valids = []string{
 	`package p; const (x = 0; y; z)`, // issue 9639
 	`package p; var _ = map[P]int{P{}:0, {}:1}`,
 	`package p; var _ = map[*P]int{&P{}:0, {}:1}`,
+
+	// lsub implicit decls [nemo]
+	`package p; face ( A { }; B {}; )`,
+	`package p; struct ( A { }; B {}; )`,
+	`package p; struct A { }`,
+	`package p; struct A { X struct { }}`,
+	`package p; interface A { }`,
+	`package p; face A { }`,
 }
 
 func TestValid(t *testing.T) {

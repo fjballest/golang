@@ -9,12 +9,18 @@ import (
 // It means that you are not using the lsub compiler or that you are not using
 // the lsub src/go/... packages to parse Go sources.
 // We changed the syntax, as you probably know.
-type funPoint {		// it's 'struct {...}' implicitly
+struct funPoint {		// it's 'struct {...}' implicitly
 	x, y int
-	xc  chan {}	// it's interface{} implicictly
-	xc2 chan<- <-chan {}
+	xc  chan face{}	// it's interface{} implicictly
+	xc2 chan<- <-chan face{}
 }
-func funFunc(bar struct{}, bar2 chan {}, bar3 chan<- {}) {
+
+interface (
+	A {}
+	B {}
+)
+
+func funFunc(bar struct{}, bar2 chan face{}, bar3 chan<- face{}) {
 }
 
 
@@ -39,7 +45,7 @@ func TestChanSendVals(t *testing.T) {
 	if foo != false {
 		t.Fatal("could send")
 	}
-
+	t.Log("chan send return value ok");
 	n := 0
 	for x := range c {
 		n++
@@ -66,6 +72,7 @@ func TestChanSendVals(t *testing.T) {
 	default:
 		t.Fatal("select did block on closed chan")
 	}
+	t.Log("select does not block on closed chan");
 
 	select {
 	case ok := c <- 1:
@@ -93,6 +100,7 @@ func TestChanSendVals(t *testing.T) {
 	default:
 		t.Fatal("select did block on closed chan")
 	}
+	t.Log("select ret val on closed chan ok");
 
 	c = make(chan int, 3)
 	select {
@@ -121,6 +129,7 @@ func TestChanSendVals(t *testing.T) {
 	default:
 		t.Fatal("select did block on closed chan")
 	}
+	t.Log("select ret val on non-closed chan ok");
 	close(c)
 	n = 0
 	for x := range c {
@@ -228,3 +237,33 @@ func TestDoSelects(t *testing.T) {
 	}
 }
 
+// All this is just to make sure we didn't messed up the type system,
+// use and compile a few things using a type for a chan
+type T chan uint64
+
+func retchan() (rc T) {
+	rc = make(T, 2)
+	return rc
+}
+
+func TestTypedChan(t *testing.T) {
+	c, c2 := retchan(), retchan()
+	go func (c, c2 T) {
+		c <- 3
+		n := uint64(4)
+		c <- n
+		c2 <- n
+	}(c, c2)
+	<-c
+	<-c
+}
+func M(f uint64) (in, out T) {
+	in = make(T, 100)
+	out = make(T, 100)
+	go func(in, out T, f uint64) {
+		for {
+			out <- f*<-in
+		}
+	}(in, out, f)
+	return in, out
+}
