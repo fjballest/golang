@@ -2457,19 +2457,62 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 	pos := p.expect(keyword)
 	var lparen, rparen token.Pos
 	var list []ast.Spec
-
+	var canimpl token.Token
+	canstruct, caninter := true, true
 	if p.tok == token.LPAREN {
 		lparen = p.pos
 		p.next()
 		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
-			list = append(list, f(p.leadComment, keyword, iota))
+			x := f(p.leadComment, keyword, iota)
+			list = append(list, x)
+			if ts, ok := x.(*ast.TypeSpec); ok {
+				_,  ok = ts.Type.(*ast.StructType)
+				canstruct = canstruct && ok
+				_,  ok = ts.Type.(*ast.InterfaceType)
+				caninter = caninter && ok
+			} else {
+				canstruct, caninter = false, false
+			}
 		}
 		rparen = p.expect(token.RPAREN)
 		p.expectSemi()
+		if canstruct && caninter {
+			canstruct, caninter = false, false
+		} else if canstruct {
+			canimpl = token.STRUCT
+			for _, x := range list {
+				ts := x.(*ast.TypeSpec)
+				t := ts.Type.(*ast.StructType)
+				t.Implicit = true
+			}
+		} else if caninter {
+			canimpl = token.INTERFACE
+			for _, x := range list {
+				ts := x.(*ast.TypeSpec)
+				t := ts.Type.(*ast.InterfaceType)
+				t.Implicit = true
+			}
+		}
 	} else {
-		list = append(list, f(nil, keyword, 0))
+		x := f(nil, keyword, 0)
+		list = append(list, x)
+		if ts, ok := x.(*ast.TypeSpec); ok {
+			if t, ok := ts.Type.(*ast.StructType); ok {
+				t.Implicit = true
+				canimpl = token.STRUCT
+			}
+		}
+		if ts, ok := x.(*ast.TypeSpec); ok {
+			if t, ok := ts.Type.(*ast.InterfaceType); ok {
+				t.Implicit = true
+				canimpl = token.INTERFACE
+			}
+		}
 	}
 
+	if keyword == token.TYPE && canimpl != 0 {
+		keyword = canimpl
+	}
 	implkey := keyword
 	if keyword == token.STRUCT || keyword == token.INTERFACE {
 		keyword = token.TYPE
