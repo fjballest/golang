@@ -411,7 +411,11 @@ func (pkg *Package) packageClause(checkUserPath bool) {
 	if importPath == "" {
 		importPath = pkg.build.ImportPath
 	}
-	pkg.Printf("package %s // import %q\n\n", pkg.name, importPath)
+	if showMan {
+		pkg.Printf("import %q\n\n", importPath)
+	} else {
+		pkg.Printf("package %s // import %q\n\n", pkg.name, importPath)
+	}
 	if importPath != pkg.build.ImportPath {
 		pkg.Printf("WARNING: package source is installed in %q\n", pkg.build.ImportPath)
 	}
