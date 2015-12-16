@@ -139,7 +139,11 @@ func parsePackage(writer io.Writer, pkg *build.Package, userPath string) *Packag
 	// from finding the symbol. Work around this for now, but we
 	// should fix it in go/doc.
 	// A similar story applies to factory functions.
-	docPkg := doc.New(astPkg, pkg.ImportPath, doc.AllDecls)
+	flg := doc.AllDecls
+	if showMan {
+		flg = 0
+	}
+	docPkg := doc.New(astPkg, pkg.ImportPath, flg)
 	for _, typ := range docPkg.Types {
 		docPkg.Consts = append(docPkg.Consts, typ.Consts...)
 		docPkg.Vars = append(docPkg.Vars, typ.Vars...)
@@ -273,6 +277,116 @@ func (pkg *Package) packageDoc() {
 	pkg.funcSummary(pkg.doc.Funcs)
 	pkg.typeSummary()
 	pkg.bugs()
+}
+
+func (pkg *Package) valueMan(c *doc.Value) {
+	err := format.Node(&pkg.buf, pkg.fs, c.Decl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	pkg.newlines(1)
+	doc.ToText(&pkg.buf, c.Doc, "    ", indent, indentedWidth)
+	pkg.newlines(2)
+}
+
+func (pkg *Package) funcMan(c *doc.Func) {
+	err := format.Node(&pkg.buf, pkg.fs, c.Decl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	pkg.newlines(1)
+	doc.ToText(&pkg.buf, c.Doc, "    ", indent, indentedWidth)
+	pkg.newlines(2)
+}
+
+// packageMan prints the doc for the package in a better way to use as a man page
+// [nemo].
+func (pkg *Package) packageMan() {
+	defer pkg.flush()
+	pkg.Printf("SYNOPSYS\n\n")
+	if pkg.showInternals() {
+		pkg.packageClause(false)
+	}
+	pkg.newlines(2) // Guarantee blank line before the components.
+	pkg.valueSummary(pkg.doc.Consts)
+	pkg.valueSummary(pkg.doc.Vars)
+	pkg.funcSummary(pkg.doc.Funcs)
+	pkg.typeSummary()
+	pkg.newlines(2)
+
+	intype := map[*ast.GenDecl]bool{}
+	fintype := map[*ast.FuncDecl]bool{}
+	for _, c := range pkg.doc.Types {
+		for _, c2 := range c.Consts {
+			intype[c2.Decl] = true
+		}
+		for _, c2 := range c.Vars {
+			intype[c2.Decl] = true
+		}
+		for _, c2 := range c.Funcs {
+			fintype[c2.Decl] = true
+		}
+	}
+	pkg.Printf("DESCRIPTION\n\n")
+	doc.ToText(&pkg.buf, pkg.doc.Doc, "", indent, indentedWidth)
+	pkg.newlines(2)
+	if len(pkg.doc.Types) > 0 {
+		pkg.Printf("CONSTANTS\n\n")
+		for _, c := range pkg.doc.Consts {
+			if !intype[c.Decl] {
+				pkg.valueMan(c)
+			}
+		}
+		pkg.newlines(2)
+	}
+	if len(pkg.doc.Types) > 0 {
+		pkg.Printf("TYPES\n\n")
+		for _, c := range pkg.doc.Types {
+			err := format.Node(&pkg.buf, pkg.fs, c.Decl)
+			if err != nil {
+				log.Fatal(err)
+			}
+			pkg.newlines(1)
+			doc.ToText(&pkg.buf, c.Doc, "    ", indent, indentedWidth)
+			pkg.newlines(2)
+			for _, c2 := range c.Consts {
+				pkg.valueMan(c2)
+			}
+			for _, c2 := range c.Vars {
+				pkg.valueMan(c2)
+			}
+			for _, c2 := range c.Funcs {
+				pkg.funcMan(c2)
+			}
+			for _, c2 := range c.Methods {
+				pkg.funcMan(c2)
+			}
+		}
+		pkg.newlines(2)
+	}
+	if len(pkg.doc.Funcs) > 0 {
+		pkg.Printf("FUNCTIONS\n\n")
+		for _, c := range pkg.doc.Funcs {
+			if !fintype[c.Decl] {
+				pkg.funcMan(c)
+			}
+		}
+		pkg.newlines(2)
+	}
+	if len(pkg.doc.Vars) > 0 {
+		pkg.Printf("VARIABLES\n\n")
+		for _, c := range pkg.doc.Vars {
+			if !intype[c.Decl] {
+				pkg.valueMan(c)
+			}
+		}
+		pkg.newlines(2)
+	}
+	if len(pkg.doc.Notes["BUG"]) > 0 {
+		pkg.Printf("BUGS\n")
+		pkg.bugs()
+	}
+	
 }
 
 // showInternals reports whether we should show the internals

@@ -49,6 +49,7 @@ var (
 	unexported bool // -u flag
 	matchCase  bool // -c flag
 	showCmd    bool // -cmd flag
+	showMan    bool // -m flag
 )
 
 // usage is a replacement usage function for the flags package.
@@ -83,6 +84,7 @@ func do(writer io.Writer, flagSet *flag.FlagSet, args []string) (err error) {
 	flagSet.BoolVar(&unexported, "u", false, "show unexported symbols as well as exported")
 	flagSet.BoolVar(&matchCase, "c", false, "symbol matching honors case (paths not affected)")
 	flagSet.BoolVar(&showCmd, "cmd", false, "show symbols with package docs even if package is a command")
+	flagSet.BoolVar(&showMan, "m", false, "show manual page")
 	flagSet.Parse(args)
 	var paths []string
 	var symbol, method string
@@ -119,7 +121,11 @@ func do(writer io.Writer, flagSet *flag.FlagSet, args []string) (err error) {
 
 		switch {
 		case symbol == "":
-			pkg.packageDoc() // The package exists, so we got some output.
+			if showMan {
+				pkg.packageMan()
+			} else {
+				pkg.packageDoc() // The package exists, so we got some output.
+			}
 			return
 		case method == "":
 			if pkg.symbolDoc(symbol) {
