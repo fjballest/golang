@@ -868,7 +868,7 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 	case *ast.InterfaceType:
 		if !p.DontPrintImplicits || !x.Implicit {
 			if p.DontPrintImplicits {
-				p.print("inter")
+				p.print("face")
 			} else {
 				p.print(token.INTERFACE)
 			}
