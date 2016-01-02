@@ -45,6 +45,13 @@ func main_main()
 // runtimeInitTime is the nanotime() at which the runtime started.
 var runtimeInitTime int64
 
+var atexit []func()
+
+// Run fn when main exits
+func AtExit(fn func()) {
+	atexit = append(atexit, fn)
+}
+
 // The main goroutine.
 func main() {
 	g := getg()
@@ -142,7 +149,11 @@ func main() {
 	if panicking != 0 {
 		gopark(nil, nil, "panicwait", traceEvGoStop, 1)
 	}
-
+	if atexit != nil {
+		for i := len(atexit)-1; i >= 0; i-- {
+			atexit[i]()
+		}
+	}
 	exit(0)
 	for {
 		var x *int32
