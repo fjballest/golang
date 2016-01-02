@@ -52,10 +52,20 @@ func AtExit(fn func()) {
 	atexit = append(atexit, fn)
 }
 
+func atexits() {
+	for len(atexit) > 0 {
+		atexit[len(atexit)-1]()
+		atexit = atexit[:len(atexit)-1]
+	}
+}
+
+var mainappid int64
+
 // The main goroutine.
 func main() {
 	g := getg()
 	g.gappid = g.goid
+	mainappid = g.goid
 
 	// Racectx of m0->g0 is used only as the parent of the main goroutine.
 	// It must not be used for anything else.
@@ -126,6 +136,8 @@ func main() {
 		cgocall(_cgo_notify_runtime_init_done, nil)
 	}
 
+	defer atexits()
+
 	main_init()
 	close(main_init_done)
 
@@ -142,17 +154,13 @@ func main() {
 		racefini()
 	}
 
+	atexits()
 	// Make racy client program work: if panicking on
 	// another goroutine at the same time as main returns,
 	// let the other goroutine finish printing the panic trace.
 	// Once it does, it will exit. See issue 3934.
 	if panicking != 0 {
 		gopark(nil, nil, "panicwait", traceEvGoStop, 1)
-	}
-	if atexit != nil {
-		for i := len(atexit)-1; i >= 0; i-- {
-			atexit[i]()
-		}
 	}
 	exit(0)
 	for {
@@ -372,9 +380,12 @@ func GoId() int64 {
 
 // Make the current process the leader of a new application, with its own id
 // set to that of the process id.
-func NewApp() int64 {
+// The argument given usually represents application context and its Close()
+// method will be called to release that conext when the process exits.
+func NewApp(closer AppCloser) int64 {
 	g := getg()
 	g.gappid = g.goid
+	g.closer = closer
 	return g.gappid
 }
 
@@ -2107,6 +2118,10 @@ func goexit1() {
 	}
 	if trace.enabled {
 		traceGoEnd()
+	}
+	_g_ := getg()
+	if _g_.closer != nil {
+		_g_.closer.Close()
 	}
 	mcall(goexit0)
 }
