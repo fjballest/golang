@@ -214,11 +214,6 @@ type stkbar struct {
 	savedLRVal uintptr // value overwritten at savedLRPtr
 }
 
-// Used in Clive with NewApp()
-type AppCloser interface {
-	Close()	// no error, no panics
-}
-
 type g struct {
 	// Stack parameters.
 	// stack describes the actual stack memory: [stack.lo, stack.hi).
@@ -269,7 +264,6 @@ type g struct {
 	racectx        uintptr
 	waiting        *sudog // sudog structures this g is waiting on (that have a valid elem ptr)
 	gappid       int64  // nemo: clive application id
-	closer	AppCloser   // nemo: called when the proc exits
 	// Per-G gcController state
 
 	// gcAssistBytes is this G's GC assist credit in terms of

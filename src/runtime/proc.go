@@ -380,12 +380,9 @@ func GoId() int64 {
 
 // Make the current process the leader of a new application, with its own id
 // set to that of the process id.
-// The argument given usually represents application context and its Close()
-// method will be called to release that conext when the process exits.
-func NewApp(closer AppCloser) int64 {
+func NewApp() int64 {
 	g := getg()
 	g.gappid = g.goid
-	g.closer = closer
 	return g.gappid
 }
 
@@ -2118,10 +2115,6 @@ func goexit1() {
 	}
 	if trace.enabled {
 		traceGoEnd()
-	}
-	_g_ := getg()
-	if _g_.closer != nil {
-		_g_.closer.Close()
 	}
 	mcall(goexit0)
 }
