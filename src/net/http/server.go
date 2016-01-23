@@ -1719,8 +1719,9 @@ func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 }
 
 // Handle registers the handler for the given pattern.
-// If a handler already exists for pattern, Handle panics.
-func (mux *ServeMux) Handle(pattern string, handler Handler) {
+// If a handler already exists for pattern, an error is returned.
+// If handler is nil, the handler is unregistered.
+func (mux *ServeMux) Handle(pattern string, handler Handler) error {
 	mux.mu.Lock()
 	defer mux.mu.Unlock()
 
@@ -1728,10 +1729,11 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 		panic("http: invalid pattern " + pattern)
 	}
 	if handler == nil {
-		panic("http: nil handler")
+		delete(mux.m, pattern)
+		return nil
 	}
 	if mux.m[pattern].explicit {
-		panic("http: multiple registrations for " + pattern)
+		return fmt.Errorf("http: multiple registrations for " + pattern)
 	}
 
 	mux.m[pattern] = muxEntry{explicit: true, h: handler, pattern: pattern}
@@ -1756,6 +1758,7 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 		url := &url.URL{Path: path}
 		mux.m[pattern[0:n-1]] = muxEntry{h: RedirectHandler(url.String(), StatusMovedPermanently), pattern: pattern}
 	}
+	return nil
 }
 
 // HandleFunc registers the handler function for the given pattern.
