@@ -99,6 +99,7 @@ type Package struct {
 	omitDWARF    bool                 // tell linker not to write DWARF information
 
 	NotToBuild bool `json:",omitempty"` // package is a skip
+	ExtraInstalls []string `json:",omitempty"` // package is a skip
 
 	buildID      string               // expected build ID for generated package
 	gobinSubdir  bool                 // install target would be subdir of GOBIN
@@ -178,7 +179,8 @@ func (p *Package) copyBuild(pp *build.Package) {
 	p.TestImports = pp.TestImports
 	p.XTestGoFiles = pp.XTestGoFiles
 	p.XTestImports = pp.XTestImports
-	p.NotToBuild = pp.NotToBuild 
+	p.NotToBuild = pp.NotToBuild
+	p.ExtraInstalls = pp.ExtraInstalls
 }
 
 // A PackageError describes an error loading information about a package.

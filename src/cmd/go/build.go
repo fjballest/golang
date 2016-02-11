@@ -1623,7 +1623,19 @@ func (b *builder) install(a *action) (err error) {
 		defer os.RemoveAll(a1.objdir)
 		defer os.Remove(a1.target)
 	}
-
+	if a.p != nil && len(a.p.ExtraInstalls) > 0 {
+		for _, e := range a.p.ExtraInstalls {
+			targ := e
+			if !filepath.IsAbs(e) {
+				targ = filepath.Join(filepath.Dir(a.target), e)
+			}
+			if err := b.copyFile(a, targ, a1.target, perm, false); err != nil {
+				fmt.Fprintf(os.Stderr, "install %s: %s\n", targ, err)
+			} else if buildV {
+				b.print("\t+" + e + "\n")
+			}
+		}
+	}
 	return b.moveOrCopyFile(a, a.target, a1.target, perm, false)
 }
 

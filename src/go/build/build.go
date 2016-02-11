@@ -363,6 +363,7 @@ type Package struct {
 	ConflictDir   string   // this directory shadows Dir in $GOPATH
 
 	NotToBuild bool	// the skip.go file indicates not to build this in this context
+	ExtraInstalls []string	// names included in +install comments, for extra installs
 
 	// Source files
 	GoFiles        []string // .go source files (excluding CgoFiles, TestGoFiles, XTestGoFiles)
@@ -470,7 +471,7 @@ func (ctxt *Context) Import(path string, srcDir string, mode ImportMode) (*Packa
 	var pkga string
 	var pkgerr error
 	suffix := ""
-	if ctxt.InstallSuffix != "" {
+	if ctxt.InstallSuffix != "" { 
 		suffix = "_" + ctxt.InstallSuffix
 	}
 	switch ctxt.Compiler {
@@ -643,8 +644,7 @@ Found:
 		if d.IsDir() {
 			continue
 		}
-
-		name := d.Name()
+ 		name := d.Name()
 		ext := nameExt(name)
 
 		match, data, filename, err := ctxt.matchFile(p.Dir, name, true, allTags)
@@ -656,6 +656,9 @@ Found:
 				p.IgnoredGoFiles = append(p.IgnoredGoFiles, name)
 			}
 			continue
+		}
+		if names := ctxt.should("+install", data, nil); len(names) > 0 {
+			p.ExtraInstalls = append(p.ExtraInstalls, names...)
 		}
 
 		// Going to save the file.  For non-Go files, can stop here.
@@ -1002,7 +1005,7 @@ func (ctxt *Context) matchFile(dir, name string, returnImports bool, allTags map
 	}
 
 	// Look for +build comments to accept or reject the file.
-	if !ctxt.shouldBuild(data, allTags) && !ctxt.UseAllFiles {
+	if ctxt.should("+build", data, allTags) == nil && !ctxt.UseAllFiles {
 		return
 	}
 
@@ -1031,7 +1034,8 @@ func ImportDir(dir string, mode ImportMode) (*Package, error) {
 
 var slashslash = []byte("//")
 
-// shouldBuild reports whether it is okay to use this file,
+// should reports whether it is okay to use this file and extra
+// names to install.
 // The rule is that in the file's leading run of // comments
 // and blank lines, which must be followed by a blank line
 // (to avoid including a Go package clause doc comment),
@@ -1044,7 +1048,11 @@ var slashslash = []byte("//")
 //
 // marks the file as applicable only on Windows and Linux.
 //
-func (ctxt *Context) shouldBuild(content []byte, allTags map[string]bool) bool {
+//	// +install foo
+//
+// adds foo as an extra install name for a command
+//
+func (ctxt *Context) should(what string, content []byte, allTags map[string]bool) []string {
 	// Pass 1. Identify leading run of // comments and blank lines,
 	// which must be followed by a blank line.
 	end := 0
@@ -1070,6 +1078,7 @@ func (ctxt *Context) shouldBuild(content []byte, allTags map[string]bool) bool {
 	// Pass 2.  Process each line in the run.
 	p = content
 	allok := true
+	oknames := []string{}
 	for len(p) > 0 {
 		line := p
 		if i := bytes.IndexByte(line, '\n'); i >= 0 {
@@ -1083,7 +1092,7 @@ func (ctxt *Context) shouldBuild(content []byte, allTags map[string]bool) bool {
 			if len(line) > 0 && line[0] == '+' {
 				// Looks like a comment +line.
 				f := strings.Fields(string(line))
-				if f[0] == "+build" {
+				if f[0] == what && what == "+build" {
 					ok := false
 					for _, tok := range f[1:] {
 						if ctxt.match(tok, allTags) {
@@ -1094,11 +1103,16 @@ func (ctxt *Context) shouldBuild(content []byte, allTags map[string]bool) bool {
 						allok = false
 					}
 				}
+				if f[0] == what && what == "+install" {
+					oknames = append(oknames, f[1:]...)
+				}
 			}
 		}
 	}
-
-	return allok
+	if allok {
+		return oknames
+	}
+	return nil
 }
 
 // saveCgo saves the information from the #cgo lines in the import "C" comment.
