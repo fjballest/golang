@@ -1,10 +1,13 @@
 In short, we all work in the lsub branch, and keep the master branch for google
 version.
 
-HOW TO INSTALL
-
-	edit install.sh to reflect your paths
-	run it
+To install:
+	GOROOT=`pwd`
+	GOROOT_BOOTSTRAP=/your/path/to/go14
+	PATH=$GOROOT/bin:$PATH
+	export GOROOT GOROOT_BOOTSTRAP
+	cd src
+	./all.bash
 
 To see where you are
 	git branch
