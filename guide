@@ -1,6 +1,11 @@
 In short, we all work in the lsub branch, and keep the master branch for google
 version.
 
+HOW TO INSTALL
+
+	edit install.sh to reflect your paths
+	run it
+
 To see where you are
 	git branch
 	git status 
