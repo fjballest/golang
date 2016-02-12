@@ -36,6 +36,8 @@ Go generate scans the file for directives, which are lines of
 the form,
 
 	//go:generate command argument...
+or
+	//go:gen command argument...
 
 (note: no leading spaces and no space in "//go") where command
 is the generator to be run, corresponding to an executable file
@@ -268,7 +270,8 @@ func (g *Generator) run() (ok bool) {
 }
 
 func isGoGenerate(buf []byte) bool {
-	return bytes.HasPrefix(buf, []byte("//go:generate ")) || bytes.HasPrefix(buf, []byte("//go:generate\t"))
+	return bytes.HasPrefix(buf, []byte("//go:generate ")) || bytes.HasPrefix(buf, []byte("//go:generate\t")) ||
+		bytes.HasPrefix(buf, []byte("//go:gen ")) || bytes.HasPrefix(buf, []byte("//go:gen\t"))
 }
 
 // setEnv sets the extra environment variables used when executing a

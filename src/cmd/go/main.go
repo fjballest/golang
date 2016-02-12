@@ -169,6 +169,9 @@ func main() {
 		}
 	}
 
+	if args[0] == "gen" {
+		args[0] = "generate"
+	}
 	for _, cmd := range commands {
 		if cmd.Name() == args[0] && cmd.Runnable() {
 			cmd.Flag.Usage = func() { cmd.Usage() }

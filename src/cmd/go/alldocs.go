@@ -364,6 +364,7 @@ Usage:
 Generate runs commands described by directives within existing
 files. Those commands can run any process but the intent is to
 create or update Go source files, for instance by running yacc.
+Gen is an alias for generate.
 
 Go generate is never run automatically by go build, go get, go test,
 and so on. It must be run explicitly.
@@ -372,6 +373,8 @@ Go generate scans the file for directives, which are lines of
 the form,
 
 	//go:generate command argument...
+or
+	//go:gen command argument...
 
 (note: no leading spaces and no space in "//go") where command
 is the generator to be run, corresponding to an executable file
@@ -521,6 +524,13 @@ along with their dependencies.
 
 For more about the build flags, see 'go help build'.
 For more about specifying packages, see 'go help packages'.
+
+Comments of the form
+
+	// +install extranames...
+
+add additional install names for commands.
+They may be absolute paths or paths relative to the install directory.
 
 See also: go build, go get, go clean.
 
