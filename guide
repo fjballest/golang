@@ -3,7 +3,7 @@ version.
 
 To install:
 	GOROOT=`pwd`
-	GOROOT_BOOTSTRAP=/your/path/to/go14
+	GOROOT_BOOTSTRAP=/usr/local/go14
 	PATH=$GOROOT/bin:$PATH
 	export GOROOT GOROOT_BOOTSTRAP
 	cd src
@@ -89,9 +89,11 @@ or
 to opt for the origin or the upstream version of the file
 
 As an aid, you can see the old/new files with
-	git show lsub:src/cmd/compile/internal/gc/typecheck.go >/tmp/1
-	git show go1.7.1:src/cmd/compile/internal/gc/typecheck.go >/tmp/2
+	git show lsub:src/cmd/compile/internal/gc/select.go >/tmp/1
+	git show go1.7.1:src/cmd/compile/internal/gc/builtin.go >/tmp/2
 	cd ... ; 9 diff -n main.go /tmp/2
+
+	git checkout merge17
 Push resulting changes to lsub's master
 	git push
 

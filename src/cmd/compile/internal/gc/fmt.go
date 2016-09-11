@@ -1360,7 +1360,7 @@ func exprfmt(n *Node, prec int) string {
 	case OCLOSE:
 		// nemo: close with 2nd arg
 		if n.Left != nil && n.Right != nil {
-			return fmt.Sprintf("%v(%v, %v)", Oconv(int(n.Op), obj.FmtSharp), n.Left, n.Right)
+			return fmt.Sprintf("%v(%v, %v)", n.Op, n.Left, n.Right)
 		}
 		fallthrough
 	case OREAL,
