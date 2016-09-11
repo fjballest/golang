@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -9,21 +9,22 @@ package http
 
 import (
 	"net"
+	"sort"
 	"sync"
 	"time"
 )
 
 var (
-	DefaultUserAgent              = defaultUserAgent
-	NewLoggingConn                = newLoggingConn
-	ExportAppendTime              = appendTime
-	ExportRefererForURL           = refererForURL
-	ExportServerNewConn           = (*Server).newConn
-	ExportCloseWriteAndWait       = (*conn).closeWriteAndWait
-	ExportErrRequestCanceled      = errRequestCanceled
-	ExportServeFile               = serveFile
-	ExportHttp2ConfigureTransport = http2ConfigureTransport
-	ExportHttp2ConfigureServer    = http2ConfigureServer
+	DefaultUserAgent             = defaultUserAgent
+	NewLoggingConn               = newLoggingConn
+	ExportAppendTime             = appendTime
+	ExportRefererForURL          = refererForURL
+	ExportServerNewConn          = (*Server).newConn
+	ExportCloseWriteAndWait      = (*conn).closeWriteAndWait
+	ExportErrRequestCanceled     = errRequestCanceled
+	ExportErrRequestCanceledConn = errRequestCanceledConn
+	ExportServeFile              = serveFile
+	ExportHttp2ConfigureServer   = http2ConfigureServer
 )
 
 func init() {
@@ -34,10 +35,8 @@ func init() {
 }
 
 var (
-	SetInstallConnClosedHook = hookSetter(&testHookPersistConnClosedGotRes)
-	SetEnterRoundTripHook    = hookSetter(&testHookEnterRoundTrip)
-	SetTestHookWaitResLoop   = hookSetter(&testHookWaitResLoop)
-	SetRoundTripRetried      = hookSetter(&testHookRoundTripRetried)
+	SetEnterRoundTripHook = hookSetter(&testHookEnterRoundTrip)
+	SetRoundTripRetried   = hookSetter(&testHookRoundTripRetried)
 )
 
 func SetReadLoopBeforeNextReadHook(f func()) {
@@ -58,10 +57,11 @@ func SetPendingDialHooks(before, after func()) {
 func SetTestHookServerServe(fn func(*Server, net.Listener)) { testHookServerServe = fn }
 
 func NewTestTimeoutHandler(handler Handler, ch <-chan time.Time) Handler {
-	f := func() <-chan time.Time {
-		return ch
+	return &timeoutHandler{
+		handler:     handler,
+		testTimeout: ch,
+		// (no body)
 	}
-	return &timeoutHandler{handler, f, ""}
 }
 
 func ResetCachedEnvironment() {
@@ -80,21 +80,29 @@ func (t *Transport) IdleConnKeysForTesting() (keys []string) {
 	keys = make([]string, 0)
 	t.idleMu.Lock()
 	defer t.idleMu.Unlock()
-	if t.idleConn == nil {
-		return
-	}
 	for key := range t.idleConn {
 		keys = append(keys, key.String())
 	}
+	sort.Strings(keys)
 	return
+}
+
+func (t *Transport) IdleConnStrsForTesting() []string {
+	var ret []string
+	t.idleMu.Lock()
+	defer t.idleMu.Unlock()
+	for _, conns := range t.idleConn {
+		for _, pc := range conns {
+			ret = append(ret, pc.conn.LocalAddr().String()+"/"+pc.conn.RemoteAddr().String())
+		}
+	}
+	sort.Strings(ret)
+	return ret
 }
 
 func (t *Transport) IdleConnCountForTesting(cacheKey string) int {
 	t.idleMu.Lock()
 	defer t.idleMu.Unlock()
-	if t.idleConn == nil {
-		return 0
-	}
 	for k, conns := range t.idleConn {
 		if k.String() == cacheKey {
 			return len(conns)
@@ -121,12 +129,12 @@ func (t *Transport) RequestIdleConnChForTesting() {
 
 func (t *Transport) PutIdleTestConn() bool {
 	c, _ := net.Pipe()
-	return t.putIdleConn(&persistConn{
+	return t.tryPutIdleConn(&persistConn{
 		t:        t,
 		conn:     c,                   // dummy
 		closech:  make(chan struct{}), // so it can be closed
 		cacheKey: connectMethodKey{"", "http", "example.com"},
-	})
+	}) == nil
 }
 
 // All test hooks must be non-nil so they can be called directly,
@@ -142,4 +150,13 @@ func hookSetter(dst *func()) func(func()) {
 		unnilTestHook(&fn)
 		*dst = fn
 	}
+}
+
+func ExportHttp2ConfigureTransport(t *Transport) error {
+	t2, err := http2configureTransport(t)
+	if err != nil {
+		return err
+	}
+	t.h2transport = t2
+	return nil
 }

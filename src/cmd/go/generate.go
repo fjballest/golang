@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -14,15 +14,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 var cmdGenerate = &Command{
 	Run:       runGenerate,
-	UsageLine: "generate [-run regexp] [file.go... | packages]",
+	UsageLine: "generate [-run regexp] [-n] [-v] [-x] [build flags] [file.go... | packages]",
 	Short:     "generate Go files by processing source",
 	Long: `
 Generate runs commands described by directives within existing
@@ -122,6 +120,8 @@ The -v flag prints the names of packages and files as they are
 processed.
 The -n flag prints commands that would be executed.
 The -x flag prints commands as they are executed.
+
+For more about build flags, see 'go help build'.
 
 For more about specifying packages, see 'go help packages'.
 	`,
@@ -278,8 +278,8 @@ func isGoGenerate(buf []byte) bool {
 // single go:generate command.
 func (g *Generator) setEnv() {
 	g.env = []string{
-		"GOARCH=" + runtime.GOARCH,
-		"GOOS=" + runtime.GOOS,
+		"GOARCH=" + buildContext.GOARCH,
+		"GOOS=" + buildContext.GOOS,
 		"GOFILE=" + g.file,
 		"GOLINE=" + strconv.Itoa(g.lineNum),
 		"GOPACKAGE=" + g.pkg,
@@ -370,17 +370,6 @@ func (g *Generator) expandVar(word string) string {
 		}
 	}
 	return os.Getenv(word)
-}
-
-// identLength returns the length of the identifier beginning the string.
-func (g *Generator) identLength(word string) int {
-	for i, r := range word {
-		if r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) {
-			continue
-		}
-		return i
-	}
-	return len(word)
 }
 
 // setShorthand installs a new shorthand as defined by a -command directive.

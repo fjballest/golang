@@ -68,7 +68,7 @@ The /zx clone is
 	git clone git@git.lsub.org:Public/git/golang.git golang
 	git remote add upstream https://go.googlesource.com/go
 
-Next commands show how to work in it:
+UPDATE TO NEWER GO RELEASES
 
 Fetch changes from google
 	git fetch upstream
@@ -76,15 +76,22 @@ Fetch changes from google
 make sure you are in the local master branch
 	git checkout master
 
+create a brach for the merge
+	git checkout -b merge17
 merge changes from upstream's master
 	git merge upstream/master
-
+or merge changes from a new go tag
+	git merge go1.7.1
 have fun with conflicts, you might just
 	git checkout origin/master file
 or
 	git checkout upstream/master file
 to opt for the origin or the upstream version of the file
 
+As an aid, you can see the old/new files with
+	git show lsub:src/cmd/compile/internal/gc/typecheck.go >/tmp/1
+	git show go1.7.1:src/cmd/compile/internal/gc/typecheck.go >/tmp/2
+	cd ... ; 9 diff -n main.go /tmp/2
 Push resulting changes to lsub's master
 	git push
 

@@ -168,6 +168,7 @@ TEXT runtime·mincore(SB),NOSPLIT,$-8-28
 	MOVV	dst+16(FP), R6
 	MOVV	$SYS_mincore, R2
 	SYSCALL
+	SUBVU	R2, R0, R2	// caller expects negative errno
 	MOVW	R2, ret+24(FP)
 	RET
 
@@ -227,11 +228,16 @@ TEXT runtime·sigfwd(SB),NOSPLIT,$0-32
 	MOVW	sig+8(FP), R4
 	MOVV	info+16(FP), R5
 	MOVV	ctx+24(FP), R6
-	MOVV	fn+0(FP), R1
-	JAL	(R1)
+	MOVV	fn+0(FP), R25
+	JAL	(R25)
 	RET
 
 TEXT runtime·sigtramp(SB),NOSPLIT,$64
+	// initialize REGSB = PC&0xffffffff00000000
+	BGEZAL	R0, 1(PC)
+	SRLV	$32, R31, RSB
+	SLLV	$32, RSB
+
 	// initialize essential registers (just in case)
 	JAL	runtime·reginit(SB)
 
@@ -247,6 +253,9 @@ TEXT runtime·sigtramp(SB),NOSPLIT,$64
 	MOVV	$runtime·sigtrampgo(SB), R1
 	JAL	(R1)
 	RET
+
+TEXT runtime·cgoSigtramp(SB),NOSPLIT,$0
+	JMP	runtime·sigtramp(SB)
 
 TEXT runtime·mmap(SB),NOSPLIT,$-8
 	MOVV	addr+0(FP), R4

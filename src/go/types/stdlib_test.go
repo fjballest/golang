@@ -129,6 +129,10 @@ func TestStdTest(t *testing.T) {
 t.Skip()
 	testenv.MustHaveGoBuild(t)
 
+	if testing.Short() && testenv.Builder() == "" {
+		t.Skip("skipping in short mode")
+	}
+
 	// test/recover4.go is only built for Linux and Darwin.
 	// TODO(gri) Remove once tests consider +build tags (issue 10370).
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
@@ -145,16 +149,16 @@ func TestStdFixed(t *testing.T) {
 	t.Skip("lsub")
 	testenv.MustHaveGoBuild(t)
 
+	if testing.Short() && testenv.Builder() == "" {
+		t.Skip("skipping in short mode")
+	}
+
 	testTestDir(t, filepath.Join(runtime.GOROOT(), "test", "fixedbugs"),
 		"bug248.go", "bug302.go", "bug369.go", // complex test instructions - ignore
-		"bug459.go",      // possibly incorrect test - see issue 6703 (pending spec clarification)
-		"issue3924.go",   // possibly incorrect test - see issue 6671 (pending spec clarification)
-		"issue6889.go",   // gc-specific test
-		"issue7746.go",   // large constants - consumes too much memory
-		"issue11326.go",  // large constants
-		"issue11326b.go", // large constants
-		"issue11362.go",  // canonical import path check
-		"issue13471.go",  // large constants - remove once issue 11327 is fixed
+		"issue6889.go",  // gc-specific test
+		"issue7746.go",  // large constants - consumes too much memory
+		"issue11362.go", // canonical import path check
+		"issue15002.go", // uses Mmap; testTestDir should consult build tags
 	)
 }
 
@@ -256,7 +260,7 @@ func pkgFilenames(dir string) ([]string, error) {
 
 func walkDirs(t *testing.T, dir string) {
 	// limit run time for short tests
-	if testing.Short() && time.Since(start) >= 750*time.Millisecond {
+	if testing.Short() && time.Since(start) >= 10*time.Millisecond {
 		return
 	}
 
@@ -267,13 +271,16 @@ func walkDirs(t *testing.T, dir string) {
 	}
 
 	// typecheck package in directory
-	files, err := pkgFilenames(dir)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	if files != nil {
-		typecheck(t, dir, files)
+	// but ignore files directly under $GOROOT/src (might be temporary test files).
+	if dir != filepath.Join(runtime.GOROOT(), "src") {
+		files, err := pkgFilenames(dir)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if files != nil {
+			typecheck(t, dir, files)
+		}
 	}
 
 	// traverse subdirectories, but don't walk into testdata

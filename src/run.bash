@@ -11,6 +11,7 @@ export GOROOT   # the api test requires GOROOT to be set.
 unset CDPATH	# in case user has it set
 unset GOPATH    # we disallow local import for non-local packages, if $GOROOT happens
                 # to be under $GOPATH, then some tests below will fail
+unset GOBIN     # Issue 14340
 
 export GOHOSTOS
 export CC
@@ -35,4 +36,4 @@ if ulimit -T &> /dev/null; then
 	[ "$(ulimit -H -T)" == "unlimited" ] || ulimit -S -T $(ulimit -H -T)
 fi
 
-exec go tool dist test "$@"
+exec go tool dist test -rebuild "$@"

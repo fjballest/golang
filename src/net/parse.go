@@ -10,6 +10,7 @@ package net
 import (
 	"io"
 	"os"
+	"time"
 	_ "unsafe" // For go:linkname
 )
 
@@ -71,6 +72,14 @@ func open(name string) (*file, error) {
 	return &file{fd, make([]byte, 0, os.Getpagesize()), false}, nil
 }
 
+func stat(name string) (mtime time.Time, size int64, err error) {
+	st, err := os.Stat(name)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	return st.ModTime(), st.Size(), nil
+}
+
 // byteIndex is strings.IndexByte. It returns the index of the
 // first instance of c in s, or -1 if c is not present in s.
 // strings.IndexByte is implemented in  runtime/asm_$GOARCH.s
@@ -96,14 +105,14 @@ func splitAtBytes(s string, t string) []string {
 	for i := 0; i < len(s); i++ {
 		if byteIndex(t, s[i]) >= 0 {
 			if last < i {
-				a[n] = string(s[last:i])
+				a[n] = s[last:i]
 				n++
 			}
 			last = i + 1
 		}
 	}
 	if last < len(s) {
-		a[n] = string(s[last:])
+		a[n] = s[last:]
 		n++
 	}
 	return a[0:n]

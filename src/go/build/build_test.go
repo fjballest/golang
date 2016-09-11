@@ -1,10 +1,11 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 package build
 
 import (
+	"internal/testenv"
 	"io"
 	"os"
 	"path/filepath"
@@ -150,28 +151,28 @@ func TestShouldBuild(t *testing.T) {
 
 	ctx := &Context{BuildTags: []string{"tag1"}}
 	m := map[string]bool{}
-	if ctx.should("+build", []byte(file1), m) == nil {
+	if ctx.should("+build", []byte(file1), m, nil) == nil {
 		t.Errorf("shouldBuild(file1) = false, want true")
 	}
 	if !reflect.DeepEqual(m, want1) {
-		t.Errorf("shoudBuild(file1) tags = %v, want %v", m, want1)
+		t.Errorf("shouldBuild(file1) tags = %v, want %v", m, want1)
 	}
 
 	m = map[string]bool{}
-	if ctx.should("+build", []byte(file2), m) != nil {
-		t.Errorf("shouldBuild(file2) = true, want fakse")
+	if ctx.should("+build", []byte(file2), m, nil) != nil {
+		t.Errorf("shouldBuild(file2) = true, want false")
 	}
 	if !reflect.DeepEqual(m, want2) {
-		t.Errorf("shoudBuild(file2) tags = %v, want %v", m, want2)
+		t.Errorf("shouldBuild(file2) tags = %v, want %v", m, want2)
 	}
 
 	m = map[string]bool{}
 	ctx = &Context{BuildTags: nil}
-	if ctx.should("+build", []byte(file3), m) == nil {
+	if ctx.should("+build", []byte(file3), m, nil) == nil {
 		t.Errorf("shouldBuild(file3) = false, want true")
 	}
 	if !reflect.DeepEqual(m, want3) {
-		t.Errorf("shoudBuild(file3) tags = %v, want %v", m, want3)
+		t.Errorf("shouldBuild(file3) tags = %v, want %v", m, want3)
 	}
 }
 
@@ -295,5 +296,52 @@ func TestShellSafety(t *testing.T) {
 		if output != test.expected {
 			t.Errorf("Expected %q while %q expands with SRCDIR=%q; got %q", test.expected, test.input, test.srcdir, output)
 		}
+	}
+}
+
+func TestImportVendor(t *testing.T) {
+	testenv.MustHaveGoBuild(t) // really must just have source
+	ctxt := Default
+	ctxt.GOPATH = ""
+	p, err := ctxt.Import("golang_org/x/net/http2/hpack", filepath.Join(ctxt.GOROOT, "src/net/http"), 0)
+	if err != nil {
+		t.Fatalf("cannot find vendored golang_org/x/net/http2/hpack from net/http directory: %v", err)
+	}
+	want := "vendor/golang_org/x/net/http2/hpack"
+	if p.ImportPath != want {
+		t.Fatalf("Import succeeded but found %q, want %q", p.ImportPath, want)
+	}
+}
+
+func TestImportVendorFailure(t *testing.T) {
+	testenv.MustHaveGoBuild(t) // really must just have source
+	ctxt := Default
+	ctxt.GOPATH = ""
+	p, err := ctxt.Import("x.com/y/z", filepath.Join(ctxt.GOROOT, "src/net/http"), 0)
+	if err == nil {
+		t.Fatalf("found made-up package x.com/y/z in %s", p.Dir)
+	}
+
+	e := err.Error()
+	if !strings.Contains(e, " (vendor tree)") {
+		t.Fatalf("error on failed import does not mention GOROOT/src/vendor directory:\n%s", e)
+	}
+}
+
+func TestImportVendorParentFailure(t *testing.T) {
+	testenv.MustHaveGoBuild(t) // really must just have source
+	ctxt := Default
+	ctxt.GOPATH = ""
+	// This import should fail because the vendor/golang.org/x/net/http2 directory has no source code.
+	p, err := ctxt.Import("golang_org/x/net/http2", filepath.Join(ctxt.GOROOT, "src/net/http"), 0)
+	if err == nil {
+		t.Fatalf("found empty parent in %s", p.Dir)
+	}
+	if p != nil && p.Dir != "" {
+		t.Fatalf("decided to use %s", p.Dir)
+	}
+	e := err.Error()
+	if !strings.Contains(e, " (vendor tree)") {
+		t.Fatalf("error on failed import does not mention GOROOT/src/vendor directory:\n%s", e)
 	}
 }

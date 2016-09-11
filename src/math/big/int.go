@@ -273,7 +273,7 @@ func (z *Int) Mod(x, y *Int) *Int {
 // DivMod implements Euclidean division and modulus (unlike Go):
 //
 //	q = x div y  such that
-//	m = x - y*q  with 0 <= m < |q|
+//	m = x - y*q  with 0 <= m < |y|
 //
 // (See Raymond T. Boute, ``The Euclidean definition of the functions
 // div and mod''. ACM Transactions on Programming Languages and
@@ -459,11 +459,11 @@ func (z *Int) GCD(x, y, a, b *Int) *Int {
 	q := new(Int)
 	temp := new(Int)
 
+	r := new(Int)
 	for len(B.abs) > 0 {
-		r := new(Int)
 		q, r = q.QuoRem(A, B, r)
 
-		A, B = B, r
+		A, B, r = B, r, A
 
 		temp.Set(X)
 		X.Mul(X, q)

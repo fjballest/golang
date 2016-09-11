@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"internal/testenv"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -24,9 +25,7 @@ func toJson(v interface{}) string {
 }
 
 func TestLookupMX(t *testing.T) {
-	if testing.Short() || !*testExternal {
-		t.Skip("avoid external network")
-	}
+	testenv.MustHaveExternalNetwork(t)
 
 	for _, server := range nslookupTestServers {
 		mx, err := LookupMX(server)
@@ -51,9 +50,7 @@ func TestLookupMX(t *testing.T) {
 }
 
 func TestLookupCNAME(t *testing.T) {
-	if testing.Short() || !*testExternal {
-		t.Skip("avoid external network")
-	}
+	testenv.MustHaveExternalNetwork(t)
 
 	for _, server := range nslookupTestServers {
 		cname, err := LookupCNAME(server)
@@ -76,9 +73,7 @@ func TestLookupCNAME(t *testing.T) {
 }
 
 func TestLookupNS(t *testing.T) {
-	if testing.Short() || !*testExternal {
-		t.Skip("avoid external network")
-	}
+	testenv.MustHaveExternalNetwork(t)
 
 	for _, server := range nslookupTestServers {
 		ns, err := LookupNS(server)
@@ -104,9 +99,7 @@ func TestLookupNS(t *testing.T) {
 }
 
 func TestLookupTXT(t *testing.T) {
-	if testing.Short() || !*testExternal {
-		t.Skip("avoid external network")
-	}
+	testenv.MustHaveExternalNetwork(t)
 
 	for _, server := range nslookupTestServers {
 		txt, err := LookupTXT(server)
@@ -177,14 +170,14 @@ func nslookupMX(name string) (mx []*MX, err error) {
 	rx := regexp.MustCompile(`(?m)^([a-z0-9.\-]+)\s+mail exchanger\s*=\s*([0-9]+)\s*([a-z0-9.\-]+)$`)
 	for _, ans := range rx.FindAllStringSubmatch(r, -1) {
 		pref, _, _ := dtoi(ans[2], 0)
-		mx = append(mx, &MX{ensureEndDot(ans[3]), uint16(pref)})
+		mx = append(mx, &MX{absDomainName([]byte(ans[3])), uint16(pref)})
 	}
 	// windows nslookup syntax
 	// gmail.com       MX preference = 30, mail exchanger = alt3.gmail-smtp-in.l.google.com
 	rx = regexp.MustCompile(`(?m)^([a-z0-9.\-]+)\s+MX preference\s*=\s*([0-9]+)\s*,\s*mail exchanger\s*=\s*([a-z0-9.\-]+)$`)
 	for _, ans := range rx.FindAllStringSubmatch(r, -1) {
 		pref, _, _ := dtoi(ans[2], 0)
-		mx = append(mx, &MX{ensureEndDot(ans[3]), uint16(pref)})
+		mx = append(mx, &MX{absDomainName([]byte(ans[3])), uint16(pref)})
 	}
 	return
 }
@@ -198,7 +191,7 @@ func nslookupNS(name string) (ns []*NS, err error) {
 	// golang.org      nameserver = ns1.google.com.
 	rx := regexp.MustCompile(`(?m)^([a-z0-9.\-]+)\s+nameserver\s*=\s*([a-z0-9.\-]+)$`)
 	for _, ans := range rx.FindAllStringSubmatch(r, -1) {
-		ns = append(ns, &NS{ensureEndDot(ans[2])})
+		ns = append(ns, &NS{absDomainName([]byte(ans[2]))})
 	}
 	return
 }
@@ -215,7 +208,7 @@ func nslookupCNAME(name string) (cname string, err error) {
 	for _, ans := range rx.FindAllStringSubmatch(r, -1) {
 		last = ans[2]
 	}
-	return ensureEndDot(last), nil
+	return absDomainName([]byte(last)), nil
 }
 
 func nslookupTXT(name string) (txt []string, err error) {

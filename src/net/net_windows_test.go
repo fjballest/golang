@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 	"syscall"
@@ -213,39 +214,94 @@ func runCmd(args ...string) ([]byte, error) {
 	return removeUTF8BOM(out), nil
 }
 
-func netshInterfaceIPShowConfig() ([]string, error) {
-	out, err := runCmd("netsh", "interface", "ip", "show", "config")
+func netshSpeaksEnglish(t *testing.T) bool {
+	out, err := runCmd("netsh", "help")
 	if err != nil {
-		return nil, err
+		t.Fatal(err)
 	}
+	return bytes.Contains(out, []byte("The following commands are available:"))
+}
+
+func netshInterfaceIPShowInterface(ipver string, ifaces map[string]bool) error {
+	out, err := runCmd("netsh", "interface", ipver, "show", "interface", "level=verbose")
+	if err != nil {
+		return err
+	}
+	// interface information is listed like:
+	//
+	//Interface Local Area Connection Parameters
+	//----------------------------------------------
+	//IfLuid                             : ethernet_6
+	//IfIndex                            : 11
+	//State                              : connected
+	//Metric                             : 10
+	//...
+	var name string
 	lines := bytes.Split(out, []byte{'\r', '\n'})
-	names := make([]string, 0)
 	for _, line := range lines {
-		f := bytes.Split(line, []byte{'"'})
-		if len(f) == 3 {
-			names = append(names, string(f[1]))
+		if bytes.HasPrefix(line, []byte("Interface ")) && bytes.HasSuffix(line, []byte(" Parameters")) {
+			f := line[len("Interface "):]
+			f = f[:len(f)-len(" Parameters")]
+			name = string(f)
+			continue
+		}
+		var isup bool
+		switch string(line) {
+		case "State                              : connected":
+			isup = true
+		case "State                              : disconnected":
+			isup = false
+		default:
+			continue
+		}
+		if name != "" {
+			if v, ok := ifaces[name]; ok && v != isup {
+				return fmt.Errorf("%s:%s isup=%v: ipv4 and ipv6 report different interface state", ipver, name, isup)
+			}
+			ifaces[name] = isup
+			name = ""
 		}
 	}
-	return names, nil
+	return nil
 }
 
 func TestInterfacesWithNetsh(t *testing.T) {
 	if isWindowsXP(t) {
 		t.Skip("Windows XP netsh command does not provide required functionality")
 	}
+	if !netshSpeaksEnglish(t) {
+		t.Skip("English version of netsh required for this test")
+	}
+
+	toString := func(name string, isup bool) string {
+		if isup {
+			return name + ":up"
+		}
+		return name + ":down"
+	}
+
 	ift, err := Interfaces()
 	if err != nil {
 		t.Fatal(err)
 	}
 	have := make([]string, 0)
 	for _, ifi := range ift {
-		have = append(have, ifi.Name)
+		have = append(have, toString(ifi.Name, ifi.Flags&FlagUp != 0))
 	}
 	sort.Strings(have)
 
-	want, err := netshInterfaceIPShowConfig()
+	ifaces := make(map[string]bool)
+	err = netshInterfaceIPShowInterface("ipv6", ifaces)
 	if err != nil {
 		t.Fatal(err)
+	}
+	err = netshInterfaceIPShowInterface("ipv4", ifaces)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make([]string, 0)
+	for name, isup := range ifaces {
+		want = append(want, toString(name, isup))
 	}
 	sort.Strings(want)
 
@@ -254,20 +310,43 @@ func TestInterfacesWithNetsh(t *testing.T) {
 	}
 }
 
-func netshInterfaceIPv4ShowAddress(name string) ([]string, error) {
-	out, err := runCmd("netsh", "interface", "ipv4", "show", "address", "name=\""+name+"\"")
-	if err != nil {
-		return nil, err
-	}
-	// adress information is listed like:
+func netshInterfaceIPv4ShowAddress(name string, netshOutput []byte) []string {
+	// Address information is listed like:
+	//
+	//Configuration for interface "Local Area Connection"
+	//    DHCP enabled:                         Yes
 	//    IP Address:                           10.0.0.2
 	//    Subnet Prefix:                        10.0.0.0/24 (mask 255.255.255.0)
 	//    IP Address:                           10.0.0.3
 	//    Subnet Prefix:                        10.0.0.0/24 (mask 255.255.255.0)
+	//    Default Gateway:                      10.0.0.254
+	//    Gateway Metric:                       0
+	//    InterfaceMetric:                      10
+	//
+	//Configuration for interface "Loopback Pseudo-Interface 1"
+	//    DHCP enabled:                         No
+	//    IP Address:                           127.0.0.1
+	//    Subnet Prefix:                        127.0.0.0/8 (mask 255.0.0.0)
+	//    InterfaceMetric:                      50
+	//
 	addrs := make([]string, 0)
 	var addr, subnetprefix string
-	lines := bytes.Split(out, []byte{'\r', '\n'})
+	var processingOurInterface bool
+	lines := bytes.Split(netshOutput, []byte{'\r', '\n'})
 	for _, line := range lines {
+		if !processingOurInterface {
+			if !bytes.HasPrefix(line, []byte("Configuration for interface")) {
+				continue
+			}
+			if !bytes.Contains(line, []byte(`"`+name+`"`)) {
+				continue
+			}
+			processingOurInterface = true
+			continue
+		}
+		if len(line) == 0 {
+			break
+		}
 		if bytes.Contains(line, []byte("Subnet Prefix:")) {
 			f := bytes.Split(line, []byte{':'})
 			if len(f) == 2 {
@@ -291,18 +370,50 @@ func netshInterfaceIPv4ShowAddress(name string) ([]string, error) {
 			}
 		}
 	}
-	return addrs, nil
+	return addrs
 }
 
-func netshInterfaceIPv6ShowAddress(name string) ([]string, error) {
+func netshInterfaceIPv6ShowAddress(name string, netshOutput []byte) []string {
+	// Address information is listed like:
+	//
+	//Address ::1 Parameters
+	//---------------------------------------------------------
+	//Interface Luid     : Loopback Pseudo-Interface 1
+	//Scope Id           : 0.0
+	//Valid Lifetime     : infinite
+	//Preferred Lifetime : infinite
+	//DAD State          : Preferred
+	//Address Type       : Other
+	//Skip as Source     : false
+	//
+	//Address XXXX::XXXX:XXXX:XXXX:XXXX%11 Parameters
+	//---------------------------------------------------------
+	//Interface Luid     : Local Area Connection
+	//Scope Id           : 0.11
+	//Valid Lifetime     : infinite
+	//Preferred Lifetime : infinite
+	//DAD State          : Preferred
+	//Address Type       : Other
+	//Skip as Source     : false
+	//
+
 	// TODO: need to test ipv6 netmask too, but netsh does not outputs it
-	out, err := runCmd("netsh", "interface", "ipv6", "show", "address", "interface=\""+name+"\"")
-	if err != nil {
-		return nil, err
-	}
+	var addr string
 	addrs := make([]string, 0)
-	lines := bytes.Split(out, []byte{'\r', '\n'})
+	lines := bytes.Split(netshOutput, []byte{'\r', '\n'})
 	for _, line := range lines {
+		if addr != "" {
+			if len(line) == 0 {
+				addr = ""
+				continue
+			}
+			if string(line) != "Interface Luid     : "+name {
+				continue
+			}
+			addrs = append(addrs, addr)
+			addr = ""
+			continue
+		}
 		if !bytes.HasPrefix(line, []byte("Address")) {
 			continue
 		}
@@ -315,21 +426,45 @@ func netshInterfaceIPv6ShowAddress(name string) ([]string, error) {
 		}
 		// remove scope ID if present
 		f = bytes.Split(f[1], []byte{'%'})
-		addrs = append(addrs, string(bytes.TrimSpace(f[0])))
+
+		// netsh can create IPv4-embedded IPv6 addresses, like fe80::5efe:192.168.140.1.
+		// Convert these to all hexadecimal fe80::5efe:c0a8:8c01 for later string comparisons.
+		ipv4Tail := regexp.MustCompile(`:\d+\.\d+\.\d+\.\d+$`)
+		if ipv4Tail.Match(f[0]) {
+			f[0] = []byte(ParseIP(string(f[0])).String())
+		}
+
+		addr = string(bytes.ToLower(bytes.TrimSpace(f[0])))
 	}
-	return addrs, nil
+	return addrs
 }
 
 func TestInterfaceAddrsWithNetsh(t *testing.T) {
-	t.Skip("skipping test; see https://golang.org/issue/12811")
 	if isWindowsXP(t) {
 		t.Skip("Windows XP netsh command does not provide required functionality")
 	}
+	if !netshSpeaksEnglish(t) {
+		t.Skip("English version of netsh required for this test")
+	}
+
+	outIPV4, err := runCmd("netsh", "interface", "ipv4", "show", "address")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outIPV6, err := runCmd("netsh", "interface", "ipv6", "show", "address", "level=verbose")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ift, err := Interfaces()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, ifi := range ift {
+		// Skip the interface if it's down.
+		if (ifi.Flags & FlagUp) == 0 {
+			continue
+		}
 		have := make([]string, 0)
 		addrs, err := ifi.Addrs()
 		if err != nil {
@@ -357,14 +492,8 @@ func TestInterfaceAddrsWithNetsh(t *testing.T) {
 		}
 		sort.Strings(have)
 
-		want, err := netshInterfaceIPv4ShowAddress(ifi.Name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wantIPv6, err := netshInterfaceIPv6ShowAddress(ifi.Name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		want := netshInterfaceIPv4ShowAddress(ifi.Name, outIPV4)
+		wantIPv6 := netshInterfaceIPv6ShowAddress(ifi.Name, outIPV6)
 		want = append(want, wantIPv6...)
 		sort.Strings(want)
 
@@ -374,24 +503,34 @@ func TestInterfaceAddrsWithNetsh(t *testing.T) {
 	}
 }
 
+func getmacSpeaksEnglish(t *testing.T) bool {
+	out, err := runCmd("getmac", "/?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bytes.Contains(out, []byte("network adapters on a system"))
+}
+
 func TestInterfaceHardwareAddrWithGetmac(t *testing.T) {
-	t.Skip("skipping test; see https://golang.org/issue/12691")
 	if isWindowsXP(t) {
 		t.Skip("Windows XP does not have powershell command")
 	}
+	if !getmacSpeaksEnglish(t) {
+		t.Skip("English version of getmac required for this test")
+	}
+
 	ift, err := Interfaces()
 	if err != nil {
 		t.Fatal(err)
 	}
-	have := make([]string, 0)
+	have := make(map[string]string)
 	for _, ifi := range ift {
 		if ifi.Flags&FlagLoopback != 0 {
-			// no MAC for loopback interfaces
+			// no MAC address for loopback interfaces
 			continue
 		}
-		have = append(have, ifi.Name+"="+ifi.HardwareAddr.String())
+		have[ifi.Name] = ifi.HardwareAddr.String()
 	}
-	sort.Strings(have)
 
 	out, err := runCmd("getmac", "/fo", "list", "/v")
 	if err != nil {
@@ -411,43 +550,58 @@ func TestInterfaceHardwareAddrWithGetmac(t *testing.T) {
 	//
 	//Connection Name:  Bluetooth Network Connection
 	//Network Adapter:  Bluetooth Device (Personal Area Network)
-	//Physical Address: XX-XX-XX-XX-XX-XX
-	//Transport Name:   Media disconnected
+	//Physical Address: N/A
+	//Transport Name:   Hardware not present
 	//
-	want := make([]string, 0)
+	//Connection Name:  VMware Network Adapter VMnet8
+	//Network Adapter:  VMware Virtual Ethernet Adapter for VMnet8
+	//Physical Address: Disabled
+	//Transport Name:   Disconnected
+	//
+	want := make(map[string]string)
 	var name string
 	lines := bytes.Split(out, []byte{'\r', '\n'})
 	for _, line := range lines {
 		if bytes.Contains(line, []byte("Connection Name:")) {
 			f := bytes.Split(line, []byte{':'})
 			if len(f) != 2 {
-				t.Fatal("unexpected \"Connection Name\" line: %q", line)
+				t.Fatalf("unexpected \"Connection Name\" line: %q", line)
 			}
 			name = string(bytes.TrimSpace(f[1]))
 			if name == "" {
-				t.Fatal("empty name on \"Connection Name\" line: %q", line)
+				t.Fatalf("empty name on \"Connection Name\" line: %q", line)
 			}
 		}
 		if bytes.Contains(line, []byte("Physical Address:")) {
 			if name == "" {
-				t.Fatal("no matching name found: %q", string(out))
+				t.Fatalf("no matching name found: %q", string(out))
 			}
 			f := bytes.Split(line, []byte{':'})
 			if len(f) != 2 {
-				t.Fatal("unexpected \"Physical Address\" line: %q", line)
+				t.Fatalf("unexpected \"Physical Address\" line: %q", line)
 			}
-			addr := string(bytes.TrimSpace(f[1]))
+			addr := string(bytes.ToLower(bytes.TrimSpace(f[1])))
 			if addr == "" {
-				t.Fatal("empty address on \"Physical Address\" line: %q", line)
+				t.Fatalf("empty address on \"Physical Address\" line: %q", line)
+			}
+			if addr == "disabled" || addr == "n/a" {
+				continue
 			}
 			addr = strings.Replace(addr, "-", ":", -1)
-			want = append(want, name+"="+addr)
+			want[name] = addr
 			name = ""
 		}
 	}
-	sort.Strings(want)
 
-	if strings.Join(want, "/") != strings.Join(have, "/") {
-		t.Fatalf("unexpected MAC addresses %q, want %q", have, want)
+	for name, wantAddr := range want {
+		haveAddr, ok := have[name]
+		if !ok {
+			t.Errorf("getmac lists %q, but it could not be found among Go interfaces %v", name, have)
+			continue
+		}
+		if haveAddr != wantAddr {
+			t.Errorf("unexpected MAC address for %q - %v, want %v", name, haveAddr, wantAddr)
+			continue
+		}
 	}
 }

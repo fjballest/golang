@@ -32,7 +32,7 @@ var sigtable = [...]sigTabT{
 	/* 15 */ {_SigNotify + _SigKill, "SIGTERM: termination"},
 	/* 16 */ {_SigThrow + _SigUnblock, "SIGSTKFLT: stack fault"},
 	/* 17 */ {_SigNotify + _SigUnblock, "SIGCHLD: child status has changed"},
-	/* 18 */ {0, "SIGCONT: continue"},
+	/* 18 */ {_SigNotify + _SigDefault, "SIGCONT: continue"},
 	/* 19 */ {0, "SIGSTOP: stop, unblockable"},
 	/* 20 */ {_SigNotify + _SigDefault, "SIGTSTP: keyboard stop"},
 	/* 21 */ {_SigNotify + _SigDefault, "SIGTTIN: background read from tty"},
@@ -45,7 +45,7 @@ var sigtable = [...]sigTabT{
 	/* 28 */ {_SigNotify, "SIGWINCH: window size change"},
 	/* 29 */ {_SigNotify, "SIGIO: i/o now possible"},
 	/* 30 */ {_SigNotify, "SIGPWR: power failure restart"},
-	/* 31 */ {_SigNotify, "SIGSYS: bad system call"},
+	/* 31 */ {_SigThrow, "SIGSYS: bad system call"},
 	/* 32 */ {_SigSetStack + _SigUnblock, "signal 32"}, /* SIGCANCEL; see issue 6997 */
 	/* 33 */ {_SigSetStack + _SigUnblock, "signal 33"}, /* SIGSETXID; see issues 3871, 9400, 12498 */
 	/* 34 */ {_SigNotify, "signal 34"},

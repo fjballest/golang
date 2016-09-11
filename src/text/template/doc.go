@@ -64,7 +64,7 @@ space, horizontal tab, carriage return, and newline.
 Actions
 
 Here is the list of actions. "Arguments" and "pipelines" are evaluations of
-data, defined in detail below.
+data, defined in detail in the corresponding sections that follow.
 
 */
 //	{{/* a comment */}}
@@ -74,8 +74,9 @@ data, defined in detail below.
 /*
 
 	{{pipeline}}
-		The default textual representation of the value of the pipeline
-		is copied to the output.
+		The default textual representation (the same as would be
+		printed by fmt.Print) of the value of the pipeline is copied
+		to the output.
 
 	{{if pipeline}} T1 {{end}}
 		If the value of the pipeline is empty, no output is generated;
@@ -200,6 +201,8 @@ field of a struct, the function is not invoked automatically, but it
 can be used as a truth value for an if action and the like. To invoke
 it, use the call function, defined below.
 
+Pipelines
+
 A pipeline is a possibly chained sequence of "commands". A command is a simple
 value (argument) or a function or method call, possibly with multiple arguments:
 
@@ -217,10 +220,8 @@ value (argument) or a function or method call, possibly with multiple arguments:
 			function(Argument1, etc.)
 		Functions and function names are described below.
 
-Pipelines
-
 A pipeline may be "chained" by separating a sequence of commands with pipeline
-characters '|'. In a chained pipeline, the result of the each command is
+characters '|'. In a chained pipeline, the result of each command is
 passed as the last argument of the following command. The output of the final
 command in the pipeline is the value of the pipeline.
 

@@ -89,8 +89,8 @@ TEXT ·hasGCMAsm(SB),NOSPLIT,$0
 TEXT ·aesEncBlock(SB),NOSPLIT,$0
 	MOVQ dst+0(FP), DI
 	MOVQ src+8(FP), SI
-	MOVQ ks+16(FP), DX
-	MOVQ ks+24(FP), CX
+	MOVQ ks_base+16(FP), DX
+	MOVQ ks_len+24(FP), CX
 
 	SHRQ $2, CX
 	DECQ CX
@@ -211,8 +211,8 @@ TEXT ·gcmAesInit(SB),NOSPLIT,$0
 #define NR DX
 
 	MOVQ productTable+0(FP), dst
-	MOVQ ks+8(FP), KS
-	MOVQ ks+16(FP), NR
+	MOVQ ks_base+8(FP), KS
+	MOVQ ks_len+16(FP), NR
 
 	SHRQ $2, NR
 	DECQ NR
@@ -325,8 +325,8 @@ TEXT ·gcmAesData(SB),NOSPLIT,$0
 #define autLen DX
 
 	MOVQ productTable+0(FP), pTbl
-	MOVQ data+8(FP), aut
-	MOVQ data+16(FP), autLen
+	MOVQ data_base+8(FP), aut
+	MOVQ data_len+16(FP), autLen
 	MOVQ T+32(FP), tPtr
 
 	PXOR ACC0, ACC0
@@ -345,7 +345,7 @@ TEXT ·gcmAesData(SB),NOSPLIT,$0
 	PXOR B0, B0
 	MOVQ (aut), B0
 	PINSRD $2, 8(aut), B0
-	BYTE $0x66; BYTE $0x0f; BYTE $0x3a; BYTE $0x20; BYTE $0x46; BYTE $0x0c; BYTE $0x0c  //PINSRB $12, 12(aut), B0
+	PINSRB $12, 12(aut), B0
 	XORQ autLen, autLen
 	JMP dataMul
 
@@ -404,7 +404,7 @@ dataEnd:
 dataLoadLoop:
 
 		PSLLDQ $1, B0
-		BYTE $0x66; BYTE $0x0f; BYTE $0x3a; BYTE $0x20; BYTE $0x06; BYTE $0x00   //PINSRB $0, (aut), B0
+		PINSRB $0, (aut), B0
 
 		LEAQ -1(aut), aut
 		DECQ autLen
@@ -421,7 +421,7 @@ dataBail:
 #undef autLen
 
 // func gcmAesEnc(productTable *[256]byte, dst, src []byte, ctr, T *[16]byte, ks []uint32)
-TEXT ·gcmAesEnc(SB),0,$256-144
+TEXT ·gcmAesEnc(SB),0,$256-96
 #define pTbl DI
 #define ctx DX
 #define ctrPtr CX
@@ -477,12 +477,12 @@ TEXT ·gcmAesEnc(SB),0,$256-144
 
 	MOVQ productTable+0(FP), pTbl
 	MOVQ dst+8(FP), ctx
-	MOVQ src+32(FP), ptx
-	MOVQ src+40(FP), ptxLen
+	MOVQ src_base+32(FP), ptx
+	MOVQ src_len+40(FP), ptxLen
 	MOVQ ctr+56(FP), ctrPtr
 	MOVQ T+64(FP), tPtr
-	MOVQ KS+72(FP), ks
-	MOVQ nr+80(FP), NR
+	MOVQ ks_base+72(FP), ks
+	MOVQ ks_len+80(FP), NR
 
 	SHRQ $2, NR
 	DECQ NR
@@ -892,7 +892,7 @@ encLast4:
 	PXOR B0, B0
 ptxLoadLoop:
 		PSLLDQ $1, B0
-		BYTE $0x66; BYTE $0x0f; BYTE $0x3a; BYTE $0x20; BYTE $0x06; BYTE $0x00  //PINSRB $0, (ptx), B0
+		PINSRB $0, (ptx), B0
 		LEAQ -1(ptx), ptx
 		DECQ ptxLen
 	JNE ptxLoadLoop
@@ -932,7 +932,7 @@ gcmAesEncDone:
 #undef increment
 
 // func gcmAesDec(productTable *[256]byte, dst, src []byte, ctr, T *[16]byte, ks []uint32)
-TEXT ·gcmAesDec(SB),0,$128-144
+TEXT ·gcmAesDec(SB),0,$128-96
 #define increment(i) ADDL $1, aluCTR; MOVL aluCTR, aluTMP; XORL aluK, aluTMP; BSWAPL aluTMP; MOVL aluTMP, (3*4 + i*16)(SP)
 #define combinedDecRound(i) \
 	MOVOU (16*i)(ks), T0;\
@@ -960,12 +960,12 @@ TEXT ·gcmAesDec(SB),0,$128-144
 
 	MOVQ productTable+0(FP), pTbl
 	MOVQ dst+8(FP), ptx
-	MOVQ src+32(FP), ctx
-	MOVQ src+40(FP), ptxLen
+	MOVQ src_base+32(FP), ctx
+	MOVQ src_len+40(FP), ptxLen
 	MOVQ ctr+56(FP), ctrPtr
 	MOVQ T+64(FP), tPtr
-	MOVQ KS+72(FP), ks
-	MOVQ nr+80(FP), NR
+	MOVQ ks_base+72(FP), ks
+	MOVQ ks_len+80(FP), NR
 
 	SHRQ $2, NR
 	DECQ NR
@@ -1264,7 +1264,7 @@ decLast3:
 	PXOR T1, B0
 
 ptxStoreLoop:
-		BYTE $0x66; BYTE $0x0f; BYTE $0x3a; BYTE $0x14; BYTE $0x06; BYTE $0x00  // PEXTRB $0, B0, (ptx)
+		PEXTRB $0, B0, (ptx)
 		PSRLDQ $1, B0
 		LEAQ 1(ptx), ptx
 		DECQ ptxLen

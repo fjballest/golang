@@ -1,4 +1,4 @@
-// Copyright 2012 The Go Authors.  All rights reserved.
+// Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -6,9 +6,8 @@ package main
 
 import (
 	"bytes"
-	"debug/elf"
-	"encoding/binary"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -73,8 +72,8 @@ const (
 var outputLock sync.Mutex
 
 // run runs the command line cmd in dir.
-// If mode has ShowOutput set, run collects cmd's output and returns it as a string;
-// otherwise, run prints cmd's output to standard output after the command finishes.
+// If mode has ShowOutput set and Background unset, run passes cmd's output to
+// stdout/stderr directly. Otherwise, run returns cmd's output as a string.
 // If mode has CheckExit set and the command fails, run calls fatal.
 // If mode has Background set, this command is being run as a
 // Background job. Only bgrun should use the Background mode,
@@ -131,7 +130,6 @@ var maxbg = 4 /* maximum number of jobs to run at once */
 
 var (
 	bgwork = make(chan func(), 1e5)
-	bgdone = make(chan struct{}, 1e5)
 
 	bghelpers sync.WaitGroup
 
@@ -401,9 +399,8 @@ func main() {
 	switch gohostos {
 	case "darwin":
 		// Even on 64-bit platform, darwin uname -m prints i386.
-		if strings.Contains(run("", CheckExit, "sysctl", "machdep.cpu.extfeatures"), "EM64T") {
-			gohostarch = "amd64"
-		}
+		// We don't support any of the OS X versions that run on 32-bit-only hardware anymore.
+		gohostarch = "amd64"
 	case "freebsd":
 		// Since FreeBSD 10 gcc is no longer part of the base system.
 		defaultclang = true
@@ -444,15 +441,12 @@ func main() {
 		case strings.Contains(out, "ppc64"):
 			gohostarch = "ppc64"
 		case strings.Contains(out, "mips64"):
-			file, err := elf.Open(os.Args[0])
-			if err != nil {
-				fatal("failed to open %s to determine endianness: %v", os.Args[0], err)
-			}
-			if file.FileHeader.ByteOrder == binary.BigEndian {
-				gohostarch = "mips64"
-			} else {
+			gohostarch = "mips64"
+			if elfIsLittleEndian(os.Args[0]) {
 				gohostarch = "mips64le"
 			}
+		case strings.Contains(out, "s390x"):
+			gohostarch = "s390x"
 		case gohostos == "darwin":
 			if strings.Contains(run("", CheckExit, "uname", "-v"), "RELEASE_ARM_") {
 				gohostarch = "arm"
@@ -462,7 +456,7 @@ func main() {
 		}
 	}
 
-	if gohostarch == "arm" {
+	if gohostarch == "arm" || gohostarch == "mips64" || gohostarch == "mips64le" {
 		maxbg = min(maxbg, runtime.NumCPU())
 	}
 	bginit()
@@ -555,4 +549,29 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// elfIsLittleEndian detects if the ELF file is little endian.
+func elfIsLittleEndian(fn string) bool {
+	// read the ELF file header to determine the endianness without using the
+	// debug/elf package.
+	file, err := os.Open(fn)
+	if err != nil {
+		fatal("failed to open file to determine endianness: %v", err)
+	}
+	defer file.Close()
+	var hdr [16]byte
+	if _, err := io.ReadFull(file, hdr[:]); err != nil {
+		fatal("failed to read ELF header to determine endianness: %v", err)
+	}
+	// hdr[5] is EI_DATA byte, 1 is ELFDATA2LSB and 2 is ELFDATA2MSB
+	switch hdr[5] {
+	default:
+		fatal("unknown ELF endianness of %s: EI_DATA = %d", fn, hdr[5])
+	case 1:
+		return true
+	case 2:
+		return false
+	}
+	panic("unreachable")
 }

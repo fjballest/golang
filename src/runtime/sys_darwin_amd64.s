@@ -155,10 +155,16 @@ timeloop:
 
 systime:
 	// Fall back to system call (usually first call in this thread).
-	MOVQ	SP, DI	// must be non-nil, unused
+	MOVQ	SP, DI
 	MOVQ	$0, SI
+	MOVQ	$0, DX  // required as of Sierra; Issue 16570
 	MOVL	$(0x2000000+116), AX
 	SYSCALL
+	CMPQ	AX, $0
+	JNE	inreg
+	MOVQ	0(SP), AX
+	MOVL	8(SP), DX
+inreg:
 	// sec is in AX, usec in DX
 	// return nsec in AX
 	IMULQ	$1000000000, AX
@@ -214,10 +220,14 @@ TEXT runtime·sigaction(SB),NOSPLIT,$0-24
 
 TEXT runtime·sigfwd(SB),NOSPLIT,$0-32
 	MOVQ fn+0(FP),    AX
-	MOVQ sig+8(FP),   DI
+	MOVL sig+8(FP),   DI
 	MOVQ info+16(FP), SI
 	MOVQ ctx+24(FP),  DX
+	MOVQ SP, BP
+	SUBQ $64, SP
+	ANDQ $~15, SP     // alignment for x86_64 ABI
 	CALL AX
+	MOVQ BP, SP
 	RET
 
 TEXT runtime·sigreturn(SB),NOSPLIT,$0-12
@@ -235,6 +245,7 @@ TEXT runtime·sigtramp(SB),NOSPLIT,$32
 	MOVQ R8, 24(SP) // ctx
 	MOVQ $runtime·sigtrampgo(SB), AX
 	CALL AX
+	INT $3 // not reached (see issue 16453)
 
 TEXT runtime·mmap(SB),NOSPLIT,$0
 	MOVQ	addr+0(FP), DI		// arg 1 addr

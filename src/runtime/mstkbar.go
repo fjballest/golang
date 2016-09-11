@@ -102,6 +102,26 @@
 // enabling write barriers globally during the concurrent scan phase.
 // However, traditionally, write barriers are not enabled during this
 // phase.
+//
+// Synchronization
+// ---------------
+//
+// For the most part, accessing and modifying stack barriers is
+// synchronized around GC safe points. Installing stack barriers
+// forces the G to a safe point, while all other operations that
+// modify stack barriers run on the G and prevent it from reaching a
+// safe point.
+//
+// Subtlety arises when a G may be tracebacked when *not* at a safe
+// point. This happens during sigprof. For this, each G has a "stack
+// barrier lock" (see gcLockStackBarriers, gcUnlockStackBarriers).
+// Operations that manipulate stack barriers acquire this lock, while
+// sigprof tries to acquire it and simply skips the traceback if it
+// can't acquire it. There is one exception for performance and
+// complexity reasons: hitting a stack barrier manipulates the stack
+// barrier list without acquiring the stack barrier lock. For this,
+// gentraceback performs a special fix up if the traceback starts in
+// the stack barrier function.
 
 package runtime
 
@@ -194,13 +214,14 @@ func gcInstallStackBarrier(gp *g, frame *stkframe) bool {
 }
 
 // gcRemoveStackBarriers removes all stack barriers installed in gp's stack.
+//
+// gp's stack barriers must be locked.
+//
 //go:nowritebarrier
 func gcRemoveStackBarriers(gp *g) {
 	if debugStackBarrier && gp.stkbarPos != 0 {
 		print("hit ", gp.stkbarPos, " stack barriers, goid=", gp.goid, "\n")
 	}
-
-	gcLockStackBarriers(gp)
 
 	// Remove stack barriers that we didn't hit.
 	for _, stkbar := range gp.stkbar[gp.stkbarPos:] {
@@ -211,8 +232,6 @@ func gcRemoveStackBarriers(gp *g) {
 	// adjust them.
 	gp.stkbarPos = 0
 	gp.stkbar = gp.stkbar[:0]
-
-	gcUnlockStackBarriers(gp)
 }
 
 // gcRemoveStackBarrier removes a single stack barrier. It is the
@@ -236,6 +255,31 @@ func gcRemoveStackBarrier(gp *g, stkbar stkbar) {
 		throw("stack barrier lost")
 	}
 	*lrPtr = sys.Uintreg(stkbar.savedLRVal)
+}
+
+// gcTryRemoveAllStackBarriers tries to remove stack barriers from all
+// Gs in gps. It is best-effort and efficient. If it can't remove
+// barriers from a G immediately, it will simply skip it.
+func gcTryRemoveAllStackBarriers(gps []*g) {
+	for _, gp := range gps {
+	retry:
+		for {
+			switch s := readgstatus(gp); s {
+			default:
+				break retry
+
+			case _Grunnable, _Gsyscall, _Gwaiting:
+				if !castogscanstatus(gp, s, s|_Gscan) {
+					continue
+				}
+				gcLockStackBarriers(gp)
+				gcRemoveStackBarriers(gp)
+				gcUnlockStackBarriers(gp)
+				restartg(gp)
+				break retry
+			}
+		}
+	}
 }
 
 // gcPrintStkbars prints the stack barriers of gp for debugging. It
@@ -305,7 +349,9 @@ func nextBarrierPC() uintptr {
 //go:nosplit
 func setNextBarrierPC(pc uintptr) {
 	gp := getg()
+	gcLockStackBarriers(gp)
 	gp.stkbar[gp.stkbarPos].savedLRVal = pc
+	gcUnlockStackBarriers(gp)
 }
 
 // gcLockStackBarriers synchronizes with tracebacks of gp's stack
@@ -319,6 +365,8 @@ func setNextBarrierPC(pc uintptr) {
 //
 //go:nosplit
 func gcLockStackBarriers(gp *g) {
+	// Disable preemption so scanstack cannot run while the caller
+	// is manipulating the stack barriers.
 	acquirem()
 	for !atomic.Cas(&gp.stackLock, 0, 1) {
 		osyield()

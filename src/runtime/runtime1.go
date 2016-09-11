@@ -22,6 +22,7 @@ const (
 )
 
 var traceback_cache uint32 = 2 << tracebackShift
+var traceback_env uint32
 
 // gotraceback returns the current traceback settings.
 //
@@ -39,9 +40,10 @@ func gotraceback() (level int32, all, crash bool) {
 		level = int32(_g_.m.traceback)
 		return
 	}
-	crash = traceback_cache&tracebackCrash != 0
-	all = all || traceback_cache&tracebackAll != 0
-	level = int32(traceback_cache >> tracebackShift)
+	t := atomic.Load(&traceback_cache)
+	crash = t&tracebackCrash != 0
+	all = all || t&tracebackAll != 0
+	level = int32(t >> tracebackShift)
 	return
 }
 
@@ -50,7 +52,7 @@ var (
 	argv **byte
 )
 
-// nosplit for use in linux/386 startup linux_setup_vdso
+// nosplit for use in linux startup sysargs
 //go:nosplit
 func argv_index(argv **byte, i int32) *byte {
 	return *(**byte)(add(unsafe.Pointer(argv), uintptr(i)*sys.PtrSize))
@@ -75,7 +77,7 @@ func goargs() {
 
 func goenvs_unix() {
 	// TODO(austin): ppc64 in dynamic linking mode doesn't
-	// guarantee env[] will immediately follow argv.  Might cause
+	// guarantee env[] will immediately follow argv. Might cause
 	// problems.
 	n := int32(0)
 	for argv_index(argv, argc+1+n) != nil {
@@ -240,7 +242,7 @@ func check() {
 
 	k = unsafe.Pointer(uintptr(0xfedcb123))
 	if sys.PtrSize == 8 {
-		k = unsafe.Pointer(uintptr(unsafe.Pointer(k)) << 10)
+		k = unsafe.Pointer(uintptr(k) << 10)
 	}
 	if casp(&k, nil, nil) {
 		throw("casp1")
@@ -382,25 +384,8 @@ func parsedebugvars() {
 		}
 	}
 
-	switch p := gogetenv("GOTRACEBACK"); p {
-	case "none":
-		traceback_cache = 0
-	case "single", "":
-		traceback_cache = 1 << tracebackShift
-	case "all":
-		traceback_cache = 1<<tracebackShift | tracebackAll
-	case "system":
-		traceback_cache = 2<<tracebackShift | tracebackAll
-	case "crash":
-		traceback_cache = 2<<tracebackShift | tracebackAll | tracebackCrash
-	default:
-		traceback_cache = uint32(atoi(p))<<tracebackShift | tracebackAll
-	}
-	// when C owns the process, simply exit'ing the process on fatal errors
-	// and panics is surprising. Be louder and abort instead.
-	if islibrary || isarchive {
-		traceback_cache |= tracebackCrash
-	}
+	setTraceback(gogetenv("GOTRACEBACK"))
+	traceback_env = traceback_cache
 
 	if debug.gcstackbarrierall > 0 {
 		firstStackBarrierOffset = 0
@@ -412,6 +397,34 @@ func parsedebugvars() {
 		writeBarrier.cgo = true
 		writeBarrier.enabled = true
 	}
+}
+
+//go:linkname setTraceback runtime/debug.SetTraceback
+func setTraceback(level string) {
+	var t uint32
+	switch level {
+	case "none":
+		t = 0
+	case "single", "":
+		t = 1 << tracebackShift
+	case "all":
+		t = 1<<tracebackShift | tracebackAll
+	case "system":
+		t = 2<<tracebackShift | tracebackAll
+	case "crash":
+		t = 2<<tracebackShift | tracebackAll | tracebackCrash
+	default:
+		t = uint32(atoi(level))<<tracebackShift | tracebackAll
+	}
+	// when C owns the process, simply exit'ing the process on fatal errors
+	// and panics is surprising. Be louder and abort instead.
+	if islibrary || isarchive {
+		t |= tracebackCrash
+	}
+
+	t |= traceback_env
+
+	atomic.Store(&traceback_cache, t)
 }
 
 // Poor mans 64-bit division.
@@ -464,10 +477,51 @@ func gomcache() *mcache {
 }
 
 //go:linkname reflect_typelinks reflect.typelinks
-func reflect_typelinks() [][]*_type {
-	ret := [][]*_type{firstmoduledata.typelinks}
+func reflect_typelinks() ([]unsafe.Pointer, [][]int32) {
+	sections := []unsafe.Pointer{unsafe.Pointer(firstmoduledata.types)}
+	ret := [][]int32{firstmoduledata.typelinks}
 	for datap := firstmoduledata.next; datap != nil; datap = datap.next {
+		sections = append(sections, unsafe.Pointer(datap.types))
 		ret = append(ret, datap.typelinks)
 	}
-	return ret
+	return sections, ret
+}
+
+// reflect_resolveNameOff resolves a name offset from a base pointer.
+//go:linkname reflect_resolveNameOff reflect.resolveNameOff
+func reflect_resolveNameOff(ptrInModule unsafe.Pointer, off int32) unsafe.Pointer {
+	return unsafe.Pointer(resolveNameOff(ptrInModule, nameOff(off)).bytes)
+}
+
+// reflect_resolveTypeOff resolves an *rtype offset from a base type.
+//go:linkname reflect_resolveTypeOff reflect.resolveTypeOff
+func reflect_resolveTypeOff(rtype unsafe.Pointer, off int32) unsafe.Pointer {
+	return unsafe.Pointer((*_type)(rtype).typeOff(typeOff(off)))
+}
+
+// reflect_resolveTextOff resolves an function pointer offset from a base type.
+//go:linkname reflect_resolveTextOff reflect.resolveTextOff
+func reflect_resolveTextOff(rtype unsafe.Pointer, off int32) unsafe.Pointer {
+	return (*_type)(rtype).textOff(textOff(off))
+
+}
+
+// reflect_addReflectOff adds a pointer to the reflection offset lookup map.
+//go:linkname reflect_addReflectOff reflect.addReflectOff
+func reflect_addReflectOff(ptr unsafe.Pointer) int32 {
+	reflectOffsLock()
+	if reflectOffs.m == nil {
+		reflectOffs.m = make(map[int32]unsafe.Pointer)
+		reflectOffs.minv = make(map[unsafe.Pointer]int32)
+		reflectOffs.next = -1
+	}
+	id, found := reflectOffs.minv[ptr]
+	if !found {
+		id = reflectOffs.next
+		reflectOffs.next-- // use negative offsets as IDs to aid debugging
+		reflectOffs.m[id] = ptr
+		reflectOffs.minv[ptr] = id
+	}
+	reflectOffsUnlock()
+	return id
 }

@@ -1,0 +1,211 @@
+
+
+Removing test/bench/shootout/timing.sh
+Removing test/bench/shootout/timing.log
+Removing test/bench/shootout/threadring.txt
+Removing test/bench/shootout/threadring.go
+Removing test/bench/shootout/threadring.c
+Removing test/bench/shootout/spectral-norm.txt
+Removing test/bench/shootout/spectral-norm.go
+Removing test/bench/shootout/spectral-norm.c
+Removing test/bench/shootout/spectral-norm-parallel.go
+Removing test/bench/shootout/reverse-complement.txt
+Removing test/bench/shootout/reverse-complement.go
+Removing test/bench/shootout/reverse-complement.c
+Removing test/bench/shootout/regex-dna.txt
+Removing test/bench/shootout/regex-dna.go
+Removing test/bench/shootout/regex-dna.c
+Removing test/bench/shootout/regex-dna-parallel.txt
+Removing test/bench/shootout/regex-dna-parallel.go
+Removing test/bench/shootout/pidigits.txt
+Removing test/bench/shootout/pidigits.go
+Removing test/bench/shootout/pidigits.c
+Removing test/bench/shootout/nbody.txt
+Removing test/bench/shootout/nbody.go
+Removing test/bench/shootout/nbody.c
+Removing test/bench/shootout/meteor-contest.txt
+Removing test/bench/shootout/meteor-contest.go
+Removing test/bench/shootout/meteor-contest.c
+Removing test/bench/shootout/mandelbrot.txt
+Removing test/bench/shootout/mandelbrot.go
+Removing test/bench/shootout/mandelbrot.c
+Removing test/bench/shootout/k-nucleotide.txt
+Removing test/bench/shootout/k-nucleotide.go
+Removing test/bench/shootout/k-nucleotide.c
+Removing test/bench/shootout/k-nucleotide-parallel.txt
+Removing test/bench/shootout/k-nucleotide-parallel.go
+Removing test/bench/shootout/fasta.txt
+Removing test/bench/shootout/fasta.go
+Removing test/bench/shootout/fasta.c
+Removing test/bench/shootout/fasta-1000.txt
+Removing test/bench/shootout/fannkuch.txt
+Removing test/bench/shootout/fannkuch.go
+Removing test/bench/shootout/fannkuch.c
+Removing test/bench/shootout/fannkuch-parallel.txt
+Removing test/bench/shootout/fannkuch-parallel.go
+Removing test/bench/shootout/chameneosredux.txt
+Removing test/bench/shootout/chameneosredux.go
+Removing test/bench/shootout/chameneogit: exit 1
+sredux.c
+Removing test/bench/shootout/binary-tree.txt
+Removing test/bench/shootout/binary-tree.go
+Removing test/bench/shootout/binary-tree.c
+Removing test/bench/shootout/binary-tree-freelist.txt
+Removing test/bench/shootout/binary-tree-freelist.go
+Auto-merging src/vendor/golang_org/x/net/lex/httplex/httplex_test.go
+Auto-merging src/vendor/golang_org/x/net/http2/hpack/huffman.go
+Auto-merging src/vendor/golang_org/x/net/http2/hpack/hpack_test.go
+Auto-merging src/vendor/golang_org/x/net/http2/hpack/hpack.go
+Auto-merging src/vendor/golang_org/x/net/http2/hpack/encode.go
+Removing src/syscall/route_noifma_test.go
+Removing src/syscall/route_ifma_test.go
+Removing src/syscall/route_bsd_test.go
+Removing src/runtime/wbfat_gen.go
+Removing src/runtime/wbfat.go
+Auto-merging src/runtime/trace/trace_test.go
+Auto-merging src/runtime/trace/trace_stack_test.go
+Removing src/runtime/signal_linux.go
+Auto-merging src/runtime/select.go
+CONFLICT (content): Merge conflict in src/runtime/select.go
+Auto-merging src/runtime/runtime2.go
+CONFLICT (content): Merge conflict in src/runtime/runtime2.go
+Auto-merging src/runtime/proc.go
+CONFLICT (content): Merge conflict in src/runtime/proc.go
+Auto-merging src/runtime/pprof/pprof_test.go
+Removing src/runtime/parfor_test.go
+Removing src/runtime/parfor.go
+Auto-merging src/runtime/os_linux_generic.go
+Removing src/runtime/os_linux_386.go
+Removing src/runtime/os2_windows.go
+Removing src/runtime/os2_netbsd.go
+Removing src/runtime/os2_linux_mips64x.go
+Removing src/runtime/os2_dragonfly.go
+Removing src/runtime/os2_darwin.go
+Removing src/runtime/os1_windows.go
+Removing src/runtime/os1_plan9.go
+Removing src/runtime/os1_openbsd.go
+Removing src/runtime/os1_netbsd.go
+Removing src/runtime/os1_nacl.go
+Removing src/runtime/os1_linux_mips64x.go
+Removing src/runtime/os1_linux_generic.go
+Removing src/runtime/os1_linux.go
+Removing src/runtime/os1_freebsd.go
+Removing src/runtime/os1_dragonfly.go
+Removing src/runtime/os1_darwin.go
+Removing src/runtime/lfstack_linux_ppc64x.go
+Removing src/runtime/lfstack_linux_mips64x.go
+Removing src/runtime/lfstack_linux_arm64.go
+Removing src/runtime/lfstack_darwin_arm64.go
+Removing src/runtime/lfstack_amd64.go
+Auto-merging src/runtime/chan.go
+CONFLICT (content): Merge conflict in src/runtime/chan.go
+Removing src/runtime/cgo/gcc_libinit_linux_ppc64x.c
+Auto-merging src/reflect/all_test.go
+CONFLICT (content): Merge conflict in src/reflect/all_test.go
+Auto-merging src/net/unixsock_test.go
+Auto-merging src/net/udpsock_test.go
+Auto-merging src/net/tcpsock_test.go
+Removing src/net/non_unix_test.go
+Auto-merging src/net/iprawsock_test.go
+Removing src/net/interface_openbsd.go
+Removing src/net/interface_netbsd.go
+Removing src/net/interface_dragonfly.go
+Auto-merging src/net/http/server.go
+Removing src/net/http/lex.go
+Removing src/net/dial_gen.go
+CONFLICT (modify/delete): src/go/types/testdata/stmt0.src deleted in HEAD and modified in go1.7.1. Version go1.7.1 of src/go/types/testdata/stmt0.src left in tree.
+CONFLICT (modify/delete): src/go/types/testdata/gotos.src deleted in HEAD and modified in go1.7.1. Version go1.7.1 of src/go/types/testdata/gotos.src left in tree.
+Auto-merging src/go/types/stdlib_test.go
+Auto-merging src/go/parser/parser.go
+Auto-merging src/go/build/syslist.go
+Auto-merging src/go/build/deps_test.go
+Auto-merging src/go/build/build_test.go
+CONFLICT (content): Merge conflict in src/go/build/build_test.go
+Auto-merging src/go/build/build.go
+CONFLICT (content): Merge conflict in src/go/build/build.go
+Auto-merging src/go/ast/ast.go
+Removing src/crypto/aes/cipher_asm.go
+Removing src/compress/flate/copy_test.go
+Removing src/compress/flate/copy.go
+Auto-merging src/cmd/vet/testdata/tests_test.go
+Removing src/cmd/vet/example.go
+Auto-merging src/cmd/link/internal/ld/sym.go
+Removing src/cmd/link/internal/ld/arch.go
+Removing src/cmd/link/internal/amd64/z.go
+Auto-merging src/cmd/internal/pprof/tempfile/tempfile.go
+Auto-merging src/cmd/internal/pprof/symbolz/symbolz.go
+Auto-merging src/cmd/internal/pprof/symbolizer/symbolizer.go
+Auto-merging src/cmd/internal/pprof/report/source.go
+Auto-merging src/cmd/internal/pprof/report/report.go
+Auto-merging src/cmd/internal/pprof/profile/prune.go
+Auto-merging src/cmd/internal/pprof/profile/proto.go
+Auto-merging src/cmd/internal/pprof/profile/profile.go
+Auto-merging src/cmd/internal/pprof/profile/legacy_profile.go
+Auto-merging src/cmd/internal/pprof/profile/encode.go
+Auto-merging src/cmd/internal/pprof/plugin/plugin.go
+Auto-merging src/cmd/internal/pprof/fetch/fetch.go
+Auto-merging src/cmd/internal/pprof/driver/interactive.go
+Auto-merging src/cmd/internal/pprof/driver/driver.go
+Auto-merging src/cmd/internal/pprof/commands/commands.go
+Auto-merging src/cmd/internal/obj/sym.go
+Auto-merging src/cmd/internal/obj/s390x/listz.go
+Removing src/cmd/internal/obj/fmt.go
+Removing src/cmd/gofmt/testdata/slices2.input
+Removing src/cmd/gofmt/testdata/slices2.golden
+Auto-merging src/cmd/gofmt/gofmt_test.go
+Auto-merging src/cmd/gofmt/gofmt.go
+Auto-merging src/cmd/go/pkg.go
+Auto-merging src/cmd/go/main.go
+CONFLICT (content): Merge conflict in src/cmd/go/main.go
+Auto-merging src/cmd/go/generate.go
+Auto-merging src/cmd/go/fmt.go
+Auto-merging src/cmd/go/build.go
+Auto-merging src/cmd/go/alldocs.go
+CONFLICT (content): Merge conflict in src/cmd/go/alldocs.go
+Auto-merging src/cmd/doc/pkg.go
+Auto-merging src/cmd/dist/build.go
+Auto-merging src/cmd/compile/internal/gc/walk.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/walk.go
+Auto-merging src/cmd/compile/internal/gc/typecheck.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/typecheck.go
+Auto-merging src/cmd/compile/internal/gc/syntax.go
+Auto-merging src/cmd/compile/internal/gc/swt.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/swt.go
+Auto-merging src/cmd/compile/internal/gc/select.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/select.go
+Auto-merging src/cmd/compile/internal/gc/racewalk.go
+Auto-merging src/cmd/compile/internal/gc/pgen.go
+Auto-merging src/cmd/compile/internal/gc/parser.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/parser.go
+Auto-merging src/cmd/compile/internal/gc/order.go
+Auto-merging src/cmd/compile/internal/gc/opnames.go
+Auto-merging src/cmd/compile/internal/gc/mpint.go
+Auto-merging src/cmd/compile/internal/gc/mpfloat.go
+Auto-merging src/cmd/compile/internal/gc/lex.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/lex.go
+Auto-merging src/cmd/compile/internal/gc/inl.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/inl.go
+Auto-merging src/cmd/compile/internal/gc/go.go
+Auto-merging src/cmd/compile/internal/gc/gen.go
+Auto-merging src/cmd/compile/internal/gc/fmt.go
+Auto-merging src/cmd/compile/internal/gc/const.go
+Auto-merging src/cmd/compile/internal/gc/builtin.go
+CONFLICT (content): Merge conflict in src/cmd/compile/internal/gc/builtin.go
+Removing src/cmd/asm/internal/asm/testdata/ppc64.out
+Removing src/cmd/asm/internal/asm/testdata/mips64.out
+Removing src/cmd/asm/internal/asm/testdata/arm64.out
+Removing src/cmd/asm/internal/asm/testdata/arm.out
+Removing src/cmd/asm/internal/asm/testdata/amd64.out
+Removing src/cmd/asm/internal/asm/testdata/386.out
+Auto-merging misc/cgo/testshared/src/depBase/stubs.go
+Auto-merging misc/cgo/testshared/src/depBase/gccgo.go
+Auto-merging misc/cgo/testshared/src/depBase/dep.go
+Auto-merging misc/cgo/testshared/src/depBase/asm.s
+Removing misc/cgo/testcarchive/test.bash
+Removing misc/cgo/test/sleep_windows_386.go
+Auto-merging misc/cgo/test/sigprocmask.go
+Auto-merging misc/cgo/test/sigprocmask.c
+Removing doc/go1.6.txt
+Auto-merging VERSION
+CONFLICT (add/add): Merge conflict in VERSION
+Automatic merge failed; fix conflicts and then commit the result.

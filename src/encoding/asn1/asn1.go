@@ -294,7 +294,7 @@ type Flag bool
 func parseBase128Int(bytes []byte, initOffset int) (ret, offset int, err error) {
 	offset = initOffset
 	for shifted := 0; offset < len(bytes); shifted++ {
-		if shifted > 4 {
+		if shifted == 4 {
 			err = StructuralError{"base 128 integer too large"}
 			return
 		}
@@ -393,7 +393,7 @@ func isPrintable(b byte) bool {
 // byte slice and returns it.
 func parseIA5String(bytes []byte) (ret string, err error) {
 	for _, b := range bytes {
-		if b >= 0x80 {
+		if b >= utf8.RuneSelf {
 			err = SyntaxError{"IA5String contains invalid character"}
 			return
 		}
@@ -459,6 +459,11 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 	if ret.tag == 0x1f {
 		ret.tag, offset, err = parseBase128Int(bytes, offset)
 		if err != nil {
+			return
+		}
+		// Tags should be encoded in minimal form.
+		if ret.tag < 0x1f {
+			err = SyntaxError{"non-minimal tag"}
 			return
 		}
 	}

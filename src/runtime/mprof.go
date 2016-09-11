@@ -262,7 +262,7 @@ func mProf_Free(b *bucket, size uintptr) {
 var blockprofilerate uint64 // in CPU ticks
 
 // SetBlockProfileRate controls the fraction of goroutine blocking events
-// that are reported in the blocking profile.  The profiler aims to sample
+// that are reported in the blocking profile. The profiler aims to sample
 // an average of one blocking event per rate nanoseconds spent blocked.
 //
 // To include every blocking event in the profile, pass rate = 1.
@@ -335,7 +335,7 @@ func (r *StackRecord) Stack() []uintptr {
 //
 // The tools that process the memory profiles assume that the
 // profile rate is constant across the lifetime of the program
-// and equal to the current value.  Programs that change the
+// and equal to the current value. Programs that change the
 // memory profiling rate should do so just once, as early as
 // possible in the execution of the program (for example,
 // at the beginning of main).
@@ -448,7 +448,7 @@ func iterate_memprof(fn func(*bucket, uintptr, *uintptr, uintptr, uintptr, uintp
 	lock(&proflock)
 	for b := mbuckets; b != nil; b = b.allnext {
 		mp := b.mp()
-		fn(b, uintptr(b.nstk), &b.stk()[0], b.size, mp.allocs, mp.frees)
+		fn(b, b.nstk, &b.stk()[0], b.size, mp.allocs, mp.frees)
 	}
 	unlock(&proflock)
 }
@@ -478,8 +478,8 @@ func BlockProfile(p []BlockProfileRecord) (n int, ok bool) {
 		for b := bbuckets; b != nil; b = b.allnext {
 			bp := b.bp()
 			r := &p[0]
-			r.Count = int64(bp.count)
-			r.Cycles = int64(bp.cycles)
+			r.Count = bp.count
+			r.Cycles = bp.cycles
 			i := copy(r.Stack0[:], b.stk())
 			for ; i < len(r.Stack0); i++ {
 				r.Stack0[i] = 0
@@ -506,9 +506,7 @@ func ThreadCreateProfile(p []StackRecord) (n int, ok bool) {
 		ok = true
 		i := 0
 		for mp := first; mp != nil; mp = mp.alllink {
-			for s := range mp.createstack {
-				p[i].Stack0[s] = uintptr(mp.createstack[s])
-			}
+			p[i].Stack0 = mp.createstack
 			i++
 		}
 	}
@@ -522,33 +520,50 @@ func ThreadCreateProfile(p []StackRecord) (n int, ok bool) {
 // Most clients should use the runtime/pprof package instead
 // of calling GoroutineProfile directly.
 func GoroutineProfile(p []StackRecord) (n int, ok bool) {
+	gp := getg()
 
-	n = NumGoroutine()
+	isOK := func(gp1 *g) bool {
+		// Checking isSystemGoroutine here makes GoroutineProfile
+		// consistent with both NumGoroutine and Stack.
+		return gp1 != gp && readgstatus(gp1) != _Gdead && !isSystemGoroutine(gp1)
+	}
+
+	stopTheWorld("profile")
+
+	n = 1
+	for _, gp1 := range allgs {
+		if isOK(gp1) {
+			n++
+		}
+	}
+
 	if n <= len(p) {
-		gp := getg()
-		stopTheWorld("profile")
+		ok = true
+		r := p
 
-		n = NumGoroutine()
-		if n <= len(p) {
-			ok = true
-			r := p
-			sp := getcallersp(unsafe.Pointer(&p))
-			pc := getcallerpc(unsafe.Pointer(&p))
-			systemstack(func() {
-				saveg(pc, sp, gp, &r[0])
-			})
-			r = r[1:]
-			for _, gp1 := range allgs {
-				if gp1 == gp || readgstatus(gp1) == _Gdead {
-					continue
+		// Save current goroutine.
+		sp := getcallersp(unsafe.Pointer(&p))
+		pc := getcallerpc(unsafe.Pointer(&p))
+		systemstack(func() {
+			saveg(pc, sp, gp, &r[0])
+		})
+		r = r[1:]
+
+		// Save other goroutines.
+		for _, gp1 := range allgs {
+			if isOK(gp1) {
+				if len(r) == 0 {
+					// Should be impossible, but better to return a
+					// truncated profile than to crash the entire process.
+					break
 				}
 				saveg(^uintptr(0), ^uintptr(0), gp1, &r[0])
 				r = r[1:]
 			}
 		}
-
-		startTheWorld()
 	}
+
+	startTheWorld()
 
 	return n, ok
 }
@@ -576,12 +591,17 @@ func Stack(buf []byte, all bool) int {
 		pc := getcallerpc(unsafe.Pointer(&buf))
 		systemstack(func() {
 			g0 := getg()
+			// Force traceback=1 to override GOTRACEBACK setting,
+			// so that Stack's results are consistent.
+			// GOTRACEBACK is only about crash dumps.
+			g0.m.traceback = 1
 			g0.writebuf = buf[0:0:len(buf)]
 			goroutineheader(gp)
 			traceback(pc, sp, 0, gp)
 			if all {
 				tracebackothers(gp)
 			}
+			g0.m.traceback = 0
 			n = len(g0.writebuf)
 			g0.writebuf = nil
 		})
@@ -604,7 +624,7 @@ func tracealloc(p unsafe.Pointer, size uintptr, typ *_type) {
 	if typ == nil {
 		print("tracealloc(", p, ", ", hex(size), ")\n")
 	} else {
-		print("tracealloc(", p, ", ", hex(size), ", ", *typ._string, ")\n")
+		print("tracealloc(", p, ", ", hex(size), ", ", typ.string(), ")\n")
 	}
 	if gp.m.curg == nil || gp == gp.m.curg {
 		goroutineheader(gp)

@@ -52,7 +52,7 @@ func (w *Writer) Flush() error {
 }
 
 // Close finishes writing the zip file by writing the central directory.
-// It does not (and can not) close the underlying writer.
+// It does not (and cannot) close the underlying writer.
 func (w *Writer) Close() error {
 	if w.last != nil && !w.last.closed {
 		if err := w.last.close(); err != nil {
@@ -78,7 +78,7 @@ func (w *Writer) Close() error {
 		b.uint16(h.ModifiedTime)
 		b.uint16(h.ModifiedDate)
 		b.uint32(h.CRC32)
-		if h.isZip64() || h.offset > uint32max {
+		if h.isZip64() || h.offset >= uint32max {
 			// the file needs a zip64 header. store maxint in both
 			// 32 bit size fields (and offset later) to signal that the
 			// zip64 extra header should be used.

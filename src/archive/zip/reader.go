@@ -87,7 +87,7 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 	z.File = make([]*File, 0, end.directoryRecords)
 	z.Comment = end.comment
 	rs := io.NewSectionReader(r, 0, size)
-	if _, err = rs.Seek(int64(end.directoryOffset), os.SEEK_SET); err != nil {
+	if _, err = rs.Seek(int64(end.directoryOffset), io.SeekStart); err != nil {
 		return err
 	}
 	buf := bufio.NewReader(rs)
@@ -118,8 +118,6 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 // RegisterDecompressor registers or overrides a custom decompressor for a
 // specific method ID. If a decompressor for a given method is not found,
 // Reader will default to looking up the decompressor at the package level.
-//
-// Must not be called concurrently with Open on any Files in the Reader.
 func (z *Reader) RegisterDecompressor(method uint16, dcomp Decompressor) {
 	if z.decompressors == nil {
 		z.decompressors = make(map[uint16]Decompressor)
@@ -155,19 +153,18 @@ func (f *File) DataOffset() (offset int64, err error) {
 
 // Open returns a ReadCloser that provides access to the File's contents.
 // Multiple files may be read concurrently.
-func (f *File) Open() (rc io.ReadCloser, err error) {
+func (f *File) Open() (io.ReadCloser, error) {
 	bodyOffset, err := f.findBodyOffset()
 	if err != nil {
-		return
+		return nil, err
 	}
 	size := int64(f.CompressedSize64)
 	r := io.NewSectionReader(f.zipr, f.headerOffset+bodyOffset, size)
 	dcomp := f.zip.decompressor(f.Method)
 	if dcomp == nil {
-		err = ErrAlgorithm
-		return
+		return nil, ErrAlgorithm
 	}
-	rc = dcomp(r)
+	var rc io.ReadCloser = dcomp(r)
 	var desr io.Reader
 	if f.hasDataDescriptor() {
 		desr = io.NewSectionReader(f.zipr, f.headerOffset+bodyOffset+size, dataDescriptorLen)
@@ -178,7 +175,7 @@ func (f *File) Open() (rc io.ReadCloser, err error) {
 		f:    f,
 		desr: desr,
 	}
-	return
+	return rc, nil
 }
 
 type checksumReader struct {
@@ -283,39 +280,69 @@ func readDirectoryHeader(f *File, r io.Reader) error {
 	f.Extra = d[filenameLen : filenameLen+extraLen]
 	f.Comment = string(d[filenameLen+extraLen:])
 
+	needUSize := f.UncompressedSize == ^uint32(0)
+	needCSize := f.CompressedSize == ^uint32(0)
+	needHeaderOffset := f.headerOffset == int64(^uint32(0))
+
 	if len(f.Extra) > 0 {
+		// Best effort to find what we need.
+		// Other zip authors might not even follow the basic format,
+		// and we'll just ignore the Extra content in that case.
 		b := readBuf(f.Extra)
 		for len(b) >= 4 { // need at least tag and size
 			tag := b.uint16()
 			size := b.uint16()
 			if int(size) > len(b) {
-				return ErrFormat
+				break
 			}
 			if tag == zip64ExtraId {
-				// update directory values from the zip64 extra block
+				// update directory values from the zip64 extra block.
+				// They should only be consulted if the sizes read earlier
+				// are maxed out.
+				// See golang.org/issue/13367.
 				eb := readBuf(b[:size])
-				if len(eb) >= 8 {
+
+				if needUSize {
+					needUSize = false
+					if len(eb) < 8 {
+						return ErrFormat
+					}
 					f.UncompressedSize64 = eb.uint64()
 				}
-				if len(eb) >= 8 {
+				if needCSize {
+					needCSize = false
+					if len(eb) < 8 {
+						return ErrFormat
+					}
 					f.CompressedSize64 = eb.uint64()
 				}
-				if len(eb) >= 8 {
+				if needHeaderOffset {
+					needHeaderOffset = false
+					if len(eb) < 8 {
+						return ErrFormat
+					}
 					f.headerOffset = int64(eb.uint64())
 				}
+				break
 			}
 			b = b[size:]
 		}
-		// Should have consumed the whole header.
-		// But popular zip & JAR creation tools are broken and
-		// may pad extra zeros at the end, so accept those
-		// too. See golang.org/issue/8186.
-		for _, v := range b {
-			if v != 0 {
-				return ErrFormat
-			}
-		}
 	}
+
+	// Assume that uncompressed size 2³²-1 could plausibly happen in
+	// an old zip32 file that was sharding inputs into the largest chunks
+	// possible (or is just malicious; search the web for 42.zip).
+	// If needUSize is true still, it means we didn't see a zip64 extension.
+	// As long as the compressed size is not also 2³²-1 (implausible)
+	// and the header is not also 2³²-1 (equally implausible),
+	// accept the uncompressed size 2³²-1 as valid.
+	// If nothing else, this keeps archive/zip working with 42.zip.
+	_ = needUSize
+
+	if needCSize || needHeaderOffset {
+		return ErrFormat
+	}
+
 	return nil
 }
 

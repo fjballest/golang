@@ -12,7 +12,7 @@ The document is not comprehensive.
 
 <p>
 The assembler is based on the input style of the Plan 9 assemblers, which is documented in detail
-<a href="http://plan9.bell-labs.com/sys/doc/asm.html">elsewhere</a>.
+<a href="https://9p.io/sys/doc/asm.html">elsewhere</a>.
 If you plan to write assembly language, you should read that document although much of it is Plan 9-specific.
 The current document provides a summary of the syntax and the differences with
 what is explained in that document, and
@@ -23,7 +23,7 @@ describes the peculiarities that apply when writing assembly code to interact wi
 The most important thing to know about Go's assembler is that it is not a direct representation of the underlying machine.
 Some of the details map precisely to the machine, but some do not.
 This is because the compiler suite (see
-<a href="http://plan9.bell-labs.com/sys/doc/compiler.html">this description</a>)
+<a href="https://9p.io/sys/doc/compiler.html">this description</a>)
 needs no assembler pass in the usual pipeline.
 Instead, the compiler operates on a kind of semi-abstract instruction set,
 and instruction selection occurs partly after code generation.
@@ -176,7 +176,7 @@ This form is used to name global functions and data.
 Adding <code>&lt;&gt;</code> to the name, as in <span style="white-space: nowrap"><code>foo&lt;&gt;(SB)</code></span>, makes the name
 visible only in the current source file, like a top-level <code>static</code> declaration in a C file.
 Adding an offset to the name refers to that offset from the symbol's address, so
-<code>a+4(SB)</code> is four bytes past the start of <code>foo</code>.
+<code>foo+4(SB)</code> is four bytes past the start of <code>foo</code>.
 </p>
 
 <p>
@@ -510,6 +510,13 @@ the stack pointer may change during any function call:
 even pointers to stack data must not be kept in local variables.
 </p>
 
+<p>
+Assembly functions should always be given Go prototypes,
+both to provide pointer information for the arguments and results
+and to let <code>go</code> <code>vet</code> check that
+the offsets being used to access them are correct.
+</p>
+
 <h2 id="architectures">Architecture-specific details</h2>
 
 <p>
@@ -613,6 +620,15 @@ These modes accept only 1, 2, 4, and 8 as scale factors.
 </li>
 
 </ul>
+
+<p>
+When using the compiler and assembler's
+<code>-dynlink</code> or <code>-shared</code> modes,
+any load or store of a fixed memory location such as a global variable
+must be assumed to overwrite <code>CX</code>.
+Therefore, to be safe for use with these modes,
+assembly sources should typically avoid CX except between memory references.
+</p>
 
 <h3 id="amd64">64-bit Intel 386 (a.k.a. amd64)</h3>
 
@@ -760,6 +776,64 @@ mode as on the x86, but the only scale allowed is <code>1</code>.
 
 <li>
 <code>(R5+R6)</code>: Alias for (R5)(R6*1)
+</li>
+
+</ul>
+
+<h3 id="s390x">IBM z/Architecture, a.k.a. s390x</h3>
+
+<p>
+The registers <code>R10</code> and <code>R11</code> are reserved.
+The assembler uses them to hold temporary values when assembling some instructions.
+</p>
+
+<p>
+<code>R13</code> points to the <code>g</code> (goroutine) structure.
+This register must be referred to as <code>g</code>; the name <code>R13</code> is not recognized.
+</p>
+
+<p>
+<code>R15</code> points to the stack frame and should typically only be accessed using the
+virtual registers <code>SP</code> and <code>FP</code>.
+</p>
+
+<p>
+Load- and store-multiple instructions operate on a range of registers.
+The range of registers is specified by a start register and an end register.
+For example, <code>LMG</code> <code>(R9),</code> <code>R5,</code> <code>R7</code> would load
+<code>R5</code>, <code>R6</code> and <code>R7</code> with the 64-bit values at
+<code>0(R9)</code>, <code>8(R9)</code> and <code>16(R9)</code> respectively.
+</p>
+
+<p>
+Storage-and-storage instructions such as <code>MVC</code> and <code>XC</code> are written
+with the length as the first argument.
+For example, <code>XC</code> <code>$8,</code> <code>(R9),</code> <code>(R9)</code> would clear
+eight bytes at the address specified in <code>R9</code>.
+</p>
+
+<p>
+If a vector instruction takes a length or an index as an argument then it will be the
+first argument.
+For example, <code>VLEIF</code> <code>$1,</code> <code>$16,</code> <code>V2</code> will load
+the value sixteen into index one of <code>V2</code>.
+Care should be taken when using vector instructions to ensure that they are available at
+runtime.
+To use vector instructions a machine must have both the vector facility (bit 129 in the
+facility list) and kernel support.
+Without kernel support a vector instruction will have no effect (it will be equivalent
+to a <code>NOP</code> instruction).
+</p>
+
+<p>
+Addressing modes:
+</p>
+
+<ul>
+
+<li>
+<code>(R5)(R6*1)</code>: The location at <code>R5</code> plus <code>R6</code>.
+It is a scaled mode as on the x86, but the only scale allowed is <code>1</code>.
 </li>
 
 </ul>

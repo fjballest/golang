@@ -72,6 +72,28 @@ var urltests = []URLTest{
 		},
 		"ftp://john%20doe@www.google.com/",
 	},
+	// empty query
+	{
+		"http://www.google.com/?",
+		&URL{
+			Scheme:     "http",
+			Host:       "www.google.com",
+			Path:       "/",
+			ForceQuery: true,
+		},
+		"",
+	},
+	// query ending in question mark (Issue 14573)
+	{
+		"http://www.google.com/?foo=bar?",
+		&URL{
+			Scheme:   "http",
+			Host:     "www.google.com",
+			Path:     "/",
+			RawQuery: "foo=bar?",
+		},
+		"",
+	},
 	// query
 	{
 		"http://www.google.com/?q=go+language",
@@ -332,7 +354,7 @@ var urltests = []URLTest{
 		},
 		"",
 	},
-	// host subcomponent; IPv6 address with zone identifier in RFC 6847
+	// host subcomponent; IPv6 address with zone identifier in RFC 6874
 	{
 		"http://[fe80::1%25en0]/", // alphanum zone identifier
 		&URL{
@@ -342,7 +364,7 @@ var urltests = []URLTest{
 		},
 		"",
 	},
-	// host and port subcomponents; IPv6 address with zone identifier in RFC 6847
+	// host and port subcomponents; IPv6 address with zone identifier in RFC 6874
 	{
 		"http://[fe80::1%25en0]:8080/", // alphanum zone identifier
 		&URL{
@@ -352,7 +374,7 @@ var urltests = []URLTest{
 		},
 		"",
 	},
-	// host subcomponent; IPv6 address with zone identifier in RFC 6847
+	// host subcomponent; IPv6 address with zone identifier in RFC 6874
 	{
 		"http://[fe80::1%25%65%6e%301-._~]/", // percent-encoded+unreserved zone identifier
 		&URL{
@@ -362,7 +384,7 @@ var urltests = []URLTest{
 		},
 		"http://[fe80::1%25en01-._~]/",
 	},
-	// host and port subcomponents; IPv6 address with zone identifier in RFC 6847
+	// host and port subcomponents; IPv6 address with zone identifier in RFC 6874
 	{
 		"http://[fe80::1%25%65%6e%301-._~]:8080/", // percent-encoded+unreserved zone identifier
 		&URL{
@@ -511,6 +533,37 @@ var urltests = []URLTest{
 		},
 		"",
 	},
+	// golang.org/issue/10433 (path beginning with //)
+	{
+		"http://example.com//foo",
+		&URL{
+			Scheme: "http",
+			Host:   "example.com",
+			Path:   "//foo",
+		},
+		"",
+	},
+	// test that we can reparse the host names we accept.
+	{
+		"myscheme://authority<\"hi\">/foo",
+		&URL{
+			Scheme: "myscheme",
+			Host:   "authority<\"hi\">",
+			Path:   "/foo",
+		},
+		"",
+	},
+	// spaces in hosts are disallowed but escaped spaces in IPv6 scope IDs are grudgingly OK.
+	// This happens on Windows.
+	// golang.org/issue/14002
+	{
+		"tcp://[2020::2020:20:2020:2020%25Windows%20Loves%20Spaces]:2020",
+		&URL{
+			Scheme: "tcp",
+			Host:   "[2020::2020:20:2020:2020%Windows Loves Spaces]:2020",
+		},
+		"",
+	},
 }
 
 // more useful string for debugging than fmt's struct printer
@@ -522,8 +575,8 @@ func ufmt(u *URL) string {
 			pass = p
 		}
 	}
-	return fmt.Sprintf("opaque=%q, scheme=%q, user=%#v, pass=%#v, host=%q, path=%q, rawpath=%q, rawq=%q, frag=%q",
-		u.Opaque, u.Scheme, user, pass, u.Host, u.Path, u.RawPath, u.RawQuery, u.Fragment)
+	return fmt.Sprintf("opaque=%q, scheme=%q, user=%#v, pass=%#v, host=%q, path=%q, rawpath=%q, rawq=%q, frag=%q, forcequery=%v",
+		u.Opaque, u.Scheme, user, pass, u.Host, u.Path, u.RawPath, u.RawQuery, u.Fragment, u.ForceQuery)
 }
 
 func DoTest(t *testing.T, parse func(string) (*URL, error), name string, tests []URLTest) {
@@ -558,7 +611,7 @@ func BenchmarkString(b *testing.B) {
 			g = u.String()
 		}
 		b.StopTimer()
-		if w := tt.roundtrip; g != w {
+		if w := tt.roundtrip; b.N > 0 && g != w {
 			b.Errorf("Parse(%q).String() == %q, want %q", tt.in, g, w)
 		}
 	}
@@ -843,11 +896,13 @@ var resolveReferenceTests = []struct {
 	// Absolute URL references
 	{"http://foo.com?a=b", "https://bar.com/", "https://bar.com/"},
 	{"http://foo.com/", "https://bar.com/?a=b", "https://bar.com/?a=b"},
+	{"http://foo.com/", "https://bar.com/?", "https://bar.com/?"},
 	{"http://foo.com/bar", "mailto:foo@example.com", "mailto:foo@example.com"},
 
 	// Path-absolute references
 	{"http://foo.com/bar", "/baz", "http://foo.com/baz"},
 	{"http://foo.com/bar?a=b#f", "/baz", "http://foo.com/baz"},
+	{"http://foo.com/bar?a=b", "/baz?", "http://foo.com/baz?"},
 	{"http://foo.com/bar?a=b", "/baz?c=d", "http://foo.com/baz?c=d"},
 
 	// Scheme-relative
@@ -1178,6 +1233,23 @@ var requritests = []RequestURITest{
 		},
 		"opaque?q=go+language",
 	},
+	{
+		&URL{
+			Scheme: "http",
+			Host:   "example.com",
+			Path:   "//foo",
+		},
+		"//foo",
+	},
+	{
+		&URL{
+			Scheme:     "http",
+			Host:       "example.com",
+			Path:       "/foo",
+			ForceQuery: true,
+		},
+		"/foo?",
+	},
 }
 
 func TestRequestURI(t *testing.T) {
@@ -1221,6 +1293,7 @@ func TestParseAuthority(t *testing.T) {
 		{"mysql://x@y(1.2.3.4:123)/foo", false},
 		{"mysql://x@y([2001:db8::1]:123)/foo", false},
 		{"http://[]%20%48%54%54%50%2f%31%2e%31%0a%4d%79%48%65%61%64%65%72%3a%20%31%32%33%0a%0a/", true}, // golang.org/issue/11208
+		{"http://a b.com/", true},                                                                       // no space in host name please
 	}
 	for _, tt := range tests {
 		u, err := Parse(tt.in)
