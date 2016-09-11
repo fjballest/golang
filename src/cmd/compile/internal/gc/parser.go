@@ -553,16 +553,16 @@ func (p *parser) typedcl() []*Node {
 
 // identifier { ... } as implicit struct
 // [nemo]
-func (p *parser) implstructdcl() *NodeList {
+func (p *parser) implstructdcl() []*Node {
 	if trace && Debug['x'] != 0 {
 		defer p.trace("implstructdcl")()
 	}
 
 	name := typedcl0(p.sym())
 	p.want('{')
-	var l *NodeList
+	var l []*Node
 	for p.tok != EOF && p.tok != '}' {
-		l = concat(l, p.structdcl())
+		l = append(l, p.structdcl()...)
 		if !p.osemi('}') {
 			break
 		}
@@ -570,22 +570,22 @@ func (p *parser) implstructdcl() *NodeList {
 	p.want('}')
 
 	typ := Nod(OTSTRUCT, nil, nil)
-	typ.List = l
-	return list1(typedcl1(name, typ, true));
+	typ.List.Set(l)
+	return []*Node{typedcl1(name, typ, true)};
 }
 
 // identifier { ... } as implicit interface
 // [nemo]
-func (p *parser) implinterfacedcl() *NodeList {
+func (p *parser) implinterfacedcl() []*Node {
 	if trace && Debug['x'] != 0 {
 		defer p.trace("implinterfacedcl")()
 	}
 
 	name := typedcl0(p.sym())
 	p.want('{')
-	var l *NodeList
+	var l []*Node
 	for p.tok != EOF && p.tok != '}' {
-		l = list(l, p.interfacedcl())
+		l = append(l, p.interfacedcl())
 		if !p.osemi('}') {
 			break
 		}
@@ -593,8 +593,8 @@ func (p *parser) implinterfacedcl() *NodeList {
 	p.want('}')
 
 	typ := Nod(OTINTER, nil, nil)
-	typ.List = l
-	return list1(typedcl1(name, typ, true));
+	typ.List.Set(l)
+	return []*Node{typedcl1(name, typ, true)};
 }
 
 // SimpleStmt = EmptyStmt | ExpressionStmt | SendStmt | IncDecStmt | Assignment | ShortVarDecl .
@@ -1181,9 +1181,9 @@ func (p *parser) doselect_stmt() *Node {
 	}
 
 	sstmt := Nod(ODOSELECT, nil, nil)
-	sstmt.List = p.caseblock_list(nil)
+	sstmt.List.Set(p.caseblock_list(nil))
 
-	dostmt.Nbody = list(dostmt.Nbody, sstmt)
+	dostmt.Nbody.Append(sstmt)
 	popdcl();
 	return dostmt
 }

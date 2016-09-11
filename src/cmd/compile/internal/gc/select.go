@@ -128,7 +128,7 @@ func walkselect(sel *Node) {
 				ch = n.Left
 			case OSELSEND:
 				ch = n.Right.Left
-				if n.Op == OSELSEND || n.List == nil {
+				if n.Op == OSELSEND || n.List.Len() == 0 {
 					if n.Left == nil {
 						n = n.Right
 					} else {

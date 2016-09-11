@@ -893,19 +893,19 @@ func orderstmt(n *Node, order *Order) {
 
 				case OSELSEND:
 					if r.Colas {
-						init := r.Ninit
-						if init != nil && init.N.Op == ODCL && init.N.Left == r.Left {
-							init = init.Next
+						i := 0
+						if r.Ninit.Len() != 0 && r.Ninit.First().Op == ODCL && r.Ninit.First().Left == r.Left {
+							i++
 						}
-						if init != nil && init.N.Op == ODCL && r.List != nil && init.N.Left == r.List.N {
-							init = init.Next
+						if i < r.Ninit.Len() && r.Ninit.Index(i).Op == ODCL && r.List.Len() != 0 && r.Ninit.Index(i).Left == r.List.First() {
+							i++
 						}
-						if init == nil {
-							r.Ninit = nil
+						if i >= r.Ninit.Len() {
+							r.Ninit.Set(nil)
 						}
 					}
 
-					if r.Ninit != nil {
+					if r.Ninit.Len() != 0 {
 						Yyerror("ninit on select send")
 						dumplist("ninit", r.Ninit)
 					}
@@ -914,34 +914,34 @@ func orderstmt(n *Node, order *Order) {
 					// r->left is ok, r->right is SEND, r->right->left is c, r->right->right is x
 					// r->left == N means 'case c<-x'.
 					// c is always evaluated; ok is only evaluated when assigned.
-					orderexpr(&r.Right.Left, order, nil)
+					r.Right.Left = orderexpr(r.Right.Left, order, nil)
 
 					if r.Right.Left.Op != ONAME {
 						r.Right.Left = ordercopyexpr(r.Right.Left, r.Right.Left.Type, order, 0)
 					}
-					orderexpr(&r.Right.Right, order, nil)
+					r.Right.Right = orderexpr(r.Right.Right, order, nil)
 					if !istemp(r.Right.Right) {
 						r.Right.Right = ordercopyexpr(r.Right.Right, r.Right.Right.Type, order, 0)
 					}
 
-					if r.Left != nil && isblank(r.Left) {
-						r.Left = nil
+					if r.List.Len() != 0 && isblank(r.List.First()) {
+						r.List.Set(nil)
 					}
-					if r.Left != nil {
-						tmp1 = r.Left
+					if r.List.Len() != 0 {
+						tmp1 = r.List.First()
 
 						if r.Colas {
 							tmp2 = Nod(ODCL, tmp1, nil)
-							typecheck(&tmp2, Etop)
-							l.N.Ninit = list(l.N.Ninit, tmp2)
+							tmp2 = typecheck(tmp2, Etop)
+							n2.Ninit.Append(tmp2)
 						}
 
 						r.Left = ordertemp(tmp1.Type, order, false)
-						tmp2 = Nod(OAS, tmp1, r.Left)
-						typecheck(&tmp2, Etop)
-						l.N.Ninit = list(l.N.Ninit, tmp2)
+						tmp2 = Nod(OAS, tmp1, r.List.First())
+						tmp2 = typecheck(tmp2, Etop)
+						n2.Ninit.Append(tmp2)
 					}
-					orderblock(&l.N.Ninit)
+					n2.Ninit.Set(orderblock(n2.Ninit))
 
 				case OSEND:
 					if r.Ninit.Len() != 0 {
@@ -1061,9 +1061,9 @@ func orderexpr(n *Node, order *Order, lhs *Node) *Node {
 		// This is now required and not just in orderstmt because send can now be
 		// an expression.
 		t := marktemp(order);
-		orderexpr(&n.Left, order, nil)
-		orderexpr(&n.Right, order, nil)
-		orderaddrtemp(&n.Right, order)
+		n.Left = orderexpr(n.Left, order, nil)
+		n.Right = orderexpr(n.Right, order, nil)
+		n.Right = orderaddrtemp(n.Right, order)
 		cleantemp(t, order)
 
 		// Addition of strings turns into a function call.

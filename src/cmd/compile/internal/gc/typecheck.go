@@ -1466,18 +1466,18 @@ OpSwitch:
 		// nemo: new builtins
 		ok |= Erv
 		args := n.List
-		if args == nil {
+		if args.Len() == 0 {
 			Yyerror("missing argument for %v", n)
 			n.Type = nil
-			return
+			return n
 		}
-		if args.Next != nil {
+		if args.Len() > 1 {
 			Yyerror("too many arguments for %v", n)
 			n.Type = nil
 			return n
 		}
-		n.Left = args.N
-		n.List = nil
+		n.Left = args.First()
+		n.List.Set(nil)
 		n.Left = typecheck(n.Left, Erv)
 		n.Left = defaultlit(n.Left, nil)
 		l := n.Left
@@ -1501,27 +1501,26 @@ OpSwitch:
 	case OCLOSE:
 		// nemo: accept opt. second arg and don't fail on close for
 		// send only channels.
-		// XXX: lists seem to be slices now; all this is probably wrong
 		args := n.List
-		if args == nil {
+		if args.Len() == 0 {
 			Yyerror("missing argument for close")
 			n.Type = nil
-			return
+			return n
 		}
-		if args.Next != nil && args.Next.Next != nil {
+		if args.Len() > 2 {
 			Yyerror("too many arguments for close")
 			n.Type = nil
 			return n
 		}
 
 		// nemo: this probably isn't needed. n should be ok already.
-		n.Left = args.N
-		if args.Next != nil {
-			n.Right = args.Next.N
+		n.Left = args.First()
+		if args.Len() == 2 {
+			n.Right = args.Second()
 		} else {
 			n.Right = nil
 		}
-		n.List = nil
+		n.List.Set(nil)
 
 		n.Left = typecheck(n.Left, Erv)
 		n.Left = defaultlit(n.Left, nil)
@@ -1529,12 +1528,12 @@ OpSwitch:
 		t := l.Type
 		if t == nil {
 			n.Type = nil
-			return
+			return n
 		}
 		if !t.IsChan() {
 			Yyerror("invalid operation: %v (non-chan type %v)", n, t)
 			n.Type = nil
-			return
+			return n
 		}
 		if n.Right != nil {
 			n.Right = typecheck(n.Right, Erv)
@@ -1542,7 +1541,7 @@ OpSwitch:
 			t = n.Right.Type
 			if t == nil {
 				n.Type = nil
-				return
+				return n
 			}
 			// TODO: check that the type is string or an error type.
 		}

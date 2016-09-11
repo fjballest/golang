@@ -1383,12 +1383,12 @@ opswitch:
 		n = copyany(n, init, instrumenting)
 
 	case OCCLOSED:
-		fn := syslook("cclosed", 1)
+		fn := syslook("cclosed")
 		substArgTypes(fn, n.Left.Type)
 		n = mkcall1(fn, Types[TBOOL], init, n.Left)
 
 	case OCERROR:
-		fn := syslook("cerror", 1)
+		fn := syslook("cerror")
 		substArgTypes(fn, n.Left.Type)
 		n = mkcall1(fn, errortype, init, n.Left)
 
@@ -1397,11 +1397,11 @@ opswitch:
 		// nemo: check for two arguments; this should always call closechan2 perhaps with
 		// a nil 2nd argument; but it's ok for now.
 		if n.Right == nil {
-			fn := syslook("closechan", 1)
+			fn := syslook("closechan")
 			substArgTypes(fn, n.Left.Type)
 			n = mkcall1(fn, nil, init, n.Left)
 		} else {
-			fn := syslook("closechan2", 1)
+			fn := syslook("closechan2")
 			substArgTypes(fn, n.Left.Type)
 			n = mkcall1(fn, nil, init, n.Left, n.Right)
 		}
