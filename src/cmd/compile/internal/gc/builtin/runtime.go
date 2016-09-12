@@ -104,9 +104,13 @@ func mapiternext(hiter *any)
 func makechan(chanType *byte, hint int64) (hchan chan any)
 func chanrecv1(chanType *byte, hchan <-chan any, elem *any)
 func chanrecv2(chanType *byte, hchan <-chan any, elem *any) bool
-func chansend1(chanType *byte, hchan chan<- any, elem *any)
+func chansend1(chanType *byte, hchan chan<- any, elem *any) bool
+func chansend2(chanType *byte, hchan chan<- any, elem *any) bool
 func closechan(hchan any)
-
+func cclosed(hchan any) bool
+func cerror(hchan any) error
+func chanselsend(chanType *byte, hchan chan<- any, elem *any, okp *bool) bool
+func channbselsend(chanType *byte, hchan chan<- any, elem *any, okp *bool) bool
 var writeBarrier struct {
 	enabled bool
 	needed  bool

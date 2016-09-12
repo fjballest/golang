@@ -674,7 +674,8 @@ Found:
 		}
 		dirs[i] = dirs[len(dirs)-1]
 		dirs = dirs[:len(dirs)-1]
-		match, _, _, _ := ctxt.matchFile(p.Dir, name, true, make(map[string]bool))
+		var b bool
+		match, _, _, _ := ctxt.matchFile(p.Dir, name, true, make(map[string]bool), &b)
 		if !match {
 			fmt.Fprintf(os.Stderr, "skip: %s\n", p.Dir)
 			p.NotToBuild = true
@@ -716,7 +717,8 @@ Found:
 			}
 			continue
 		}
-		if names := ctxt.should("+install", data, nil); len(names) > 0 {
+		var d bool
+		if names := ctxt.should("+install", data, nil, &d); len(names) > 0 {
 			p.ExtraInstalls = append(p.ExtraInstalls, names...)
 		}
 
@@ -1090,7 +1092,7 @@ func (ctxt *Context) matchFile(dir, name string, returnImports bool, allTags map
 	}
 
 	// Look for +build comments to accept or reject the file.
-	if ctxt.should("+build", data, allTags) == nil && !ctxt.UseAllFiles {
+	if ctxt.should("+build", data, allTags, binaryOnly) == nil && !ctxt.UseAllFiles {
 		return
 	}
 

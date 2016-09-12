@@ -1601,9 +1601,9 @@ opswitch:
 // XXX:
 //		n = mkcall1(chanfn("chansend2", 2, n.Left.Type),
 //			Types[TBOOL], init, typename(n.Left.Type), n.Left, n1)
-//		n.Type = Types[TBOOL]
 		n = mkcall1(chanfn("chansend1", 2, n.Left.Type),
 			nil, init, typename(n.Left.Type), n.Left, n1)
+		n.Type = Types[TBOOL]
 	case OCLOSURE:
 		n = walkclosure(n, init)
 

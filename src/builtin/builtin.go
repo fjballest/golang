@@ -210,7 +210,9 @@ func imag(c ComplexType) FloatType
 // blocking, returning the zero value for the channel element. The form
 //	x, ok := <-c
 // will also set ok to false for a closed channel.
-func close(c chan<- Type)
+func close(c chan Type)
+
+func cclosed(c chan Type) bool
 
 // The panic built-in function stops normal execution of the current
 // goroutine. When a function F calls panic, normal execution of F stops

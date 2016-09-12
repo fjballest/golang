@@ -308,7 +308,7 @@ func (pkg *Package) packageMan() {
 	pkg.newlines(2) // Guarantee blank line before the components.
 	pkg.valueSummary(pkg.doc.Consts)
 	pkg.valueSummary(pkg.doc.Vars)
-	pkg.funcSummary(pkg.doc.Funcs)
+	pkg.funcSummary(pkg.doc.Funcs, true)
 	pkg.typeSummary()
 	pkg.newlines(2)
 

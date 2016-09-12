@@ -107,8 +107,12 @@ func chanbuf(c *hchan, i uint) unsafe.Pointer {
 
 // old entry point for c <- x from compiled code
 //go:nosplit
-func chansend1(t *chantype, c *hchan, elem unsafe.Pointer) {
-	chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+func chansend1(t *chantype, c *hchan, elem unsafe.Pointer) bool {
+	if t == nil {
+		return false	// prevent this from inlining
+	}
+	_, did := chansend(t, c, elem, true, getcallerpc(unsafe.Pointer(&t)))
+	return did
 }
 
 // nemo: new entry point for ok = c <- x and c<-x from compiled code
@@ -397,6 +401,9 @@ func chanerrstr(e interface{}) string {
 func closechan(c *hchan) {
 	if c == nil {
 		return	// nemo: don't panic.
+	}
+	if false {
+		cerror(c)
 	}
 	// nemo: now calls closechan2
 	closechan2(c, nil)
