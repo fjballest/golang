@@ -258,6 +258,7 @@ func (s *exprSwitch) walk(sw *Node) {
 		def = cc[0].node.Right
 		cc = cc[1:]
 	} else {
+		// nemo: compiler generated break is OCBREAK
 		def = Nod(OCBREAK, nil, nil)
 	}
 
@@ -351,7 +352,7 @@ func casebody(sw *Node, typeswvar *Node) {
 	var cas []*Node  // cases
 	var stat []*Node // statements
 	var def *Node    // defaults
-	br := Nod(OCBREAK, nil, nil)
+	br := Nod(OCBREAK, nil, nil)	// nemo: OCBREAK for comp. generated break
 
 	for i, n := range sw.List.Slice() {
 		setlineno(n)
@@ -564,6 +565,7 @@ func (s *typeSwitch) walk(sw *Node) {
 		def = cc[0].node.Right
 		cc = cc[1:]
 	} else {
+		// nemo: OCBREAK for compiler generated break
 		def = Nod(OCBREAK, nil, nil)
 	}
 	var typenil *Node

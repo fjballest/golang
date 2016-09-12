@@ -1,11 +1,11 @@
 In short, we all work in the lsub branch, and keep the master branch for google
 version.
 
-XXX: must update at least ssa.go to add new stmts,
-and should search for SELECT/SEND and make sure we are still ok
-wrt to std practices for new code.
-In the compiler we should do the same for both implicit decls and
-the new constructs.
+XXX: must continue w/ all.bash until we get a working
+compiler that can't handle ok := c <- v, (doesn't call chansend2)
+and then use it to run mkbuiltin.go and get chansend2 as a builtin,
+then we can uncomment that code and run all.bash again.
+
 
 To install:
 	GOROOT=`pwd`

@@ -409,10 +409,10 @@ func instrumentnode(np **Node, init *Nodes, wr int, skip int) {
 		ORETURN,
 		ORETJMP,
 		OSELECT,
-		ODOSELECT,
+		ODOSELECT,	// nemo
 		OEMPTY,
 		OBREAK,
-		OCBREAK,
+		OCBREAK,	// nemo
 		OCONTINUE,
 		OFALL,
 		OGOTO,

@@ -1505,7 +1505,7 @@ func (p *exporter) stmt(n *Node) {
 		p.expr(n.Right)
 		p.stmtList(n.Nbody)
 
-	case OSELECT, OSWITCH:
+	case OSELECT, ODOSELECT, OSWITCH:	//[nemo] doselect
 		p.op(op)
 		p.stmtList(n.Ninit)
 		p.exprsOrNil(n.Left, nil)
@@ -1519,7 +1519,7 @@ func (p *exporter) stmt(n *Node) {
 	case OFALL, OXFALL:
 		p.op(OXFALL)
 
-	case OBREAK, OCONTINUE:
+	case OBREAK, OCBREAK, OCONTINUE:	// nemo: cbreak
 		p.op(op)
 		p.exprsOrNil(n.Left, nil)
 

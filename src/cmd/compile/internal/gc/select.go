@@ -332,6 +332,7 @@ func walkselect(sel *Node) {
 		r.Nbody.Append(Nod(OVARKILL, selv, nil))
 
 		r.Nbody.AppendNodes(&cas.Nbody)
+		// nemo: compiler generated break is OCBREAK now
 		r.Nbody.Append(Nod(OCBREAK, nil, nil))
 		init = append(init, r)
 	}

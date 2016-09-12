@@ -118,12 +118,12 @@ var opnames = []string{
 	OCOMPLEX:         "COMPLEX",
 	OBLOCK:           "BLOCK",
 	OBREAK:           "BREAK",
-	OCBREAK:          "CBREAK",
+	OCBREAK:          "CBREAK",	// nemo
 	OCASE:            "CASE",
 	OXCASE:           "XCASE",
 	OCONTINUE:        "CONTINUE",
 	ODEFER:           "DEFER",
-	ODOSELECT:        "DOSELECT",
+	ODOSELECT:        "DOSELECT",	// nemo
 	OEMPTY:           "EMPTY",
 	OFALL:            "FALL",
 	OXFALL:           "XFALL",

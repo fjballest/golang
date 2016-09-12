@@ -213,7 +213,7 @@ func walkstmt(n *Node) *Node {
 		n = addinit(n, init.Slice())
 
 	case OBREAK,
-		OCBREAK,
+		OCBREAK,	// nemo
 		OCONTINUE,
 		OFALL,
 		OGOTO,
@@ -354,7 +354,7 @@ func walkstmt(n *Node) *Node {
 	case ORETJMP:
 		break
 
-	case OSELECT, ODOSELECT:
+	case OSELECT, ODOSELECT:	// nemo: doselect
 		walkselect(n)
 
 	case OSWITCH:
@@ -1398,11 +1398,11 @@ opswitch:
 		// a nil 2nd argument; but it's ok for now.
 		if n.Right == nil {
 			fn := syslook("closechan")
-			substArgTypes(fn, n.Left.Type)
+			fn = substArgTypes(fn, n.Left.Type)
 			n = mkcall1(fn, nil, init, n.Left)
 		} else {
 			fn := syslook("closechan2")
-			substArgTypes(fn, n.Left.Type)
+			fn = substArgTypes(fn, n.Left.Type)
 			n = mkcall1(fn, nil, init, n.Left, n.Right)
 		}
 		// was: n = mkcall1(fn, nil, init, n.Left)
@@ -1598,11 +1598,12 @@ opswitch:
 		n1 = assignconv(n1, n.Left.Type.Elem(), "chan send")
 		n1 = walkexpr(n1, init)
 		n1 = Nod(OADDR, n1, nil)
-		n = mkcall1(chanfn("chansend2", 2, n.Left.Type),
-			Types[TBOOL], init, typename(n.Left.Type), n.Left, n1)
-		n.Type = Types[TBOOL]
-		// was: n = mkcall1(chanfn("chansend1", 2, n.Left.Type),
-		//	nil, init, typename(n.Left.Type), n.Left, n1)
+// XXX:
+//		n = mkcall1(chanfn("chansend2", 2, n.Left.Type),
+//			Types[TBOOL], init, typename(n.Left.Type), n.Left, n1)
+//		n.Type = Types[TBOOL]
+		n = mkcall1(chanfn("chansend1", 2, n.Left.Type),
+			nil, init, typename(n.Left.Type), n.Left, n1)
 	case OCLOSURE:
 		n = walkclosure(n, init)
 

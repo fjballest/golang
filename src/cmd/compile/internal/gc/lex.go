@@ -146,7 +146,7 @@ const (
 	LRANGE
 	LRETURN
 	LSELECT
-	LDOSELECT
+	LDOSELECT	// nemo
 	LSTRUCT
 	LSWITCH
 	LTYPE
@@ -188,7 +188,7 @@ var lexn = map[rune]string{
 	LRANGE:     "RANGE",
 	LRETURN:    "RETURN",
 	LSELECT:    "SELECT",
-	LDOSELECT:  "DOSELECT",
+	LDOSELECT:  "DOSELECT",	// nemo
 	LSTRUCT:    "STRUCT",
 	LSWITCH:    "SWITCH",
 	LTYPE:      "TYPE",
@@ -590,7 +590,7 @@ var keywords = map[string]int32{
 	"continue":    LCONTINUE,
 	"default":     LDEFAULT,
 	"defer":       LDEFER,
-	"doselect":    LDOSELECT,
+	"doselect":    LDOSELECT,	// nemo
 	"else":        LELSE,
 	"fallthrough": LFALL,
 	"for":         LFOR,

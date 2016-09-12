@@ -15,7 +15,7 @@ package gc
 // nemo: Changes for lsub:
 //	doselect {...}
 //		equivalent to for{ select{...}} but for break,
-//		which breaks the for loop
+//		which breaks the for loop and not the select stmt.
 //	struct N {...} at top level is type N struct {...}
 //	interface N {...} at top level is type N interface {...}
 //	The same goes for struct ( A {...}; B {...} ... ) and interface ( ... )
@@ -50,7 +50,6 @@ type parser struct {
 
 	// TODO(gri) remove this once we switch to binary export format
 	structpkg *Pkg // for verification in addmethod only
-	doselectlbl *Node	// nemo: to rewrite break/continue in doselect.
 }
 
 // newparser returns a new parser ready to parse from src.
@@ -156,10 +155,10 @@ var stoplist = map[int32]bool{
 	LIF:       true,
 	LRETURN:   true,
 	LSELECT:   true,
+	LDOSELECT: true,	// [nemo]
 	LSWITCH:   true,
 	LTYPE:     true,
 	LVAR:      true,
-	LDOSELECT: true,	// [nemo]
 }
 
 // Advance consumes tokens until it finds a token of the stop- or followlist.
@@ -1002,11 +1001,6 @@ func (p *parser) for_body() *Node {
 	}
 
 	stmt := p.for_header()
-	old := p.doselectlbl
-	p.doselectlbl = nil
-	defer func() {
-		p.doselectlbl = old
-	}()
 	body := p.loop_body("for clause")
 
 	stmt.Nbody.Append(body...)
@@ -1166,11 +1160,6 @@ func (p *parser) select_stmt() *Node {
 
 	p.want(LSELECT)
 	hdr := Nod(OSELECT, nil, nil)
-	old := p.doselectlbl
-	p.doselectlbl = nil
-	defer func() {
-		p.doselectlbl = old
-	}()
 	hdr.List.Set(p.caseblock_list(nil))
 	return hdr
 }
@@ -1178,32 +1167,22 @@ func (p *parser) select_stmt() *Node {
 // [nemo]
 // DoSelectStmt = "doselect" [ Condition | ForClause ]  {" { CommClause } "}" .
 // This is rewritten to
-// 	Lbl:
 //		for [ Condition | ForClause ] {
 //			select {
 //				{ CommClause }
 //			}
 //		}
 //
-// Within doselect, breaks and continues refer to Lbl.
+// Within doselect, breaks and continues refer to the for loop.
+// the node for select is ODOSELECT, not OSELECT, to know it's a doselect.
 //
 func (p *parser) doselect_stmt() *Node {
 	if trace && Debug['x'] != 0 {
 		defer p.trace("doselect_stmt")()
 	}
 
-	// XXX: THey changed the structure, this may be wrong now.
 	p.want(LDOSELECT)
 
-	// label
-	lname := newCaseLabel()
-	lbl := Nod(OLABEL, lname, nil)
-	lbl.Sym = dclstack
-	old := p.doselectlbl
-	p.doselectlbl = lbl
-	defer func() {
-		p.doselectlbl = old
-	}()
 	// for
 	markdcl();
 	dostmt := p.for_header();
@@ -1215,12 +1194,11 @@ func (p *parser) doselect_stmt() *Node {
 	sstmt := Nod(ODOSELECT, nil, nil)
 	sstmt.List.Set(p.caseblock_list(nil))
 
+	// end for
 	dostmt.Nbody.Append(sstmt)
 	popdcl();
 
-	// return a labeled_stmt() for the entire doselect
-	lbl.Name.Defn = dostmt
-	return liststmt([]*Node{lbl})
+	return dostmt;
 }
 
 // Expression = UnaryExpr | Expression binary_op Expression .
@@ -2661,19 +2639,11 @@ func (p *parser) stmt() *Node {
 
 	case LBREAK:
 		p.next()
-		nm := p.onew_name()
-		if nm == nil {
-			nm = p.doselectlbl
-		}
-		return Nod(OBREAK, nm, nil)
+		return Nod(OBREAK, p.onew_name(), nil)
 
 	case LCONTINUE:
 		p.next()
-		nm := p.onew_name()
-		if nm == nil {
-			nm = p.doselectlbl
-		}
-		return Nod(OCONTINUE, nm, nil)
+		return Nod(OCONTINUE, p.onew_name(), nil)
 
 	case LGO:
 		p.next()

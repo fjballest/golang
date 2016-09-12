@@ -1036,7 +1036,7 @@ func (p *importer) node() *Node {
 		popdcl()
 		return n
 
-	case OSELECT, OSWITCH:
+	case OSELECT, ODOSELECT, OSWITCH:	//[nemo] doselect
 		markdcl()
 		n := Nod(op, nil, nil)
 		n.Ninit.Set(p.stmtList())
@@ -1067,7 +1067,7 @@ func (p *importer) node() *Node {
 		n.Xoffset = int64(block)
 		return n
 
-	case OBREAK, OCONTINUE:
+	case OBREAK, OCBREAK, OCONTINUE:	// nemo: cbreak
 		left, _ := p.exprsOrNil()
 		if left != nil {
 			left = newname(left.Sym)

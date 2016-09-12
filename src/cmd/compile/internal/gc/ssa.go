@@ -252,7 +252,8 @@ type state struct {
 	exitCode Nodes
 
 	// unlabeled break and continue statement tracking
-	breakTo    *ssa.Block // current target for plain break statement
+	ubreakTo    *ssa.Block // current target for plain user break statement
+	breakTo    *ssa.Block // idem for user or compiler generated break
 	continueTo *ssa.Block // current target for plain continue statement
 
 	// current location where we're interpreting the AST
@@ -311,6 +312,8 @@ type ssaLabel struct {
 	// Label use Node (OGOTO, OBREAK, OCONTINUE).
 	// Used only for error detection and reporting.
 	// There might be multiple uses, but we only need to track one.
+	// nemo: this might use OCBREAK although it's a compiler generated break
+	// and it's unlikely that's needed.
 	useNode  *Node
 	reported bool // reported indicates whether an error has already been reported for this label
 }
@@ -611,7 +614,7 @@ func (s *state) stmt(n *Node) {
 		// Associate label with its control flow node, if any
 		if ctl := n.Name.Defn; ctl != nil {
 			switch ctl.Op {
-			case OFOR, OSWITCH, OSELECT:
+			case OFOR, OSWITCH, OSELECT, ODOSELECT: // nemo: doselect
 				s.labeledNodes[ctl] = lab
 			}
 		}
@@ -801,14 +804,21 @@ func (s *state) stmt(n *Node) {
 		b.Kind = ssa.BlockRetJmp // override BlockRet
 		b.Aux = n.Left.Sym
 
-	case OCONTINUE, OBREAK:
+	case OCONTINUE, OBREAK, OCBREAK:	// nemo: cbreak
 		var op string
 		var to *ssa.Block
 		switch n.Op {
 		case OCONTINUE:
 			op = "continue"
 			to = s.continueTo
+
 		case OBREAK:
+			// nemo: user breaks go to ubreakTo, which never
+			// reference a select within a doselect loop.
+			op = "break"
+			to = s.ubreakTo
+		case OCBREAK:
+			// nemo: compiler generated breaks work as usual
 			op = "break"
 			to = s.breakTo
 		}
@@ -834,7 +844,7 @@ func (s *state) stmt(n *Node) {
 			switch n.Op {
 			case OCONTINUE:
 				to = lab.continueTarget
-			case OBREAK:
+			case OBREAK, OCBREAK:	// nemo: cbreak
 				to = lab.breakTarget
 			}
 			if to == nil {
@@ -876,9 +886,9 @@ func (s *state) stmt(n *Node) {
 
 		// set up for continue/break in body
 		prevContinue := s.continueTo
-		prevBreak := s.breakTo
+		prevBreak, prevuBreak := s.breakTo, s.ubreakTo
 		s.continueTo = bIncr
-		s.breakTo = bEnd
+		s.breakTo, s.ubreakTo = bEnd, bEnd
 		lab := s.labeledNodes[n]
 		if lab != nil {
 			// labeled for loop
@@ -892,7 +902,7 @@ func (s *state) stmt(n *Node) {
 
 		// tear down continue/break
 		s.continueTo = prevContinue
-		s.breakTo = prevBreak
+		s.breakTo, s.ubreakTo = prevBreak, prevuBreak
 		if lab != nil {
 			lab.continueTarget = nil
 			lab.breakTarget = nil
@@ -913,13 +923,16 @@ func (s *state) stmt(n *Node) {
 		}
 		s.startBlock(bEnd)
 
-	case OSWITCH, OSELECT:
+	case OSWITCH, OSELECT, ODOSELECT:	// nemo: doselect
 		// These have been mostly rewritten by the front end into their Nbody fields.
 		// Our main task is to correctly hook up any break statements.
 		bEnd := s.f.NewBlock(ssa.BlockPlain)
 
-		prevBreak := s.breakTo
+		prevBreak, prevuBreak := s.breakTo, s.ubreakTo
 		s.breakTo = bEnd
+		if n.Op != ODOSELECT {
+			s.ubreakTo = bEnd
+		}
 		lab := s.labeledNodes[n]
 		if lab != nil {
 			// labeled
@@ -929,7 +942,7 @@ func (s *state) stmt(n *Node) {
 		// generate body code
 		s.stmts(n.Nbody)
 
-		s.breakTo = prevBreak
+		s.breakTo, s.ubreakTo = prevBreak, prevuBreak
 		if lab != nil {
 			lab.breakTarget = nil
 		}
@@ -937,6 +950,7 @@ func (s *state) stmt(n *Node) {
 		// OSWITCH never falls through (s.curBlock == nil here).
 		// OSELECT does not fall through if we're calling selectgo.
 		// OSELECT does fall through if we're calling selectnb{send,recv}[2].
+		// ODOSELECT is like OSELECT	[nemo]
 		// In those latter cases, go to the code after the select.
 		if b := s.endBlock(); b != nil {
 			b.AddEdgeTo(bEnd)

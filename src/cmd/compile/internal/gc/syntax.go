@@ -442,7 +442,7 @@ const (
 	ORANGE    // for List = range Right { Nbody }
 	ORETURN   // return List
 	OSELECT   // select { List } (List is list of OXCASE or OCASE)
-	ODOSELECT // doselect [nemo]
+	ODOSELECT // like OSELECT, for selects part of doselect {...}
 	OSWITCH   // switch Ninit; Left { List } (List is a list of OXCASE or OCASE)
 	OTYPESW   // List = Left.(type) (appears as .Left of OSWITCH)
 

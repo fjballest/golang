@@ -2021,7 +2021,7 @@ OpSwitch:
 		break OpSwitch
 
 	case OBREAK,
-		OCBREAK,
+		OCBREAK,	// nemo
 		OCONTINUE,
 		ODCL,
 		OEMPTY,
@@ -2104,7 +2104,7 @@ OpSwitch:
 		ok |= Etop
 		break OpSwitch
 
-	case OSELECT, ODOSELECT:
+	case OSELECT, ODOSELECT:	// nemo: doselect
 		ok |= Etop
 		typecheckselect(n)
 		break OpSwitch
@@ -3860,7 +3860,7 @@ func markbreak(n *Node, implicit *Node) {
 		OSWITCH,
 		OTYPESW,
 		OSELECT,
-		ODOSELECT,
+		ODOSELECT,	// nemo
 		ORANGE:
 		implicit = n
 		fallthrough

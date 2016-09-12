@@ -769,7 +769,7 @@ func gen(n *Node) {
 		if n.Name.Defn != nil {
 			switch n.Name.Defn.Op {
 			// so stmtlabel can find the label
-			case OFOR, OSWITCH, OSELECT, ODOSELECT:
+			case OFOR, OSWITCH, OSELECT, ODOSELECT: // nemo: doselect
 				n.Name.Defn.Sym = lab.Sym
 			}
 		}
@@ -791,6 +791,9 @@ func gen(n *Node) {
 		}
 
 	case OBREAK, OCBREAK:
+		// nemo: cbreaks are used now for compiler generated breaks
+		// so a break in doselect breaks the for loop if it's a
+		// user break but not if it's a break to end a case.
 		if n.Left != nil {
 			lab := n.Left.Sym.Label
 			if lab == nil {
@@ -901,6 +904,8 @@ func gen(n *Node) {
 			lab.Breakpc = nil
 		}
 
+	// nemo: doselect and make user breaks refer to the enclosing
+	// loop for doselects.
 	case OSELECT, ODOSELECT:
 		sbreak, subreak := breakpc, ubreakpc
 		p1 := gjmp(nil)     //		goto test
