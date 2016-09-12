@@ -12,7 +12,7 @@ package gc
 // Semicolons are inserted by the lexer. The parser uses one-token look-ahead
 // to handle optional commas and semicolons before a closing ) or } .
 
-// Changes for lsub:
+// nemo: Changes for lsub:
 //	doselect {...}
 //		equivalent to for{ select{...}} but for break,
 //		which breaks the for loop
@@ -50,6 +50,7 @@ type parser struct {
 
 	// TODO(gri) remove this once we switch to binary export format
 	structpkg *Pkg // for verification in addmethod only
+	doselectlbl *Node	// nemo: to rewrite break/continue in doselect.
 }
 
 // newparser returns a new parser ready to parse from src.
@@ -158,7 +159,7 @@ var stoplist = map[int32]bool{
 	LSWITCH:   true,
 	LTYPE:     true,
 	LVAR:      true,
-	LDOSELECT:   true,	// [nemo]
+	LDOSELECT: true,	// [nemo]
 }
 
 // Advance consumes tokens until it finds a token of the stop- or followlist.
@@ -240,7 +241,7 @@ var tokstrings = map[int32]string{
 	LRANGE:     "range",
 	LRETURN:    "return",
 	LSELECT:    "select",
-	LDOSELECT: "doselect",	// [nemo]
+	LDOSELECT:  "doselect",	// [nemo]
 	LSTRUCT:    "struct",
 	LSWITCH:    "switch",
 	LTYPE:      "type",
@@ -1001,6 +1002,11 @@ func (p *parser) for_body() *Node {
 	}
 
 	stmt := p.for_header()
+	old := p.doselectlbl
+	p.doselectlbl = nil
+	defer func() {
+		p.doselectlbl = old
+	}()
 	body := p.loop_body("for clause")
 
 	stmt.Nbody.Append(body...)
@@ -1160,12 +1166,27 @@ func (p *parser) select_stmt() *Node {
 
 	p.want(LSELECT)
 	hdr := Nod(OSELECT, nil, nil)
+	old := p.doselectlbl
+	p.doselectlbl = nil
+	defer func() {
+		p.doselectlbl = old
+	}()
 	hdr.List.Set(p.caseblock_list(nil))
 	return hdr
 }
 
 // [nemo]
 // DoSelectStmt = "doselect" [ Condition | ForClause ]  {" { CommClause } "}" .
+// This is rewritten to
+// 	Lbl:
+//		for [ Condition | ForClause ] {
+//			select {
+//				{ CommClause }
+//			}
+//		}
+//
+// Within doselect, breaks and continues refer to Lbl.
+//
 func (p *parser) doselect_stmt() *Node {
 	if trace && Debug['x'] != 0 {
 		defer p.trace("doselect_stmt")()
@@ -1173,6 +1194,16 @@ func (p *parser) doselect_stmt() *Node {
 
 	// XXX: THey changed the structure, this may be wrong now.
 	p.want(LDOSELECT)
+
+	// label
+	lname := newCaseLabel()
+	lbl := Nod(OLABEL, lname, nil)
+	lbl.Sym = dclstack
+	old := p.doselectlbl
+	p.doselectlbl = lbl
+	defer func() {
+		p.doselectlbl = old
+	}()
 	// for
 	markdcl();
 	dostmt := p.for_header();
@@ -1180,12 +1211,16 @@ func (p *parser) doselect_stmt() *Node {
 		Yyerror("range not allowed in "+tokstrings[LDOSELECT]+" header")
 	}
 
+	// select
 	sstmt := Nod(ODOSELECT, nil, nil)
 	sstmt.List.Set(p.caseblock_list(nil))
 
 	dostmt.Nbody.Append(sstmt)
 	popdcl();
-	return dostmt
+
+	// return a labeled_stmt() for the entire doselect
+	lbl.Name.Defn = dostmt
+	return liststmt([]*Node{lbl})
 }
 
 // Expression = UnaryExpr | Expression binary_op Expression .
@@ -2626,11 +2661,19 @@ func (p *parser) stmt() *Node {
 
 	case LBREAK:
 		p.next()
-		return Nod(OBREAK, p.onew_name(), nil)
+		nm := p.onew_name()
+		if nm == nil {
+			nm = p.doselectlbl
+		}
+		return Nod(OBREAK, nm, nil)
 
 	case LCONTINUE:
 		p.next()
-		return Nod(OCONTINUE, p.onew_name(), nil)
+		nm := p.onew_name()
+		if nm == nil {
+			nm = p.doselectlbl
+		}
+		return Nod(OCONTINUE, nm, nil)
 
 	case LGO:
 		p.next()
