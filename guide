@@ -1,11 +1,6 @@
 In short, we all work in the lsub branch, and keep the master branch for google
 version.
 
-XXX: must continue w/ all.bash until we get a working
-compiler that can't handle ok := c <- v, (doesn't call chansend2)
-and then use it to run mkbuiltin.go and get chansend2 as a builtin,
-then we can uncomment that code and run all.bash again.
-
 
 To install:
 	GOROOT=`pwd`
@@ -99,7 +94,10 @@ As an aid, you can see the old/new files with
 	git show go1.7.1:src/cmd/compile/internal/gc/builtin.go >/tmp/2
 	cd ... ; 9 diff -n main.go /tmp/2
 
-	git checkout merge17
+When done, merge changes back to the lsub tree
+	git checkout lsub
+	git merge merge17
+
 Push resulting changes to lsub's master
 	git push
 

@@ -5,10 +5,16 @@ import (
 	"fmt"
 )
 
+// These are tests for lsub go that use the syntax of lsub go and are not
+// correct for the parser of std go.
+
 // If you get a syntax error here, most of this package won't compile.
 // It means that you are not using the lsub compiler or that you are not using
 // the lsub src/go/... packages to parse Go sources.
 // We changed the syntax, as you probably know.
+
+
+
 struct funPoint {		// it's 'struct {...}' implicitly
 	x, y int
 	xc  chan face{}	// it's interface{} implicictly

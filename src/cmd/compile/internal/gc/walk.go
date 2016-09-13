@@ -1384,12 +1384,12 @@ opswitch:
 
 	case OCCLOSED:
 		fn := syslook("cclosed")
-		substArgTypes(fn, n.Left.Type)
+		fn = substArgTypes(fn, n.Left.Type)
 		n = mkcall1(fn, Types[TBOOL], init, n.Left)
 
 	case OCERROR:
 		fn := syslook("cerror")
-		substArgTypes(fn, n.Left.Type)
+		fn = substArgTypes(fn, n.Left.Type)
 		n = mkcall1(fn, errortype, init, n.Left)
 
 		// cannot use chanfn - closechan takes any, not chan any

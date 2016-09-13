@@ -250,7 +250,8 @@ func test1(c Chan) {
 	}
 
 	// send should work with ,ok too: sent a value without blocking, so ok == true.
-	shouldPanic(func() { c.Nbsend(1) })
+	// nemo: not for lsub
+	// shouldPanic(func() { c.Nbsend(1) })
 
 	// the value should have been discarded.
 	if x := c.Recv(); x != 0 {
@@ -259,7 +260,8 @@ func test1(c Chan) {
 	}
 
 	// similarly Send.
-	shouldPanic(func() { c.Send(2) })
+	// nemo: not for lsub
+	// shouldPanic(func() { c.Send(2) })
 	if x := c.Recv(); x != 0 {
 		println("test1: recv on closed got non-zero after send on closed:", x, c.Impl())
 		failed = true
@@ -342,16 +344,17 @@ func main() {
 		}
 	}
 	
-	var ch chan int	
-	shouldPanic(func() {
-		close(ch)
-	})
+	// nemo: not for lsub
+	// nvar ch chan int	
+	// nshouldPanic(func() {
+	// n	close(ch)
+	// n})
 	
-	ch = make(chan int)
-	close(ch)
-	shouldPanic(func() {
-		close(ch)
-	})
+	// nch = make(chan int)
+	// nclose(ch)
+	// nshouldPanic(func() {
+	// n	close(ch)
+	// n})
 
 	if failed {
 		os.Exit(1)

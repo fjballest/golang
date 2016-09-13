@@ -102,7 +102,8 @@ func main() {
 	})
 
 	// sending to a closed channel panics.
-	testPanic(always, func() {
+	// nemo: not for lsub
+	testPanic(never, func() {
 		closedch <- 7
 	})
 
@@ -207,7 +208,9 @@ func main() {
 			_, _ = x, ok
 		}
 	})
-	testPanic(always, func() {
+
+	// nemo: not for lsub go
+	testPanic(never, func() {
 		select {
 		case closedch <- 7:
 		}
