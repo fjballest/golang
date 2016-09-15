@@ -40,8 +40,8 @@ var opnames = []string{
 	OCALLINTER:       "CALLINTER",
 	OCALLPART:        "CALLPART",
 	OCAP:             "CAP",
-	OCCLOSED:         "CCLOSED",
-	OCERROR:          "CERROR",
+	OCCLOSED:         "CCLOSED",	// nemo
+	OCERROR:          "CERROR",	// nemo
 	OCLOSE:           "CLOSE",
 	OCLOSURE:         "CLOSURE",
 	OCMPIFACE:        "CMPIFACE",
